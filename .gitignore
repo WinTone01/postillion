@@ -1,0 +1,28 @@
+# Bağımlılıklar
+node_modules/
+
+# Derleme çıktıları
+dist/
+src-tauri/target/
+
+# Tauri üretilen şemalar — derlemede yeniden oluşuyor
+src-tauri/gen/
+
+# Ortam ve yerel ayarlar
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+
+# Editör
+.vscode/
+.idea/
+*.swp
+
+# İşletim sistemi
+.DS_Store
+Thumbs.db
+
+# Günlükler
+*.log
+npm-debug.log*
