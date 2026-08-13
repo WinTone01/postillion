@@ -5,7 +5,8 @@
 # Installs to ~/.local by default, which needs no root and follows the XDG
 # layout. Pass --system for /usr/local (requires root).
 #
-# The release binary is built if it is missing. Bundling (deb/AppImage) is
+# The release binary is rebuilt every run so an install always ships current
+# sources; pass --no-build to reuse an existing one. Bundling (deb/AppImage) is
 # skipped on purpose: this script places the binary, desktop entry and icons
 # itself, so no extra packaging tooling is required.
 
@@ -20,7 +21,7 @@ RELEASE_BIN="$REPO_ROOT/src-tauri/target/release/$BIN_NAME"
 ICON_DIR="$REPO_ROOT/src-tauri/icons"
 
 PREFIX="$HOME/.local"
-FORCE_BUILD=0
+SKIP_BUILD=0
 
 usage() {
   cat <<EOF
@@ -29,7 +30,7 @@ Usage: $(basename "$0") [options]
 Options:
   --system       Install to /usr/local for all users (requires root)
   --prefix PATH  Install under a custom prefix
-  --build        Rebuild the release binary even if one exists
+  --no-build     Reuse the existing release binary instead of rebuilding
   -h, --help     Show this help
 EOF
 }
@@ -38,7 +39,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --system) PREFIX="/usr/local"; shift ;;
     --prefix) PREFIX="${2:?--prefix needs a path}"; shift 2 ;;
-    --build)  FORCE_BUILD=1; shift ;;
+    --no-build) SKIP_BUILD=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -72,7 +73,15 @@ fi
 
 # --- binary ------------------------------------------------------------------
 
-if [[ ! -x "$RELEASE_BIN" || "$FORCE_BUILD" -eq 1 ]]; then
+# Rebuild by default. Reusing a stale binary is the more damaging failure: the
+# install looks like it succeeded while shipping whatever was compiled last.
+# Cargo and Vite both skip unchanged work, so a no-op rebuild is cheap.
+if [[ "$SKIP_BUILD" -eq 1 && -x "$RELEASE_BIN" ]]; then
+  log "Reusing existing release binary (--no-build)"
+else
+  if [[ "$SKIP_BUILD" -eq 1 ]]; then
+    warn "--no-build given but no binary exists yet — building anyway"
+  fi
   log "Building release binary (this takes a few minutes)"
 
   command -v npm >/dev/null   || die "npm not found — needed to build"

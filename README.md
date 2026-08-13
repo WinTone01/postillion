@@ -53,9 +53,11 @@ cd postillion
 ./scripts/install.sh
 ```
 
-The script builds the release binary if needed, then installs it to `~/.local`
-along with a desktop entry and icons — no root, no packaging tools. Pass
-`--system` to install to `/usr/local`, or `--prefix PATH` for somewhere else.
+The script rebuilds the release binary, then installs it to `~/.local` along
+with a desktop entry and icons — no root, no packaging tools. Rebuilding is the
+default so an install always ships current sources; pass `--no-build` to reuse
+an existing binary. Use `--system` to install to `/usr/local`, or
+`--prefix PATH` for somewhere else.
 
 Removal:
 
