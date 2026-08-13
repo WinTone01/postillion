@@ -6,6 +6,7 @@ import AccountSidebar from "@/components/AccountSidebar";
 import ChatView from "@/components/ChatView";
 import SessionList from "@/components/SessionList";
 import CommandPalette from "@/components/CommandPalette";
+import type { MascotState } from "@/components/Mascot";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import SettingsView from "@/components/SettingsView";
@@ -36,6 +37,21 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Yeni sekmeler bu tercihlerle başlatılıyor (efor sonradan değiştirilemiyor).
   const [prefs, setPrefs] = useState<Preferences>({});
+  // Sekme başına maskot durumu; kenar çubuğu en dikkat çekeni gösteriyor.
+  const [tabStates, setTabStates] = useState<Record<string, MascotState>>({});
+
+  const reportTabState = useCallback((id: string, next: MascotState) => {
+    setTabStates((prev) => (prev[id] === next ? prev : { ...prev, [id]: next }));
+  }, []);
+
+  // Öncelik sırası: en çok ilgi isteyen durum kazanır.
+  const mascotState: MascotState = useMemo(() => {
+    const values = Object.values(tabStates);
+    for (const candidate of ["error", "waiting", "working", "thinking"] as const) {
+      if (values.includes(candidate)) return candidate;
+    }
+    return "idle";
+  }, [tabStates]);
 
   const account = useMemo(
     () => accounts.find((a) => a.name === selected),
@@ -82,6 +98,11 @@ export default function App() {
   function closeTab(id: string) {
     void api.agentStop(id).catch(() => {});
     releaseAgentSession(id);
+    setTabStates((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     setTabs((prev) => prev.filter((t) => t.options.id !== id));
     setView({ kind: "sessions" });
   }
@@ -189,6 +210,7 @@ export default function App() {
           onCreate={createAccount}
           onDelete={remove}
           onLogin={login}
+          mascotState={mascotState}
           navActive={
             view.kind === "sessions" ? "sessions" : view.kind === "settings" ? "settings" : null
           }
@@ -279,6 +301,7 @@ export default function App() {
               >
                 <ChatView
                   gitBranch={tab.gitBranch}
+                  onStateChange={reportTabState}
                   options={tab.options}
                   title={tab.title}
                 />

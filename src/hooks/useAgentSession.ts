@@ -51,6 +51,17 @@ export interface AgentSessionOptions {
 const startedAgents = new Set<string>();
 const loadedHistories = new Set<string>();
 
+/**
+ * Token deltalarının toplu uygulanma aralığı (ms).
+ *
+ * `--include-partial-messages` saniyede onlarca `stream_event` üretiyor ve her
+ * biri ayrı bir React render'ı tetikliyordu. Her render Streamdown'ın markdown'ı
+ * baştan ayrıştırmasına yol açtığı için metin akıcı değil, kesik kesik
+ * görünüyordu. ~45 ms'lik pencere saniyede ~22 render demek: göz için akıcı,
+ * işlemci için ucuz.
+ */
+const STREAM_FLUSH_MS = 45;
+
 /** Sekme kapanınca çağrılır; aynı kimlik yeniden kullanılabilsin diye. */
 export function releaseAgentSession(id: string) {
   startedAgents.delete(id);
@@ -67,6 +78,19 @@ export function useAgentSession(options: AgentSessionOptions | null) {
   const [state, setState] = useState<SessionState>(initialState);
   const [running, setRunning] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Bekleyen akış eventleri ve zamanlayıcısı.
+  const bufferRef = useRef<Array<Record<string, unknown>>>([]);
+  const flushTimerRef = useRef<number | null>(null);
+
+  const flush = useCallback(() => {
+    flushTimerRef.current = null;
+    const batch = bufferRef.current;
+    if (batch.length === 0) return;
+    bufferRef.current = [];
+    // Tüm parti tek setState'te; sıra korunuyor.
+    setState((prev) => batch.reduce(reduce, prev));
+  }, []);
 
   // Effect yalnızca oturum kimliğine bağlı. `options` nesnesine bağlarsak
   // kimliği değişen her render'da dinleyiciler gereksiz yere sökülür.
@@ -91,7 +115,25 @@ export function useAgentSession(options: AgentSessionOptions | null) {
       // 1) Dinleyiciler her effect turunda yeniden bağlanır.
       const onEvent = await listen<AgentEvent>("agent://event", (e) => {
         if (e.payload.id !== opts.id) return;
-        setState((prev) => reduce(prev, e.payload.payload));
+
+        const payload = e.payload.payload;
+        // Her şey tampona giriyor ki olay sırası bozulmasın.
+        bufferRef.current.push(payload);
+
+        if (payload.type === "stream_event") {
+          // Yalnızca yüksek frekanslı deltalar bekletiliyor.
+          if (flushTimerRef.current === null) {
+            flushTimerRef.current = window.setTimeout(flush, STREAM_FLUSH_MS);
+          }
+          return;
+        }
+
+        // Tamamlanmış mesaj, izin isteği, tur sonu: gecikmesiz uygulanmalı.
+        if (flushTimerRef.current !== null) {
+          clearTimeout(flushTimerRef.current);
+          flushTimerRef.current = null;
+        }
+        flush();
       });
       const onStderr = await listen<StderrEvent>("agent://stderr", (e) => {
         if (e.payload.id !== opts.id) return;
@@ -177,9 +219,13 @@ export function useAgentSession(options: AgentSessionOptions | null) {
 
     return () => {
       disposed = true;
+      if (flushTimerRef.current !== null) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
       unlisteners.forEach((un) => un());
     };
-  }, [sessionKey]);
+  }, [sessionKey, flush]);
 
   const send = useCallback(
     async (text: string) => {

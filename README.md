@@ -50,19 +50,28 @@ and a Rust toolchain.
 ```bash
 git clone https://github.com/WinTone01/postillion
 cd postillion
+./scripts/install.sh
+```
+
+The script builds the release binary if needed, then installs it to `~/.local`
+along with a desktop entry and icons — no root, no packaging tools. Pass
+`--system` to install to `/usr/local`, or `--prefix PATH` for somewhere else.
+
+Removal:
+
+```bash
+./scripts/uninstall.sh
+```
+
+Only files the installer created are removed. `~/.claude` — your sessions,
+credentials and settings — is never touched. Extra accounts in
+`~/.claude-accounts` survive too unless you pass `--purge-accounts`.
+
+### Development
+
+```bash
 npm install
-npm run tauri dev
-```
-
-Build a release bundle:
-
-```bash
-npm run tauri build
-```
-
-Run the tests:
-
-```bash
+npm run tauri dev      # dev server with hot reload
 cd src-tauri && cargo test
 ```
 

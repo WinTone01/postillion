@@ -45,6 +45,7 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import DiffView from "@/components/DiffView";
+import type { MascotState } from "@/components/Mascot";
 import { diffFromToolInput } from "@/lib/diff";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,6 +64,8 @@ interface Props {
   options: AgentSessionOptions;
   title: string;
   gitBranch: string | null;
+  /** Maskotun beslendiği durum; üst bileşen sekmeler arasında topluyor. */
+  onStateChange?: (id: string, state: MascotState) => void;
 }
 
 /**
@@ -268,7 +271,7 @@ function SlashPalette({ commands }: { commands: SlashCommand[] }) {
 /** `/effort` bir slash komutu; süren oturumda da çalışıyor (ölçüldü). */
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 
-export default function ChatView({ options, title, gitBranch }: Props) {
+export default function ChatView({ options, title, gitBranch, onStateChange }: Props) {
   const { state, running, loadingHistory, send, respondPermission, interrupt } =
     useAgentSession(options);
 
@@ -312,6 +315,24 @@ export default function ChatView({ options, title, gitBranch }: Props) {
       log("error", "model değiştirilemedi:", e);
     }
   }
+
+  // Oturumun durumunu maskot için tek bir değere indirger.
+  // Sıralama önem taşıyor: en çok ilgi isteyen durum kazanır.
+  const mascotState: MascotState = useMemo(() => {
+    const tools = state.messages.flatMap((m) =>
+      m.parts.filter((p): p is ToolPart => p.kind === "tool"),
+    );
+
+    if (state.errors.length > 0) return "error";
+    if (tools.some((t) => t.state === "approval-requested")) return "waiting";
+    if (tools.some((t) => t.state === "input-available")) return "working";
+    if (state.busy) return "thinking";
+    return "idle";
+  }, [state.messages, state.errors.length, state.busy]);
+
+  useEffect(() => {
+    onStateChange?.(options.id, mascotState);
+  }, [onStateChange, options.id, mascotState]);
 
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text?.trim();

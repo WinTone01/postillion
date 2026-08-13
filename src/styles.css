@@ -95,6 +95,17 @@
   --sidebar-ring: var(--ring);
 }
 
+/*
+ * Maskot iki tonlu: figür krem, gözler ve çanta askısı rozetin zemin rengiyle
+ * aynı — yani "oyulmuş" görünüyorlar. Rozet her iki temada da mercan olduğu
+ * için bu iki değer temaya göre değişmiyor.
+ */
+:root,
+.dark {
+  --mascot-ink: oklch(0.98 0.012 70);
+  --mascot-cutout: var(--primary);
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

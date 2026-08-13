@@ -12,6 +12,7 @@ import {
   XIcon,
 } from "lucide-react";
 
+import Mascot, { type MascotState } from "@/components/Mascot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,8 +31,19 @@ interface Props {
   onOpenSessions: () => void;
   /** Kenar çubuğundaki gezinmede hangisi seçili. */
   navActive: "sessions" | "settings" | null;
+  /** Maskotun yansıttığı genel uygulama durumu. */
+  mascotState: MascotState;
   busy: boolean;
 }
+
+/** Maskot süs değil, durum göstergesi — ekran okuyucu da görebilmeli. */
+const MASCOT_LABELS: Record<MascotState, string> = {
+  idle: "Boşta",
+  thinking: "Claude düşünüyor",
+  working: "Araç çalışıyor",
+  waiting: "İzin bekleniyor",
+  error: "Hata var",
+};
 
 /** İsimden iki harflik baş harf; avatar için. */
 function initials(account: Account): string {
@@ -52,6 +64,7 @@ export default function AccountSidebar({
   onOpenSettings,
   onOpenSessions,
   navActive,
+  mascotState,
   busy,
 }: Props) {
   const [adding, setAdding] = useState(false);
@@ -67,13 +80,17 @@ export default function AccountSidebar({
 
   return (
     <aside className="flex h-full w-[272px] shrink-0 flex-col border-r bg-sidebar">
-      <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
-        <div className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-          <span className="font-semibold text-sm">Po</span>
+      <div className="flex items-center gap-3 px-4 pt-4 pb-4">
+        {/* Maskot taşmadan hareket edebilsin diye kutu figürden belirgin
+            biçimde büyük; overflow-hidden yok. */}
+        <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary">
+          <Mascot className="size-9" label={MASCOT_LABELS[mascotState]} state={mascotState} />
         </div>
         <div className="min-w-0">
-          <h1 className="truncate font-semibold text-sm leading-tight">Postillion</h1>
-          <p className="truncate text-[11px] text-muted-foreground leading-tight">
+          <h1 className="truncate font-semibold text-lg leading-tight tracking-tight">
+            Postillion
+          </h1>
+          <p className="truncate text-muted-foreground text-xs leading-tight">
             Hesaplar arası oturum devamı
           </p>
         </div>
