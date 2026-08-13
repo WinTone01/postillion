@@ -132,6 +132,14 @@ for size in "${!ICONS[@]}"; do
   install -Dm644 "$src" "$ICON_ROOT/$size/apps/$BIN_NAME.png"
 done
 
+# Legacy fallback. Some launchers only consult pixmaps, and it costs one file.
+#
+# Deliberately NOT writing an index.theme into the user hicolor directory:
+# Qt searches ~/.local/share/icons first and parses the first index.theme it
+# finds, so a partial one there would shadow the system theme and break icon
+# lookup for other applications.
+install -Dm644 "$ICON_DIR/128x128.png" "$PREFIX/share/pixmaps/$BIN_NAME.png"
+
 log "Installing desktop entry to $DESKTOP_DIR"
 mkdir -p "$DESKTOP_DIR"
 cat > "$DESKTOP_DIR/$BIN_NAME.desktop" <<EOF
@@ -154,6 +162,16 @@ if command -v update-desktop-database >/dev/null; then
 fi
 if command -v gtk-update-icon-cache >/dev/null; then
   gtk-update-icon-cache -qtf "$ICON_ROOT" 2>/dev/null || true
+fi
+# KDE and XDG menus keep their own application index; without a rebuild the
+# entry shows up with a placeholder icon until the next login.
+if command -v kbuildsycoca6 >/dev/null; then
+  kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+elif command -v kbuildsycoca5 >/dev/null; then
+  kbuildsycoca5 --noincremental >/dev/null 2>&1 || true
+fi
+if command -v xdg-desktop-menu >/dev/null; then
+  xdg-desktop-menu forceupdate >/dev/null 2>&1 || true
 fi
 
 # --- report ------------------------------------------------------------------
