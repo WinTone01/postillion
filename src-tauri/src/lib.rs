@@ -250,7 +250,8 @@ fn agent_active(state: State<'_, AppState>) -> Vec<String> {
 fn account_login(account: String) -> Result<()> {
     let config_dir = config_dir_for(&account)?;
 
-    let mut cmd = std::process::Command::new("claude");
+    let mut cmd = std::process::Command::new(paths::claude_bin());
+    cmd.env("PATH", paths::augmented_path());
     cmd.arg("auth").arg("login");
     if let Some(dir) = config_dir.as_deref() {
         cmd.env("CLAUDE_CONFIG_DIR", dir);

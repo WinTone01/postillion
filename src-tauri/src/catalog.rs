@@ -110,7 +110,9 @@ pub struct Preferences {
 /// `config_dir` `None` ise `CLAUDE_CONFIG_DIR` set edilmez — default hesap için
 /// bu şart (bkz. `lib.rs::config_dir_for`).
 fn run_claude(config_dir: Option<&Path>, args: &[&str]) -> Result<String> {
-    let mut cmd = Command::new("claude");
+    // Mutlak yol; PATH'e güvenmek menüden başlatınca çöküyor.
+    let mut cmd = Command::new(paths::claude_bin());
+    cmd.env("PATH", paths::augmented_path());
     cmd.args(args);
     if let Some(dir) = config_dir {
         cmd.env("CLAUDE_CONFIG_DIR", dir);

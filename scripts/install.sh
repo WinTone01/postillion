@@ -85,7 +85,34 @@ fi
 [[ -x "$RELEASE_BIN" ]] || die "release binary missing at $RELEASE_BIN"
 
 # Claude Code is the engine; without it the app starts but every session fails.
-command -v claude >/dev/null || warn "\`claude\` not found on PATH — install Claude Code before using Postillion"
+#
+# Checking PATH alone gives false alarms: Claude Code installs to ~/.local/bin,
+# which many shells expose but the systemd user session does not. Look where it
+# actually lives, mirroring the resolver in src-tauri/src/paths.rs.
+find_claude() {
+  command -v claude 2>/dev/null && return 0
+  local candidate
+  for candidate in \
+    "$HOME/.local/bin/claude" \
+    "$HOME/.claude/local/claude" \
+    "$HOME/.bun/bin/claude" \
+    "$HOME/.npm-global/bin/claude" \
+    /usr/local/bin/claude \
+    /usr/bin/claude
+  do
+    if [[ -x "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if CLAUDE_PATH="$(find_claude)"; then
+  echo "  claude : $CLAUDE_PATH"
+else
+  warn "Claude Code not found — install it from https://claude.com/claude-code"
+fi
 
 # --- install -----------------------------------------------------------------
 

@@ -92,7 +92,8 @@ impl Manager {
             return Err(Error::Other(format!("oturum zaten açık: {}", opts.id)));
         }
 
-        let mut cmd = Command::new("claude");
+        // Mutlak yol: menüden başlatıldığında PATH `~/.local/bin` içermiyor.
+        let mut cmd = Command::new(crate::paths::claude_bin());
         cmd.arg("-p")
             .arg("--input-format")
             .arg("stream-json")
@@ -118,6 +119,10 @@ impl Manager {
         if let Some(effort) = opts.effort {
             cmd.arg("--effort").arg(effort);
         }
+
+        // Claude kendi alt süreçlerini (node, git, ripgrep) PATH'ten arıyor;
+        // onu mutlak yolla başlatmak kendi bulunmasını çözer, komşularını değil.
+        cmd.env("PATH", crate::paths::augmented_path());
 
         if let Some(dir) = opts.config_dir {
             cmd.env("CLAUDE_CONFIG_DIR", dir);

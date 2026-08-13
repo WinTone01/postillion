@@ -221,6 +221,11 @@ otherwise React drops duplicate keys and half the conversation vanishes.
 - **Tauri v2 capabilities are mandatory.** Without
   `src-tauri/capabilities/default.json`, `event.listen` is denied and the agent
   stream never connects.
+- **`claude` is resolved, not looked up.** Apps launched from a desktop menu
+  inherit the systemd user session PATH, which typically omits `~/.local/bin` —
+  exactly where Claude Code installs itself. Relying on PATH means the app works
+  from a terminal and silently fails from the menu, so the binary is resolved
+  against known locations and its directory is prepended to the child's PATH.
 - **Wayland + NVIDIA.** WebKitGTK's DMABUF renderer crashes the window on open
   with `Error 71 (Protocol error)`. `main.rs` sets
   `WEBKIT_DISABLE_DMABUF_RENDERER=1` before GTK initialises.
