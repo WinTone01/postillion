@@ -128,6 +128,12 @@ for size in 16x16 22x22 24x24 32x32 48x48 64x64 96x96 128x128 256x256 512x512; d
   install -Dm644 "$src" "$ICON_ROOT/$size/apps/$BIN_NAME.png"
 done
 
+# Scalable master. Launchers that prefer SVG get one crisp source instead of
+# picking the nearest raster size.
+if [[ -f "$ICON_DIR/icon.svg" ]]; then
+  install -Dm644 "$ICON_DIR/icon.svg" "$ICON_ROOT/scalable/apps/$BIN_NAME.svg"
+fi
+
 # Legacy fallback. Some launchers only consult pixmaps, and it costs one file.
 #
 # Deliberately NOT writing an index.theme into the user hicolor directory:

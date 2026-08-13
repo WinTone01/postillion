@@ -88,6 +88,7 @@ remove_file "$DESKTOP_DIR/$BIN_NAME.desktop"
 for size in 16x16 22x22 24x24 32x32 48x48 64x64 96x96 128x128 256x256 512x512; do
   remove_file "$ICON_ROOT/$size/apps/$BIN_NAME.png"
 done
+remove_file "$ICON_ROOT/scalable/apps/$BIN_NAME.svg"
 remove_file "$PREFIX/share/pixmaps/$BIN_NAME.png"
 
 if command -v update-desktop-database >/dev/null; then
