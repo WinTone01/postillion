@@ -120,14 +120,10 @@ log "Installing binary to $BIN_DIR"
 install -Dm755 "$RELEASE_BIN" "$BIN_DIR/$BIN_NAME"
 
 log "Installing icons to $ICON_ROOT"
-declare -A ICONS=(
-  ["32x32"]="32x32.png"
-  ["128x128"]="128x128.png"
-  ["256x256"]="128x128@2x.png"
-  ["512x512"]="icon.png"
-)
-for size in "${!ICONS[@]}"; do
-  src="$ICON_DIR/${ICONS[$size]}"
+# The full standard set matters: menus commonly request 48px, and a theme
+# without an exact match scales from whatever is nearest, which looks soft.
+for size in 16x16 22x22 24x24 32x32 48x48 64x64 96x96 128x128 256x256 512x512; do
+  src="$ICON_DIR/$size.png"
   [[ -f "$src" ]] || continue
   install -Dm644 "$src" "$ICON_ROOT/$size/apps/$BIN_NAME.png"
 done
@@ -138,7 +134,7 @@ done
 # Qt searches ~/.local/share/icons first and parses the first index.theme it
 # finds, so a partial one there would shadow the system theme and break icon
 # lookup for other applications.
-install -Dm644 "$ICON_DIR/128x128.png" "$PREFIX/share/pixmaps/$BIN_NAME.png"
+install -Dm644 "$ICON_DIR/48x48.png" "$PREFIX/share/pixmaps/$BIN_NAME.png"
 
 log "Installing desktop entry to $DESKTOP_DIR"
 mkdir -p "$DESKTOP_DIR"
