@@ -42,7 +42,6 @@ import {
 import { log } from "@/lib/log";
 
 interface Props {
-  account: string;
   onError: (message: string) => void;
 }
 
@@ -63,7 +62,7 @@ const EFFORT_LABELS: Record<string, string> = {
   max: "Azami — en yavaş, en derin",
 };
 
-export default function SettingsView({ account, onError }: Props) {
+export default function SettingsView({ onError }: Props) {
   const [section, setSection] = useState<Section>("model");
   const [models, setModels] = useState<ModelOption[]>([]);
   const [efforts, setEfforts] = useState<string[]>([]);
@@ -86,9 +85,9 @@ export default function SettingsView({ account, onError }: Props) {
   const loadBasics = useCallback(async () => {
     try {
       const [m, e, p] = await Promise.all([
-        api.listModels(account),
+        api.listModels(),
         api.effortLevels(),
-        api.readPreferences(account),
+        api.readPreferences(),
       ]);
       setModels(m);
       setEfforts(e);
@@ -96,36 +95,36 @@ export default function SettingsView({ account, onError }: Props) {
     } catch (e) {
       fail("tercihler okunamadı", e);
     }
-  }, [account, fail]);
+  }, [fail]);
 
   const loadMcp = useCallback(async () => {
     try {
-      setMcp(await api.listMcpServers(account));
+      setMcp(await api.listMcpServers());
     } catch (e) {
       fail("MCP sunucuları okunamadı", e);
     }
-  }, [account, fail]);
+  }, [fail]);
 
   const loadPlugins = useCallback(async () => {
     try {
       const [installed, marketList] = await Promise.all([
-        api.listPlugins(account),
-        api.listMarketplaces(account),
+        api.listPlugins(),
+        api.listMarketplaces(),
       ]);
       setPlugins(installed);
       setMarkets(marketList);
     } catch (e) {
       fail("eklentiler okunamadı", e);
     }
-  }, [account, fail]);
+  }, [fail]);
 
   const loadSkills = useCallback(async () => {
     try {
-      setSkills(await api.listSkills(account));
+      setSkills(await api.listSkills());
     } catch (e) {
       fail("skill'ler okunamadı", e);
     }
-  }, [account, fail]);
+  }, [fail]);
 
   useEffect(() => {
     void loadBasics();
@@ -137,7 +136,7 @@ export default function SettingsView({ account, onError }: Props) {
   async function savePrefs(next: Preferences) {
     setPrefs(next);
     try {
-      await api.writePreferences(account, next);
+      await api.writePreferences(next);
     } catch (e) {
       fail("tercih kaydedilemedi", e);
     }
@@ -188,8 +187,7 @@ export default function SettingsView({ account, onError }: Props) {
         ))}
 
         <p className="px-2.5 pt-4 text-[11px] text-muted-foreground leading-snug">
-          Değişiklikler <span className="font-medium text-foreground">{account}</span>{" "}
-          hesabına uygulanır.
+          Ayarlar tüm hesaplar için ortak — tek bir yapılandırma var.
         </p>
       </nav>
 
@@ -257,12 +255,12 @@ export default function SettingsView({ account, onError }: Props) {
             <McpSection
               busy={busy}
               onAdd={(args) =>
-                guarded("MCP sunucusu eklenemedi", () => api.mcpAdd({ account, ...args }), () =>
+                guarded("MCP sunucusu eklenemedi", () => api.mcpAdd(args), () =>
                   void loadMcp(),
                 )
               }
               onRemove={(name) =>
-                guarded("MCP sunucusu silinemedi", () => api.mcpRemove(account, name), () =>
+                guarded("MCP sunucusu silinemedi", () => api.mcpRemove(name), () =>
                   void loadMcp(),
                 )
               }
@@ -272,7 +270,6 @@ export default function SettingsView({ account, onError }: Props) {
 
           {section === "plugins" && (
             <PluginSection
-              account={account}
               available={available}
               busy={busy}
               guarded={guarded}
@@ -289,12 +286,12 @@ export default function SettingsView({ account, onError }: Props) {
               onCreate={(name, description) =>
                 guarded(
                   "skill oluşturulamadı",
-                  () => api.skillCreate(account, name, description),
+                  () => api.skillCreate(name, description),
                   () => void loadSkills(),
                 )
               }
               onDelete={(name) =>
-                guarded("skill silinemedi", () => api.skillDelete(account, name), () =>
+                guarded("skill silinemedi", () => api.skillDelete(name), () =>
                   void loadSkills(),
                 )
               }
@@ -543,7 +540,6 @@ function McpSection({
 // ----------------------------------------------------------------- eklenti
 
 function PluginSection({
-  account,
   plugins,
   markets,
   available,
@@ -552,7 +548,6 @@ function PluginSection({
   guarded,
   reload,
 }: {
-  account: string;
   plugins: Plugin[];
   markets: Marketplace[];
   available: Plugin[] | null;
@@ -593,7 +588,7 @@ function PluginSection({
   async function fetchAvailable() {
     setLoadingList(true);
     try {
-      onAvailable(await api.listAvailablePlugins(account));
+      onAvailable(await api.listAvailablePlugins());
     } catch (e) {
       log("error", "kurulabilir eklentiler alınamadı:", e);
     } finally {
@@ -608,7 +603,7 @@ function PluginSection({
           <Button
             disabled={busy}
             onClick={() =>
-              guarded("marketplace güncellenemedi", () => api.marketplaceUpdate(account), reload)
+              guarded("marketplace güncellenemedi", () => api.marketplaceUpdate(), reload)
             }
             size="sm"
             variant="ghost"
@@ -624,7 +619,7 @@ function PluginSection({
             onChange={(e) => setSource(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== "Enter" || !source.trim()) return;
-              guarded("marketplace eklenemedi", () => api.marketplaceAdd(account, source.trim()), reload);
+              guarded("marketplace eklenemedi", () => api.marketplaceAdd(source.trim()), reload);
               setSource("");
             }}
             placeholder="kullanıcı/depo, URL ya da yerel yol"
@@ -633,7 +628,7 @@ function PluginSection({
           <Button
             disabled={busy || !source.trim()}
             onClick={() => {
-              guarded("marketplace eklenemedi", () => api.marketplaceAdd(account, source.trim()), reload);
+              guarded("marketplace eklenemedi", () => api.marketplaceAdd(source.trim()), reload);
               setSource("");
             }}
             size="sm"
@@ -660,7 +655,7 @@ function PluginSection({
                 onClick={() =>
                   guarded(
                     "marketplace silinemedi",
-                    () => api.marketplaceRemove(account, market.name),
+                    () => api.marketplaceRemove(market.name),
                     reload,
                   )
                 }
@@ -693,7 +688,7 @@ function PluginSection({
                       onCheckedChange={(checked) =>
                         guarded(
                           "eklenti durumu değiştirilemedi",
-                          () => api.pluginSetEnabled(account, plugin.id, checked),
+                          () => api.pluginSetEnabled(plugin.id, checked),
                           reload,
                         )
                       }
@@ -711,7 +706,7 @@ function PluginSection({
                 onClick={() =>
                   guarded(
                     "eklenti kaldırılamadı",
-                    () => api.pluginUninstall(account, plugin.id),
+                    () => api.pluginUninstall(plugin.id),
                     reload,
                   )
                 }
@@ -792,7 +787,7 @@ function PluginSection({
                         onClick={() =>
                           guarded(
                             "eklenti kurulamadı",
-                            () => api.pluginInstall(account, plugin.id),
+                            () => api.pluginInstall(plugin.id),
                             reload,
                           )
                         }

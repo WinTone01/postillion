@@ -8,155 +8,73 @@
 //! testler birbirinin ayağını kaydırırdı.
 
 use std::fs;
-use std::path::PathBuf;
 
+/// Hesap profilleri, gerçek kimliği takas etmeden doğrulanıyor.
+///
+/// `switch()` bilerek test edilmiyor: sistem genelindeki kimliği değiştirmek
+/// çalışan Claude süreçlerini etkiler ve testin yan etkisi olamaz.
 #[test]
-fn hesap_yasam_dongusu_paylasilan_veriyi_korur() {
+fn kimlik_profile_yakalanir_ve_listelenir() {
     let home = dirs::home_dir().expect("ev dizini");
-    let real_projects = home.join(".claude").join("projects");
-
-    if !real_projects.is_dir() {
-        eprintln!("~/.claude/projects yok, test atlanıyor");
-        return;
-    }
-
-    // Silmenin gerçek veriye dokunmadığını kanıtlamak için önce sayıyoruz.
-    let before = fs::read_dir(&real_projects).unwrap().count();
-    assert!(before > 0, "test anlamlı olsun diye transcript bekleniyor");
-
-    let root = std::env::temp_dir().join(format!("postillion-it-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&root);
-    std::env::set_var("POSTILLION_ROOT", &root);
-
-    // --- oluşturma -------------------------------------------------------
-    let account = postillion_lib::testing::create_account("deneme").expect("hesap oluşturulmalı");
-
-    assert_eq!(account.name, "deneme");
-    assert!(!account.is_default);
-    assert!(!account.logged_in, "yeni hesap kimliksiz doğmalı");
-    assert!(
-        account.broken_links.is_empty(),
-        "symlink'ler kurulmalıydı: {:?}",
-        account.broken_links
-    );
-
-    let dir: PathBuf = root.join("deneme");
-
-    // --- symlink'ler doğru hedefi gösteriyor mu --------------------------
-    let link = dir.join("projects");
-    assert!(
-        fs::symlink_metadata(&link).unwrap().file_type().is_symlink(),
-        "projects bir symlink olmalı"
-    );
-    assert_eq!(
-        fs::read_link(&link).unwrap(),
-        real_projects,
-        "projects gerçek dizini göstermeli"
-    );
-    // Hedefin gerçekten okunabildiğini de doğrula (kırık link değil).
-    assert_eq!(fs::read_dir(&link).unwrap().count(), before);
-
-    // --- tohumlama: proje onayları geldi mi, kimlik geldi mi -------------
-    let seeded: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(dir.join(".claude.json")).unwrap()).unwrap();
-
-    assert!(
-        seeded.get("oauthAccount").is_none(),
-        "kimlik yeni hesaba taşınmamalı"
-    );
-    assert!(seeded.get("userID").is_none(), "userID taşınmamalı");
-    assert!(seeded.get("machineID").is_none(), "machineID taşınmamalı");
-
-    // Asıl kazanç: trust dialog'ları ve MCP ayarları korunmalı.
-    let source: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(home.join(".claude.json")).unwrap()).unwrap();
-    if source.get("projects").is_some() {
-        assert!(
-            seeded.get("projects").is_some(),
-            "proje onayları tohumlanmalıydı"
-        );
-    }
-
-    // Dosya izni 0600 olmalı — içinde proje ayarları var.
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = fs::metadata(dir.join(".claude.json")).unwrap().permissions().mode();
-        assert_eq!(mode & 0o777, 0o600, "config 0600 olmalı");
-    }
-
-    // --- aynı isim ikinci kez oluşturulamaz ------------------------------
-    assert!(postillion_lib::testing::create_account("deneme").is_err());
-
-    // --- listeleme: default + yeni hesap ---------------------------------
-    let listed = postillion_lib::testing::list_accounts().unwrap();
-    assert!(listed.iter().any(|a| a.name == "default" && a.is_default));
-    assert!(listed.iter().any(|a| a.name == "deneme"));
-
-    // --- silme: hesap gider, paylaşılan veri kalır -----------------------
-    postillion_lib::testing::delete_account("deneme").expect("silinmeli");
-    assert!(!dir.exists(), "hesap dizini gitmeliydi");
-
-    let after = fs::read_dir(&real_projects).unwrap().count();
-    assert_eq!(
-        before, after,
-        "SİLME PAYLAŞILAN TRANSCRIPT'LERE DOKUNDU — {before} -> {after}"
-    );
-
-    // default hesap asla silinemez
-    assert!(postillion_lib::testing::delete_account("default").is_err());
-
-    let _ = fs::remove_dir_all(&root);
-}
-
-/// Regresyon: default hesabın `.claude.json`'ı `~/.claude/` içinde değil,
-/// ev kökünde (`~/.claude.json`). Yanlış yerden okununca hesap "giriş
-/// yapılmamış" görünüyordu.
-#[test]
-fn default_hesap_kimligi_ev_kokunden_okunur() {
-    let home = dirs::home_dir().expect("ev dizini");
-
     let config = home.join(".claude.json");
-    let creds = home.join(".claude").join(".credentials.json");
 
-    if !config.exists() || !creds.exists() {
-        eprintln!("bu makinede default hesap kurulu değil, test atlanıyor");
+    if !config.exists() {
+        eprintln!("~/.claude.json yok, test atlanıyor");
         return;
     }
 
     let source: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&config).unwrap()).unwrap();
-    if source.get("oauthAccount").is_none() {
+    let Some(identity) = source.get("oauthAccount") else {
         eprintln!("oauthAccount yok, test atlanıyor");
         return;
+    };
+    let email = identity
+        .get("emailAddress")
+        .and_then(|v| v.as_str())
+        .expect("e-posta");
+
+    let root = std::env::temp_dir().join(format!("postillion-acc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    std::env::set_var("POSTILLION_ROOT", &root);
+
+    // Listeleme aktif kimliği kendi profiline yakalıyor.
+    let accounts = postillion_lib::testing::list_accounts().expect("listeleme");
+
+    let expected_slug = postillion_lib::testing::slugify(email);
+    let active = accounts
+        .iter()
+        .find(|a| a.is_active)
+        .expect("etkin hesap bulunmalı");
+
+    assert_eq!(active.slug, expected_slug, "slug e-postadan türetilmeli");
+    assert_eq!(active.email.as_deref(), Some(email));
+    assert!(active.has_credentials, "jeton saklanmalıydı");
+    assert!(!active.label.is_empty(), "etiket boş olmamalı");
+
+    // Jeton 0600 olmalı — kimlik bilgisi.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let creds = root.join(&expected_slug).join(".credentials.json");
+        let mode = fs::metadata(&creds).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "jeton 0600 olmalı");
     }
 
-    // `~/.claude/.claude.json` OLMAMALI.
-    //
-    // Bu dosya ancak biri `CLAUDE_CONFIG_DIR=~/.claude` vererek Claude'u
-    // çalıştırdığında oluşur ve o an Claude gerçek `~/.claude.json` yerine
-    // bomboş bir gölge config kullanmaya başlar (proje onayları yok, trust
-    // dialog'u yeniden çıkar). Default hesap için o değişken hiç set
-    // edilmemeli — bu assert tam olarak o regresyonu yakalar.
-    assert!(
-        !home.join(".claude").join(".claude.json").exists(),
-        "gölge config oluşmuş: default hesap için CLAUDE_CONFIG_DIR set edilmiş olmalı"
+    // Etkin hesap silinemez: kullanıcı kendini dışarıda bırakamamalı.
+    let err = postillion_lib::testing::remove_account(&expected_slug);
+    assert!(err.is_err(), "etkin hesap silinebildi");
+
+    // Gerçek yapılandırma değişmemiş olmalı.
+    let after: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&config).unwrap()).unwrap();
+    assert_eq!(
+        after.get("oauthAccount"),
+        source.get("oauthAccount"),
+        "TEST GERÇEK KİMLİĞİ DEĞİŞTİRDİ"
     );
 
-    let accounts = postillion_lib::testing::list_accounts().unwrap();
-    let default = accounts
-        .iter()
-        .find(|a| a.is_default)
-        .expect("default hesap listelenmeli");
-
-    assert!(
-        default.logged_in,
-        "default hesap giriş yapılmış görünmeliydi"
-    );
-    assert!(
-        default.email.is_some(),
-        "default hesabın e-postası okunmalıydı"
-    );
+    let _ = fs::remove_dir_all(&root);
 }
 
 /// `claude --resume` geçmişi stdout'a basmıyor (boş stdin ile sıfır satır

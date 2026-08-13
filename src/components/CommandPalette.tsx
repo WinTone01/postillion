@@ -17,7 +17,7 @@ interface Props {
   sessions: Session[];
   accounts: Account[];
   onResume: (session: Session) => void;
-  onSelectAccount: (name: string) => void;
+  onSwitchAccount: (slug: string) => void;
   onNewSession: () => void;
   onOpenSettings: () => void;
 }
@@ -34,7 +34,7 @@ export default function CommandPalette({
   sessions,
   accounts,
   onResume,
-  onSelectAccount,
+  onSwitchAccount,
   onNewSession,
   onOpenSettings,
 }: Props) {
@@ -79,14 +79,14 @@ export default function CommandPalette({
         <CommandGroup heading="Hesaplar">
           {accounts.map((account) => (
             <CommandItem
-              key={account.name}
-              onSelect={() => run(() => onSelectAccount(account.name))}
-              value={`hesap ${account.name} ${account.email ?? ""}`}
+              key={account.slug}
+              onSelect={() => run(() => onSwitchAccount(account.slug))}
+              value={`hesap ${account.label} ${account.email ?? ""}`}
             >
               <UserIcon className="size-4" />
-              <span>{account.name}</span>
+              <span>{account.label}</span>
               <span className="ml-auto text-muted-foreground text-xs">
-                {account.email ?? "giriş yok"}
+                {account.isActive ? "etkin" : (account.email ?? "")}
               </span>
             </CommandItem>
           ))}

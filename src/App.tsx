@@ -5,6 +5,7 @@ import { CommandIcon, XIcon } from "lucide-react";
 import AccountSidebar from "@/components/AccountSidebar";
 import ChatView from "@/components/ChatView";
 import SessionList from "@/components/SessionList";
+import AddAccountDialog from "@/components/AddAccountDialog";
 import CommandPalette from "@/components/CommandPalette";
 import type { MascotState } from "@/components/Mascot";
 import { Toaster } from "@/components/ui/sonner";
@@ -24,7 +25,6 @@ type View = { kind: "sessions" } | { kind: "settings" } | { kind: "chat"; id: st
 
 export default function App() {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selected, setSelected] = useState("default");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [view, setView] = useState<View>({ kind: "sessions" });
@@ -35,6 +35,7 @@ export default function App() {
     toast.error(message);
   }, []);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   // Yeni sekmeler bu tercihlerle başlatılıyor (efor sonradan değiştirilemiyor).
   const [prefs, setPrefs] = useState<Preferences>({});
   // Sekme başına maskot durumu; kenar çubuğu en dikkat çekeni gösteriyor.
@@ -53,10 +54,8 @@ export default function App() {
     return "idle";
   }, [tabStates]);
 
-  const account = useMemo(
-    () => accounts.find((a) => a.name === selected),
-    [accounts, selected],
-  );
+  /** Sistem genelinde etkin hesap; oturumlar zaten onu kullanıyor. */
+  const account = useMemo(() => accounts.find((a) => a.isActive), [accounts]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -82,13 +81,9 @@ export default function App() {
     void loadSessions();
   }, [loadAccounts, loadSessions]);
 
-  // Hesap değişince tercihler de değişir: settings.json hesap kapsamlı.
   useEffect(() => {
-    api
-      .readPreferences(selected)
-      .then(setPrefs)
-      .catch(() => setPrefs({}));
-  }, [selected]);
+    api.readPreferences().then(setPrefs).catch(() => setPrefs({}));
+  }, []);
 
   function openTab(tab: Tab) {
     setTabs((prev) => [...prev, tab]);
@@ -109,12 +104,11 @@ export default function App() {
 
   /** Projenin asıl amacı: aynı transcript, seçili hesapla devam. */
   function resume(session: Session) {
-    if (!account?.loggedIn) return;
+    if (!account) return;
 
     openTab({
       options: {
         id: `resume-${session.sessionId}-${Date.now()}`,
-        account: account.name,
         // Claude transcript'leri cwd'ye göre dizinliyor; aynı dizinden
         // başlatmazsak --resume oturumu bulamaz.
         cwd: session.cwd,
@@ -130,45 +124,29 @@ export default function App() {
   }
 
   function newSession() {
-    if (!account?.loggedIn) return;
+    if (!account) return;
     openTab({
       options: {
         id: `new-${Date.now()}`,
-        account: account.name,
         cwd: null,
         resume: null,
         transcriptPath: null,
         model: prefs.model ?? null,
         effort: prefs.effortLevel ?? null,
       },
-      title: `${account.name} · yeni oturum`,
+      title: `${account.label} · yeni oturum`,
       gitBranch: null,
     });
   }
 
-  async function createAccount(name: string) {
+  async function switchAccount(slug: string) {
     setBusy(true);
     try {
-      const created = await api.createAccount(name);
+      const next = await api.switchAccount(slug);
       await loadAccounts();
-      setSelected(created.name);
-      // Yeni hesap kimliksiz doğar; giriş akışını hemen başlat.
-      await api.accountLogin(created.name);
-    } catch (e) {
-      notifyError(errText(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function login(name: string) {
-    setBusy(true);
-    try {
-      await api.accountLogin(name);
-      toast.success("Giriş akışı açıldı", {
-        description: "Tamamlayınca hesap listesi otomatik yenilenecek.",
+      toast.success(`${next.label} hesabına geçildi`, {
+        description: "Terminaldeki claude de artık bu hesabı kullanıyor.",
       });
-      setTimeout(() => void loadAccounts(), 1500);
     } catch (e) {
       notifyError(errText(e));
     } finally {
@@ -176,24 +154,11 @@ export default function App() {
     }
   }
 
-  async function repair(name: string) {
+  async function removeAccount(slug: string) {
     setBusy(true);
     try {
-      await api.repairAccount(name);
+      await api.removeAccount(slug);
       await loadAccounts();
-    } catch (e) {
-      notifyError(errText(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(name: string) {
-    setBusy(true);
-    try {
-      await api.deleteAccount(name);
-      await loadAccounts();
-      if (selected === name) setSelected("default");
     } catch (e) {
       notifyError(errText(e));
     } finally {
@@ -207,18 +172,15 @@ export default function App() {
         <AccountSidebar
           accounts={accounts}
           busy={busy}
-          onCreate={createAccount}
-          onDelete={remove}
-          onLogin={login}
           mascotState={mascotState}
+          onAddAccount={() => setAddOpen(true)}
+          onDelete={removeAccount}
           navActive={
             view.kind === "sessions" ? "sessions" : view.kind === "settings" ? "settings" : null
           }
           onOpenSessions={() => setView({ kind: "sessions" })}
           onOpenSettings={() => setView({ kind: "settings" })}
-          onRepair={repair}
-          onSelect={setSelected}
-          selected={selected}
+          onSwitch={switchAccount}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">
@@ -283,10 +245,7 @@ export default function App() {
               className="h-full"
               style={{ display: view.kind === "settings" ? "block" : "none" }}
             >
-              <SettingsView
-                account={selected}
-                onError={notifyError}
-              />
+              <SettingsView onError={notifyError} />
             </div>
 
             {/* Sekmeler mount'ta kalır; gizlenince akış durumu kaybolmasın. */}
@@ -317,13 +276,19 @@ export default function App() {
         onOpenChange={setPaletteOpen}
         onOpenSettings={() => setView({ kind: "settings" })}
         onResume={resume}
-        onSelectAccount={setSelected}
+        onSwitchAccount={switchAccount}
         open={paletteOpen}
         sessions={sessions}
       />
 
       {/* Uygulama koyu temaya sabit; next-themes sağlayıcısı yok, o yüzden
           temayı açıkça geçiyoruz (aksi halde "system"e düşüp açık renk olurdu). */}
+      <AddAccountDialog
+        onAdded={() => void loadAccounts()}
+        onOpenChange={setAddOpen}
+        open={addOpen}
+      />
+
       <Toaster position="bottom-right" richColors theme="dark" />
     </TooltipProvider>
   );

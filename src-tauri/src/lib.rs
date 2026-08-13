@@ -1,5 +1,6 @@
 mod accounts;
 mod agent;
+mod auth;
 mod catalog;
 mod error;
 mod paths;
@@ -16,6 +17,7 @@ use sessions::Session;
 
 struct AppState {
     agent: agent::SharedManager,
+    auth: Arc<auth::Manager>,
     sessions: Arc<sessions::Cache>,
 }
 
@@ -26,19 +28,32 @@ fn list_accounts() -> Result<Vec<Account>> {
     accounts::list()
 }
 
+/// Sistem genelinde etkin hesabı değiştirir; terminaldeki `claude` de etkilenir.
 #[tauri::command]
-fn create_account(name: String) -> Result<Account> {
-    accounts::create(&name)
+fn switch_account(slug: String) -> Result<Account> {
+    accounts::switch(&slug)
 }
 
 #[tauri::command]
-fn repair_account(name: String) -> Result<Account> {
-    accounts::repair(&name)
+fn remove_account(slug: String) -> Result<()> {
+    accounts::remove(&slug)
+}
+
+// --------------------------------------------------------------------- giriş
+
+#[tauri::command]
+fn login_start(app: AppHandle, state: State<'_, AppState>, email: Option<String>) -> Result<()> {
+    state.auth.start(app, email.as_deref())
 }
 
 #[tauri::command]
-fn delete_account(name: String) -> Result<()> {
-    accounts::delete(&name)
+fn login_submit_code(state: State<'_, AppState>, code: String) -> Result<()> {
+    state.auth.submit_code(&code)
+}
+
+#[tauri::command]
+fn login_cancel(state: State<'_, AppState>) -> Result<()> {
+    state.auth.cancel()
 }
 
 /// Webview günlüklerini sürecin stderr'ine aktarır.
@@ -145,37 +160,17 @@ fn read_text_file(path: String) -> Result<FileSnapshot> {
 
 // ---------------------------------------------------------------- terminal
 
-/// İsimden `CLAUDE_CONFIG_DIR` değerini çözer.
-///
-/// Default hesap için kasıtlı olarak `None` döner ve değişken **hiç set
-/// edilmez**. Sebebi ince ama kritik: `CLAUDE_CONFIG_DIR` set edildiğinde
-/// Claude `.claude.json`'ı o dizinin içinde arıyor. Default kurulumda ise
-/// gerçek dosya ev kökünde (`~/.claude.json`). Dolayısıyla
-/// `CLAUDE_CONFIG_DIR=~/.claude` vermek, Claude'u `~/.claude/.claude.json`
-/// diye bomboş ikinci bir config'le başlatır — girişsiz, proje onayları yok.
-fn config_dir_for(account: &str) -> Result<Option<PathBuf>> {
-    if account == "default" {
-        return Ok(None);
-    }
-    let dir = paths::account_dir(account)?;
-    if !dir.is_dir() {
-        return Err(Error::AccountNotFound(account.to_string()));
-    }
-    Ok(Some(dir))
-}
 
 #[tauri::command]
 fn agent_start(
     app: AppHandle,
     state: State<'_, AppState>,
     id: String,
-    account: String,
     cwd: Option<String>,
     resume: Option<String>,
     model: Option<String>,
     effort: Option<String>,
 ) -> Result<String> {
-    let config_dir = config_dir_for(&account)?;
     let cwd = cwd.map(PathBuf::from);
 
     if let Some(level) = effort.as_deref() {
@@ -188,7 +183,6 @@ fn agent_start(
         app,
         agent::StartOptions {
             id,
-            config_dir: config_dir.as_deref(),
             cwd: cwd.as_deref(),
             resume: resume.as_deref(),
             model: model.as_deref(),
@@ -242,25 +236,6 @@ fn agent_active(state: State<'_, AppState>) -> Vec<String> {
     state.agent.active_ids()
 }
 
-/// `claude auth login`'i hesabın dizininde çalıştırır.
-///
-/// OAuth akışını Claude'un kendisi yürütür ve token'ı hesabın dizinine yazar;
-/// bizim kodumuz gizli bilgiye hiç dokunmaz.
-#[tauri::command]
-fn account_login(account: String) -> Result<()> {
-    let config_dir = config_dir_for(&account)?;
-
-    let mut cmd = std::process::Command::new(paths::claude_bin());
-    cmd.env("PATH", paths::augmented_path());
-    cmd.arg("auth").arg("login");
-    if let Some(dir) = config_dir.as_deref() {
-        cmd.env("CLAUDE_CONFIG_DIR", dir);
-    }
-    cmd.spawn()
-        .map_err(|e| Error::Other(format!("giriş akışı başlatılamadı: {e}")))?;
-
-    Ok(())
-}
 
 /// Entegrasyon testlerinin çekirdeğe erişimi.
 ///
@@ -272,12 +247,16 @@ pub mod testing {
     pub use accounts::Account;
     pub use sessions::Session;
 
-    pub fn create_account(name: &str) -> Result<Account> {
-        accounts::create(name)
+    pub fn switch_account(slug: &str) -> Result<Account> {
+        accounts::switch(slug)
     }
 
-    pub fn delete_account(name: &str) -> Result<()> {
-        accounts::delete(name)
+    pub fn remove_account(slug: &str) -> Result<()> {
+        accounts::remove(slug)
+    }
+
+    pub fn slugify(email: &str) -> String {
+        accounts::slugify(email)
     }
 
     pub fn list_accounts() -> Result<Vec<Account>> {
@@ -298,12 +277,12 @@ pub mod testing {
 
 // ---------------------------------------------------------------- katalog
 //
-// Hepsi hesap kapsamlı: `config_dir_for` ne döndürüyorsa `claude` alt komutları
-// da o hesapla çalışıyor.
+// Hepsi tek yapılandırma üzerinde çalışıyor: etkin hesap sistem genelinde
+// belirlendiği için `claude` alt komutlarına ayrıca hesap geçirmeye gerek yok.
 
 #[tauri::command]
-fn list_models(account: String) -> Result<Vec<catalog::ModelOption>> {
-    catalog::list_models(config_dir_for(&account)?.as_deref())
+fn list_models() -> Result<Vec<catalog::ModelOption>> {
+    catalog::list_models(None)
 }
 
 #[tauri::command]
@@ -312,24 +291,23 @@ fn effort_levels() -> Vec<String> {
 }
 
 #[tauri::command]
-fn read_preferences(account: String) -> Result<catalog::Preferences> {
-    catalog::read_preferences(config_dir_for(&account)?.as_deref())
+fn read_preferences() -> Result<catalog::Preferences> {
+    catalog::read_preferences(None)
 }
 
 #[tauri::command]
-fn write_preferences(account: String, preferences: catalog::Preferences) -> Result<()> {
-    catalog::write_preferences(config_dir_for(&account)?.as_deref(), &preferences)
+fn write_preferences(preferences: catalog::Preferences) -> Result<()> {
+    catalog::write_preferences(None, &preferences)
 }
 
 #[tauri::command]
-fn list_mcp_servers(account: String) -> Result<Vec<catalog::McpServer>> {
-    catalog::list_mcp_servers(config_dir_for(&account)?.as_deref())
+fn list_mcp_servers() -> Result<Vec<catalog::McpServer>> {
+    catalog::list_mcp_servers(None)
 }
 
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 fn mcp_add(
-    account: String,
     name: String,
     transport: String,
     target: String,
@@ -338,11 +316,9 @@ fn mcp_add(
     command_args: Vec<String>,
     project_scope: bool,
 ) -> Result<()> {
-    let dir = config_dir_for(&account)?;
-
     if transport == "stdio" {
         catalog::mcp_add_stdio(
-            dir.as_deref(),
+            None,
             &name,
             &target,
             &command_args,
@@ -351,7 +327,7 @@ fn mcp_add(
         )
     } else {
         catalog::mcp_add_http(
-            dir.as_deref(),
+            None,
             &name,
             &target,
             &transport,
@@ -362,72 +338,72 @@ fn mcp_add(
 }
 
 #[tauri::command]
-fn mcp_remove(account: String, name: String) -> Result<()> {
-    catalog::mcp_remove(config_dir_for(&account)?.as_deref(), &name)
+fn mcp_remove(name: String) -> Result<()> {
+    catalog::mcp_remove(None, &name)
 }
 
 #[tauri::command]
-fn list_plugins(account: String) -> Result<Vec<catalog::Plugin>> {
-    catalog::list_plugins(config_dir_for(&account)?.as_deref())
+fn list_plugins() -> Result<Vec<catalog::Plugin>> {
+    catalog::list_plugins(None)
 }
 
 #[tauri::command]
-fn list_available_plugins(account: String) -> Result<Vec<catalog::Plugin>> {
-    catalog::list_available_plugins(config_dir_for(&account)?.as_deref())
+fn list_available_plugins() -> Result<Vec<catalog::Plugin>> {
+    catalog::list_available_plugins(None)
 }
 
 #[tauri::command]
-fn plugin_install(account: String, id: String) -> Result<()> {
-    catalog::plugin_install(config_dir_for(&account)?.as_deref(), &id)
+fn plugin_install(id: String) -> Result<()> {
+    catalog::plugin_install(None, &id)
 }
 
 #[tauri::command]
-fn plugin_uninstall(account: String, id: String) -> Result<()> {
-    catalog::plugin_uninstall(config_dir_for(&account)?.as_deref(), &id)
+fn plugin_uninstall(id: String) -> Result<()> {
+    catalog::plugin_uninstall(None, &id)
 }
 
 #[tauri::command]
-fn plugin_set_enabled(account: String, id: String, enabled: bool) -> Result<()> {
-    catalog::plugin_set_enabled(config_dir_for(&account)?.as_deref(), &id, enabled)
+fn plugin_set_enabled(id: String, enabled: bool) -> Result<()> {
+    catalog::plugin_set_enabled(None, &id, enabled)
 }
 
 #[tauri::command]
-fn list_marketplaces(account: String) -> Result<Vec<catalog::Marketplace>> {
-    catalog::list_marketplaces(config_dir_for(&account)?.as_deref())
+fn list_marketplaces() -> Result<Vec<catalog::Marketplace>> {
+    catalog::list_marketplaces(None)
 }
 
 #[tauri::command]
-fn marketplace_add(account: String, source: String) -> Result<()> {
-    catalog::marketplace_add(config_dir_for(&account)?.as_deref(), &source)
+fn marketplace_add(source: String) -> Result<()> {
+    catalog::marketplace_add(None, &source)
 }
 
 #[tauri::command]
-fn marketplace_remove(account: String, name: String) -> Result<()> {
-    catalog::marketplace_remove(config_dir_for(&account)?.as_deref(), &name)
+fn marketplace_remove(name: String) -> Result<()> {
+    catalog::marketplace_remove(None, &name)
 }
 
 #[tauri::command]
-fn marketplace_update(account: String, name: Option<String>) -> Result<()> {
-    catalog::marketplace_update(config_dir_for(&account)?.as_deref(), name.as_deref())
+fn marketplace_update(name: Option<String>) -> Result<()> {
+    catalog::marketplace_update(None, name.as_deref())
 }
 
 #[tauri::command]
-fn list_skills(account: String) -> Result<Vec<catalog::Skill>> {
-    catalog::list_skills(config_dir_for(&account)?.as_deref())
+fn list_skills() -> Result<Vec<catalog::Skill>> {
+    catalog::list_skills(None)
 }
 
 #[tauri::command]
-fn skill_create(account: String, name: String, description: Option<String>) -> Result<()> {
+fn skill_create(name: String, description: Option<String>) -> Result<()> {
     catalog::skill_create(
-        config_dir_for(&account)?.as_deref(),
+        None,
         &name,
         description.as_deref(),
     )
 }
 
 #[tauri::command]
-fn skill_delete(account: String, name: String) -> Result<()> {
-    catalog::skill_delete(config_dir_for(&account)?.as_deref(), &name)
+fn skill_delete(name: String) -> Result<()> {
+    catalog::skill_delete(None, &name)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -436,6 +412,7 @@ pub fn run() {
         .setup(|app| {
             app.manage(AppState {
                 agent: Arc::new(agent::Manager::default()),
+                auth: Arc::new(auth::Manager::default()),
                 sessions: Arc::new(sessions::Cache::default()),
             });
 
@@ -449,10 +426,11 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_accounts,
-            create_account,
-            repair_account,
-            delete_account,
-            account_login,
+            switch_account,
+            remove_account,
+            login_start,
+            login_submit_code,
+            login_cancel,
             log_frontend,
             list_sessions,
             refresh_sessions,

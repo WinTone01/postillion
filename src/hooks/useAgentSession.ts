@@ -29,7 +29,6 @@ interface ExitEvent {
 export interface AgentSessionOptions {
   /** Sekme kimliği; aynı anda birden çok oturum açık olabilir. */
   id: string;
-  account: string;
   cwd: string | null;
   /** Devam ettirilecek transcript. */
   resume: string | null;
@@ -193,7 +192,6 @@ export function useAgentSession(options: AgentSessionOptions | null) {
       try {
         await api.agentStart({
           id: opts.id,
-          account: opts.account,
           cwd: opts.cwd,
           resume: opts.resume,
           model: opts.model,

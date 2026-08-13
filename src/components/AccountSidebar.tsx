@@ -1,39 +1,32 @@
-import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangleIcon,
-  CheckIcon,
-  LogInIcon,
   MessagesSquareIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
-  WrenchIcon,
-  XIcon,
 } from "lucide-react";
 
 import Mascot, { type MascotState } from "@/components/Mascot";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Account } from "@/api";
 
 interface Props {
   accounts: Account[];
-  selected: string;
-  onSelect: (name: string) => void;
-  onCreate: (name: string) => void;
-  onLogin: (name: string) => void;
-  onRepair: (name: string) => void;
-  onDelete: (name: string) => void;
+  /** Hesaba tıklamak sistem genelinde ona geçiyor. */
+  onSwitch: (slug: string) => void;
+  onAddAccount: () => void;
+  onDelete: (slug: string) => void;
   onOpenSettings: () => void;
   onOpenSessions: () => void;
   /** Kenar çubuğundaki gezinmede hangisi seçili. */
   navActive: "sessions" | "settings" | null;
+  /** Geçiş sürerken tıklamalar kilitleniyor; çift geçiş yarış yaratır. */
+  busy: boolean;
   /** Maskotun yansıttığı genel uygulama durumu. */
   mascotState: MascotState;
-  busy: boolean;
 }
 
 /** Maskot süs değil, durum göstergesi — ekran okuyucu da görebilmeli. */
@@ -47,7 +40,7 @@ const MASCOT_LABELS: Record<MascotState, string> = {
 
 /** İsimden iki harflik baş harf; avatar için. */
 function initials(account: Account): string {
-  const source = account.displayName || account.email || account.name;
+  const source = account.label || account.email || account.slug;
   const parts = source.replace(/@.*$/, "").split(/[\s._-]+/).filter(Boolean);
   const letters = parts.slice(0, 2).map((p) => p[0]);
   return (letters.join("") || source.slice(0, 2)).toLocaleUpperCase("tr");
@@ -55,11 +48,8 @@ function initials(account: Account): string {
 
 export default function AccountSidebar({
   accounts,
-  selected,
-  onSelect,
-  onCreate,
-  onLogin,
-  onRepair,
+  onSwitch,
+  onAddAccount,
   onDelete,
   onOpenSettings,
   onOpenSessions,
@@ -67,17 +57,6 @@ export default function AccountSidebar({
   mascotState,
   busy,
 }: Props) {
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
-
-  function submit() {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onCreate(trimmed);
-    setName("");
-    setAdding(false);
-  }
-
   return (
     <aside className="flex h-full w-[272px] shrink-0 flex-col border-r bg-sidebar">
       <div className="flex items-center gap-3 px-4 pt-4 pb-4">
@@ -118,24 +97,29 @@ export default function AccountSidebar({
       </p>
 
       <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-2">
+        {accounts.length === 0 && (
+          <p className="px-2.5 py-3 text-[11px] text-muted-foreground leading-snug">
+            Henüz hesap yok. Aşağıdan ekleyin.
+          </p>
+        )}
+
         {accounts.map((account) => {
-          const active = account.name === selected;
+          const active = account.isActive;
           return (
             <div
               className={cn(
-                "group relative cursor-pointer rounded-xl px-2.5 py-2.5 transition-colors",
+                "group relative rounded-xl px-2.5 py-2.5 transition-colors",
                 active ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/55",
+                busy ? "pointer-events-none opacity-60" : "cursor-pointer",
               )}
-              key={account.name}
-              onClick={() => onSelect(account.name)}
+              key={account.slug}
+              onClick={() => !active && onSwitch(account.slug)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") onSelect(account.name);
+                if ((e.key === "Enter" || e.key === " ") && !active) onSwitch(account.slug);
               }}
               role="button"
               tabIndex={0}
             >
-              {/* Seçili hesabı sol kenardaki şeritle işaretliyoruz; renkli arka
-                  plan tek başına yeterince okunur değildi. */}
               {active && (
                 <motion.span
                   className="absolute top-2.5 bottom-2.5 -left-0.5 w-[3px] rounded-full bg-primary"
@@ -156,34 +140,33 @@ export default function AccountSidebar({
                   >
                     {initials(account)}
                   </div>
-                  <span
-                    aria-label={account.loggedIn ? "giriş yapılmış" : "giriş yok"}
-                    className={cn(
-                      "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar",
-                      account.loggedIn ? "bg-success" : "bg-muted-foreground/50",
-                    )}
-                  />
+                  {active && (
+                    <span
+                      aria-label="etkin hesap"
+                      className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-success ring-2 ring-sidebar"
+                    />
+                  )}
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="truncate font-medium text-sm">{account.name}</span>
-                    {account.isDefault && (
+                    <span className="truncate font-medium text-sm">{account.label}</span>
+                    {active && (
                       <span className="shrink-0 rounded bg-background/70 px-1 py-px text-[9px] text-muted-foreground uppercase tracking-wide">
-                        kaynak
+                        etkin
                       </span>
                     )}
                   </div>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {account.email ?? "giriş yapılmamış"}
+                    {account.email ?? account.slug}
                   </p>
                 </div>
               </div>
 
-              {account.brokenLinks.length > 0 && (
+              {!account.hasCredentials && (
                 <p className="mt-1.5 flex items-center gap-1 pl-[42px] text-[11px] text-warning">
                   <AlertTriangleIcon className="size-3 shrink-0" />
-                  {account.brokenLinks.length} bağlantı kırık
+                  oturum yok — yeniden giriş gerekiyor
                 </p>
               )}
 
@@ -196,91 +179,39 @@ export default function AccountSidebar({
                     initial={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.16 }}
                   >
-                    <div className="flex gap-1 pt-2 pl-[42px]">
-                      {!account.loggedIn && (
-                        <IconAction
-                          disabled={busy}
-                          icon={<LogInIcon className="size-3.5" />}
-                          label="Giriş yap"
-                          onClick={() => onLogin(account.name)}
-                        />
-                      )}
-                      {account.brokenLinks.length > 0 && (
-                        <IconAction
-                          disabled={busy}
-                          icon={<WrenchIcon className="size-3.5" />}
-                          label="Bağlantıları onar"
-                          onClick={() => onRepair(account.name)}
-                        />
-                      )}
-                      {!account.isDefault && (
-                        <IconAction
-                          destructive
-                          disabled={busy}
-                          icon={<Trash2Icon className="size-3.5" />}
-                          label="Hesabı sil"
-                          onClick={() => onDelete(account.name)}
-                        />
-                      )}
-                    </div>
+                    <p className="pt-1.5 pl-[42px] text-[11px] text-muted-foreground leading-snug">
+                      Terminaldeki <code>claude</code> de bu hesabı kullanıyor.
+                    </p>
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {!active && (
+                <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <IconAction
+                    destructive
+                    icon={<Trash2Icon className="size-3.5" />}
+                    label="Hesabı kaldır"
+                    onClick={() => onDelete(account.slug)}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
       <div className="border-t p-2.5">
-        <AnimatePresence initial={false} mode="wait">
-          {adding ? (
-            <motion.div
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-2"
-              initial={{ opacity: 0, y: 4 }}
-              key="form"
-            >
-              <Input
-                autoFocus
-                aria-label="Yeni hesap ismi"
-                className="h-8 text-sm"
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") submit();
-                  if (e.key === "Escape") setAdding(false);
-                }}
-                placeholder="hesap-ismi"
-                value={name}
-              />
-              <div className="flex gap-1.5">
-                <Button className="flex-1" disabled={busy} onClick={submit} size="sm">
-                  <CheckIcon className="size-3.5" />
-                  Oluştur
-                </Button>
-                <Button onClick={() => setAdding(false)} size="sm" variant="ghost">
-                  <XIcon className="size-3.5" />
-                </Button>
-              </div>
-              <p className="text-[10.5px] text-muted-foreground leading-snug">
-                Proje onayları ve MCP ayarları kopyalanır; kimlik bilgileri
-                kopyalanmaz.
-              </p>
-            </motion.div>
-          ) : (
-            <motion.div animate={{ opacity: 1 }} initial={{ opacity: 0 }} key="buttons">
-              <Button
-                className="w-full"
-                disabled={busy}
-                onClick={() => setAdding(true)}
-                size="sm"
-                variant="secondary"
-              >
-                <PlusIcon className="size-3.5" />
-                Hesap ekle
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <Button
+          className="w-full"
+          disabled={busy}
+          onClick={onAddAccount}
+          size="sm"
+          variant="secondary"
+        >
+          <PlusIcon className="size-3.5" />
+          Hesap ekle
+        </Button>
       </div>
     </aside>
   );

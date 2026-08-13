@@ -67,12 +67,6 @@ pub struct Manager {
 
 pub struct StartOptions<'a> {
     pub id: String,
-    /// `CLAUDE_CONFIG_DIR` olarak geçilecek dizin.
-    ///
-    /// `None` = değişkeni hiç set etme (default hesap). `~/.claude` vermek
-    /// **yanlıştır**: o durumda Claude `.claude.json`'ı dizinin içinde arar,
-    /// oysa default kurulumda gerçek dosya ev kökündedir.
-    pub config_dir: Option<&'a Path>,
     /// Claude'un başlatılacağı dizin. `resume` verildiyse oturumun kendi
     /// cwd'si olmak zorunda: Claude transcript'leri cwd'ye göre dizinliyor,
     /// yanlış dizinden başlatılırsa oturumu bulamaz.
@@ -124,9 +118,6 @@ impl Manager {
         // onu mutlak yolla başlatmak kendi bulunmasını çözer, komşularını değil.
         cmd.env("PATH", crate::paths::augmented_path());
 
-        if let Some(dir) = opts.config_dir {
-            cmd.env("CLAUDE_CONFIG_DIR", dir);
-        }
         if let Some(cwd) = opts.cwd {
             if cwd.is_dir() {
                 cmd.current_dir(cwd);

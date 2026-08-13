@@ -63,7 +63,7 @@ export default function SessionList({
     );
   }, [filtered]);
 
-  const canRun = account?.loggedIn ?? false;
+  const canRun = account !== undefined;
 
   return (
     <div className="flex h-full flex-col">
@@ -98,9 +98,7 @@ export default function SessionList({
         <div className="mx-5 mt-4 flex items-start gap-2.5 rounded-xl border border-warning/25 bg-warning/10 px-4 py-3">
           <div className="mt-0.5 size-2 shrink-0 rounded-full bg-warning" />
           <div>
-            <p className="font-medium text-sm">
-              {account.name} hesabına giriş yapılmamış
-            </p>
+            <p className="font-medium text-sm">Etkin hesap yok</p>
             <p className="mt-0.5 text-muted-foreground text-xs">
               Sol panelden giriş yapın — OAuth akışını Claude yürütür, token bu
               uygulamadan geçmez.

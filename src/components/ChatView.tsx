@@ -284,10 +284,10 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
 
   useEffect(() => {
     api
-      .listModels(options.account)
+      .listModels()
       .then(setFallbackModels)
       .catch((e) => log("error", "modeller alınamadı:", e));
-  }, [options.account]);
+  }, []);
 
   // Handshake'ten gelen liste daha doğru (hesabın gerçekten erişebildikleri);
   // gelene kadar katalogdaki listeyi gösteriyoruz.
@@ -365,7 +365,6 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
               </span>
             )}
             <span className="opacity-40">·</span>
-            <span>{options.account}</span>
             {state.totalCostUsd !== null && (
               <>
                 <span className="opacity-40">·</span>

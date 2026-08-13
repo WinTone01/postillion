@@ -1,19 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 
-/** Rust tarafındaki `accounts::Account` ile birebir (serde camelCase). */
+/** Rust tarafındaki `accounts::Account` ile birebir. */
 export interface Account {
-  name: string;
-  dir: string;
-  /** `~/.claude` — silinemez, paylaşılan verinin kaynağı. */
-  isDefault: boolean;
-  loggedIn: boolean;
+  /** Dizin adı; komutlarda kimlik olarak bu kullanılıyor. */
+  slug: string;
+  /** Arayüzde görünen ad. */
+  label: string;
   email: string | null;
   displayName: string | null;
   organizationRole: string | null;
   seatTier: string | null;
-  billingType: string | null;
-  /** Boş değilse hesap paylaşılan veriden kopmuş demektir. */
-  brokenLinks: string[];
+  /** Sistem genelinde etkin hesap bu mu. */
+  isActive: boolean;
+  hasCredentials: boolean;
 }
 
 /** Rust tarafındaki `sessions::Session` ile birebir. */
@@ -31,21 +30,19 @@ export interface Session {
 
 export const api = {
   listAccounts: () => invoke<Account[]>("list_accounts"),
-  createAccount: (name: string) => invoke<Account>("create_account", { name }),
-  repairAccount: (name: string) => invoke<Account>("repair_account", { name }),
-  deleteAccount: (name: string) => invoke<void>("delete_account", { name }),
-  accountLogin: (account: string) => invoke<void>("account_login", { account }),
+  /** Sistem genelinde etkin hesabı değiştirir; terminaldeki `claude` de etkilenir. */
+  switchAccount: (slug: string) => invoke<Account>("switch_account", { slug }),
+  removeAccount: (slug: string) => invoke<void>("remove_account", { slug }),
+
+  /** Giriş akışını başlatır; URL `auth://url` eventiyle gelir. */
+  loginStart: (email?: string) => invoke<void>("login_start", { email: email ?? null }),
+  loginSubmitCode: (code: string) => invoke<void>("login_submit_code", { code }),
+  loginCancel: () => invoke<void>("login_cancel"),
 
   listSessions: (project?: string) =>
     invoke<Session[]>("list_sessions", { project: project ?? null }),
   refreshSessions: () => invoke<Session[]>("refresh_sessions"),
 
-  /**
-   * Bir oturumun geçmişini diskten okur.
-   *
-   * `claude --resume` geçmişi tekrar yayınlamadığı için arayüzdeki sohbet
-   * geçmişi buradan geliyor.
-   */
   /**
    * Diskteki mevcut içerik.
    *
@@ -54,6 +51,12 @@ export const api = {
    */
   readTextFile: (path: string) => invoke<FileSnapshot>("read_text_file", { path }),
 
+  /**
+   * Bir oturumun geçmişini diskten okur.
+   *
+   * `claude --resume` geçmişi tekrar yayınlamadığı için sohbet geçmişi
+   * buradan geliyor.
+   */
   readTranscript: (path: string, maxRecords?: number) =>
     invoke<Array<Record<string, unknown>>>("read_transcript", {
       path,
@@ -62,7 +65,6 @@ export const api = {
 
   agentStart: (args: {
     id: string;
-    account: string;
     cwd?: string | null;
     resume?: string | null;
     model?: string | null;
@@ -70,7 +72,6 @@ export const api = {
   }) =>
     invoke<string>("agent_start", {
       id: args.id,
-      account: args.account,
       cwd: args.cwd ?? null,
       resume: args.resume ?? null,
       model: args.model ?? null,
@@ -106,16 +107,15 @@ export const api = {
 
   // ---------------------------------------------------------------- katalog
 
-  listModels: (account: string) => invoke<ModelOption[]>("list_models", { account }),
+  listModels: () => invoke<ModelOption[]>("list_models"),
   effortLevels: () => invoke<string[]>("effort_levels"),
 
-  readPreferences: (account: string) => invoke<Preferences>("read_preferences", { account }),
-  writePreferences: (account: string, preferences: Preferences) =>
-    invoke<void>("write_preferences", { account, preferences }),
+  readPreferences: () => invoke<Preferences>("read_preferences"),
+  writePreferences: (preferences: Preferences) =>
+    invoke<void>("write_preferences", { preferences }),
 
-  listMcpServers: (account: string) => invoke<McpServer[]>("list_mcp_servers", { account }),
+  listMcpServers: () => invoke<McpServer[]>("list_mcp_servers"),
   mcpAdd: (args: {
-    account: string;
     name: string;
     transport: "http" | "sse" | "stdio";
     target: string;
@@ -124,33 +124,33 @@ export const api = {
     commandArgs: string[];
     projectScope: boolean;
   }) => invoke<void>("mcp_add", args),
-  mcpRemove: (account: string, name: string) =>
-    invoke<void>("mcp_remove", { account, name }),
+  mcpRemove: (name: string) =>
+    invoke<void>("mcp_remove", { name }),
 
-  listPlugins: (account: string) => invoke<Plugin[]>("list_plugins", { account }),
-  listAvailablePlugins: (account: string) =>
-    invoke<Plugin[]>("list_available_plugins", { account }),
-  pluginInstall: (account: string, id: string) =>
-    invoke<void>("plugin_install", { account, id }),
-  pluginUninstall: (account: string, id: string) =>
-    invoke<void>("plugin_uninstall", { account, id }),
-  pluginSetEnabled: (account: string, id: string, enabled: boolean) =>
-    invoke<void>("plugin_set_enabled", { account, id, enabled }),
+  listPlugins: () => invoke<Plugin[]>("list_plugins"),
+  listAvailablePlugins: () =>
+    invoke<Plugin[]>("list_available_plugins"),
+  pluginInstall: (id: string) =>
+    invoke<void>("plugin_install", { id }),
+  pluginUninstall: (id: string) =>
+    invoke<void>("plugin_uninstall", { id }),
+  pluginSetEnabled: (id: string, enabled: boolean) =>
+    invoke<void>("plugin_set_enabled", { id, enabled }),
 
-  listMarketplaces: (account: string) =>
-    invoke<Marketplace[]>("list_marketplaces", { account }),
-  marketplaceAdd: (account: string, source: string) =>
-    invoke<void>("marketplace_add", { account, source }),
-  marketplaceRemove: (account: string, name: string) =>
-    invoke<void>("marketplace_remove", { account, name }),
-  marketplaceUpdate: (account: string, name?: string) =>
-    invoke<void>("marketplace_update", { account, name: name ?? null }),
+  listMarketplaces: () =>
+    invoke<Marketplace[]>("list_marketplaces"),
+  marketplaceAdd: (source: string) =>
+    invoke<void>("marketplace_add", { source }),
+  marketplaceRemove: (name: string) =>
+    invoke<void>("marketplace_remove", { name }),
+  marketplaceUpdate: (name?: string) =>
+    invoke<void>("marketplace_update", { name: name ?? null }),
 
-  listSkills: (account: string) => invoke<Skill[]>("list_skills", { account }),
-  skillCreate: (account: string, name: string, description?: string) =>
-    invoke<void>("skill_create", { account, name, description: description ?? null }),
-  skillDelete: (account: string, name: string) =>
-    invoke<void>("skill_delete", { account, name }),
+  listSkills: () => invoke<Skill[]>("list_skills"),
+  skillCreate: (name: string, description?: string) =>
+    invoke<void>("skill_create", { name, description: description ?? null }),
+  skillDelete: (name: string) =>
+    invoke<void>("skill_delete", { name }),
 };
 
 export interface FileSnapshot {
