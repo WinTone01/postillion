@@ -6,6 +6,7 @@ import AccountSidebar from "@/components/AccountSidebar";
 import ChatView from "@/components/ChatView";
 import SessionList from "@/components/SessionList";
 import AddAccountDialog from "@/components/AddAccountDialog";
+import NewSessionDialog from "@/components/NewSessionDialog";
 import CommandPalette from "@/components/CommandPalette";
 import type { MascotState } from "@/components/Mascot";
 import { Toaster } from "@/components/ui/sonner";
@@ -36,6 +37,7 @@ export default function App() {
   }, []);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [newSessionOpen, setNewSessionOpen] = useState(false);
   // Yeni sekmeler bu tercihlerle başlatılıyor (efor sonradan değiştirilemiyor).
   const [prefs, setPrefs] = useState<Preferences>({});
   // Sekme başına maskot durumu; kenar çubuğu en dikkat çekeni gösteriyor.
@@ -123,18 +125,18 @@ export default function App() {
     });
   }
 
-  function newSession() {
+  function startSession(cwd: string) {
     if (!account) return;
     openTab({
       options: {
         id: `new-${Date.now()}`,
-        cwd: null,
+        cwd,
         resume: null,
         transcriptPath: null,
         model: prefs.model ?? null,
         effort: prefs.effortLevel ?? null,
       },
-      title: `${account.label} · yeni oturum`,
+      title: cwd.split("/").filter(Boolean).pop() ?? "yeni oturum",
       gitBranch: null,
     });
   }
@@ -234,7 +236,7 @@ export default function App() {
               <SessionList
                 account={account}
                 loading={loading}
-                onNew={newSession}
+                onNew={() => setNewSessionOpen(true)}
                 onRefresh={() => void loadSessions(true)}
                 onResume={resume}
                 sessions={sessions}
@@ -272,7 +274,7 @@ export default function App() {
 
       <CommandPalette
         accounts={accounts}
-        onNewSession={newSession}
+        onNewSession={() => setNewSessionOpen(true)}
         onOpenChange={setPaletteOpen}
         onOpenSettings={() => setView({ kind: "settings" })}
         onResume={resume}
@@ -283,6 +285,13 @@ export default function App() {
 
       {/* Uygulama koyu temaya sabit; next-themes sağlayıcısı yok, o yüzden
           temayı açıkça geçiyoruz (aksi halde "system"e düşüp açık renk olurdu). */}
+      <NewSessionDialog
+        onOpenChange={setNewSessionOpen}
+        onStart={startSession}
+        open={newSessionOpen}
+        sessions={sessions}
+      />
+
       <AddAccountDialog
         onAdded={() => void loadAccounts()}
         onOpenChange={setAddOpen}

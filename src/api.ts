@@ -99,6 +99,7 @@ export const api = {
       message: args.message ?? null,
     }),
 
+  /** manual | acceptEdits | plan | auto | dontAsk | bypassPermissions */
   agentSetPermissionMode: (id: string, mode: string) =>
     invoke<void>("agent_set_permission_mode", { id, mode }),
 

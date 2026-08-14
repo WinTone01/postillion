@@ -2,11 +2,14 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Ana pencerenin yetkileri. Bu dosya olmadan Tauri v2 `event.listen`'i reddediyor ve ajan akışı hiç bağlanmıyor.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:event:default",
     "core:window:default",
-    "core:webview:default"
+    "core:webview:default",
+    "dialog:allow-open"
   ]
 }

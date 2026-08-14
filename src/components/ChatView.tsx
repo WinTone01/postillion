@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangleIcon, FolderIcon, GitBranchIcon, SquareIcon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  CpuIcon,
+  FolderIcon,
+  GaugeIcon,
+  GitBranchIcon,
+  ShieldIcon,
+  SquareIcon,
+} from "lucide-react";
 
 import {
   Conversation,
@@ -45,6 +53,7 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import DiffView from "@/components/DiffView";
+import QuestionCard, { formatAnswers, type Question } from "@/components/QuestionCard";
 import type { MascotState } from "@/components/Mascot";
 import { diffFromToolInput } from "@/lib/diff";
 import { Button } from "@/components/ui/button";
@@ -117,7 +126,46 @@ function useWriteBaseline(part: ToolPart) {
 /** Kullanıcının bir izin isteğine verdiği cevabı yukarı taşır. */
 type RespondFn = ReturnType<typeof useAgentSession>["respondPermission"];
 
-function ToolBlock({ part, respond }: { part: ToolPart; respond: RespondFn }) {
+type AnswerFn = ReturnType<typeof useAgentSession>["answerQuestions"];
+
+function ToolBlock({
+  part,
+  respond,
+  answer,
+}: {
+  part: ToolPart;
+  respond: RespondFn;
+  answer: AnswerFn;
+}) {
+  // AskUserQuestion bir izin isteği gibi geliyor ama aslında bir soru;
+  // ham JSON yerine seçim arayüzü çiziyoruz.
+  if (part.name === "AskUserQuestion") {
+    const questions =
+      (part.input as { questions?: Question[] } | undefined)?.questions ?? [];
+
+    if (questions.length > 0) {
+      const answered =
+        part.state === "output-available" && typeof part.output === "string"
+          ? part.output
+          : null;
+
+      return (
+        <QuestionCard
+          answered={answered}
+          onSubmit={(answers) =>
+            void answer({
+              toolCallId: part.toolCallId,
+              requestId: part.permissionRequestId ?? "",
+              summary: Object.values(answers).join(" · "),
+              message: formatAnswers(answers),
+            })
+          }
+          questions={questions}
+        />
+      );
+    }
+  }
+
   // CLI "hep izin ver" kısayolunu öneriyorsa onu da butona çeviriyoruz.
   const setModeSuggestion = part.suggestions?.find((s) => s.type === "setMode");
 
@@ -271,9 +319,76 @@ function SlashPalette({ commands }: { commands: SlashCommand[] }) {
 /** `/effort` bir slash komutu; süren oturumda da çalışıyor (ölçüldü). */
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 
+/**
+ * `--permission-mode` seçenekleri (CLI yardımından doğrulandı).
+ *
+ * `set_permission_mode` kontrol isteğiyle süren oturumda da değişiyor.
+ */
+const PERMISSION_MODES = [
+  { value: "manual", label: "Her şeyi sor" },
+  { value: "acceptEdits", label: "Düzenlemeleri onayla" },
+  { value: "plan", label: "Plan" },
+  { value: "auto", label: "Otomatik" },
+  { value: "dontAsk", label: "Sorma" },
+  { value: "bypassPermissions", label: "İzinsiz" },
+];
+
+/** Alt bardaki kompakt seçici; üçü de aynı görünsün diye ortak. */
+function BottomSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  icon,
+  disabled,
+  width,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder: string;
+  icon: React.ReactNode;
+  disabled?: boolean;
+  width: string;
+}) {
+  return (
+    <Select disabled={disabled} onValueChange={onChange} value={value}>
+      <SelectTrigger
+        className={`h-7 gap-1.5 border-none bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/60 ${width}`}
+      >
+        {icon}
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export default function ChatView({ options, title, gitBranch, onStateChange }: Props) {
-  const { state, running, loadingHistory, send, respondPermission, interrupt } =
-    useAgentSession(options);
+  const {
+    state,
+    running,
+    loadingHistory,
+    send,
+    respondPermission,
+    answerQuestions,
+    setPermissionMode,
+    interrupt,
+  } = useAgentSession(options);
+
+  // Mod başlatırken `manual`; süren oturumda set_permission_mode ile değişiyor.
+  const [mode, setMode] = useState("manual");
+
+  async function changeMode(next: string) {
+    setMode(next);
+    await setPermissionMode(next);
+  }
 
   const [fallbackModels, setFallbackModels] = useState<ModelOption[]>([]);
   // Efor süren oturumda `/effort` ile değişiyor; başlangıç değeri seçenekten.
@@ -376,35 +491,6 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
           </div>
         </div>
 
-        <Select disabled={!running} onValueChange={changeModel} value={picked}>
-          <SelectTrigger className="h-8 w-[140px] text-xs">
-            <SelectValue placeholder={state.model ?? "Model"} />
-          </SelectTrigger>
-          <SelectContent>
-            {models.map((model) => (
-              <SelectItem key={model.value} value={model.value}>
-                {model.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          disabled={!running || state.busy}
-          onValueChange={(v) => void changeEffort(v)}
-          value={effort}
-        >
-          <SelectTrigger className="h-8 w-[110px] text-xs">
-            <SelectValue placeholder="Efor" />
-          </SelectTrigger>
-          <SelectContent>
-            {EFFORT_LEVELS.map((level) => (
-              <SelectItem key={level} value={level}>
-                {level}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
 
         {state.busy && (
           <Button size="sm" variant="ghost" onClick={() => void interrupt()}>
@@ -455,6 +541,7 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
                   }
                   return (
                     <ToolBlock
+                      answer={answerQuestions}
                       key={part.toolCallId}
                       part={part}
                       respond={respondPermission}
@@ -492,7 +579,37 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
               />
             </PromptInputBody>
             <PromptInputFooter>
-              <PromptInputTools />
+              {/* Model, efor ve mod girdinin yanında — Claude Desktop'taki gibi
+                  konuşurken erişilebilir olmalı, başlıkta değil. */}
+              <PromptInputTools className="gap-1.5">
+                <BottomSelect
+                  disabled={!running}
+                  icon={<CpuIcon className="size-3.5" />}
+                  onChange={changeModel}
+                  options={models.map((m) => ({ value: m.value, label: m.label }))}
+                  placeholder={state.model ?? "Model"}
+                  value={picked}
+                  width="w-[124px]"
+                />
+                <BottomSelect
+                  disabled={!running || state.busy}
+                  icon={<GaugeIcon className="size-3.5" />}
+                  onChange={(v) => void changeEffort(v)}
+                  options={EFFORT_LEVELS.map((l) => ({ value: l, label: l }))}
+                  placeholder="Efor"
+                  value={effort}
+                  width="w-[104px]"
+                />
+                <BottomSelect
+                  disabled={!running}
+                  icon={<ShieldIcon className="size-3.5" />}
+                  onChange={(v) => void changeMode(v)}
+                  options={PERMISSION_MODES}
+                  placeholder="Mod"
+                  value={mode}
+                  width="w-[132px]"
+                />
+              </PromptInputTools>
               <PromptInputSubmit
                 status={state.busy ? "streaming" : "ready"}
                 onStop={() => void interrupt()}

@@ -289,6 +289,62 @@ export function useAgentSession(options: AgentSessionOptions | null) {
     [options],
   );
 
+  /**
+   * `AskUserQuestion` cevabı.
+   *
+   * Cevap kontrol cevabının `message` alanıyla gidiyor: headless modda
+   * tool_result'a ulaşan tek kanal o. Düz "allow" cevabı CLI'a
+   * "kullanıcı cevaplamadı" dedirtiyor (ölçüldü).
+   */
+  const answerQuestions = useCallback(
+    async (args: { toolCallId: string; requestId: string; summary: string; message: string }) => {
+      if (!options) return;
+
+      setState((prev) => ({
+        ...prev,
+        messages: prev.messages.map((m) => ({
+          ...m,
+          parts: m.parts.map((part) =>
+            part.kind === "tool" && part.toolCallId === args.toolCallId
+              ? {
+                  ...part,
+                  state: "output-available" as const,
+                  output: args.summary,
+                  permissionRequestId: undefined,
+                }
+              : part,
+          ),
+        })),
+      }));
+
+      try {
+        await api.agentRespondPermission({
+          id: options.id,
+          requestId: args.requestId,
+          allow: false,
+          message: args.message,
+        });
+      } catch (e) {
+        log("error", "cevap gönderilemedi:", e);
+        setState((prev) => ({ ...prev, errors: [...prev.errors, errText(e)] }));
+      }
+    },
+    [options],
+  );
+
+  const setPermissionMode = useCallback(
+    async (mode: string) => {
+      if (!options) return;
+      try {
+        await api.agentSetPermissionMode(options.id, mode);
+      } catch (e) {
+        log("error", "mod değiştirilemedi:", e);
+        setState((prev) => ({ ...prev, errors: [...prev.errors, errText(e)] }));
+      }
+    },
+    [options],
+  );
+
   const interrupt = useCallback(async () => {
     if (!options) return;
     try {
@@ -298,5 +354,14 @@ export function useAgentSession(options: AgentSessionOptions | null) {
     }
   }, [options]);
 
-  return { state, running, loadingHistory, send, respondPermission, interrupt };
+  return {
+    state,
+    running,
+    loadingHistory,
+    send,
+    respondPermission,
+    answerQuestions,
+    setPermissionMode,
+    interrupt,
+  };
 }
