@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /** Rust tarafındaki `accounts::Account` ile birebir. */
+/** Kullanıcı mesajına iliştirilen görüntü; Rust tarafındaki `agent::Image`. */
+export interface ImageAttachment {
+  mediaType: string;
+  /** Base64 — ham ikili veri IPC'den geçemiyor. */
+  data: string;
+}
+
 export interface Account {
   /** Dizin adı; komutlarda kimlik olarak bu kullanılıyor. */
   slug: string;
@@ -78,7 +85,14 @@ export const api = {
       effort: args.effort ?? null,
     }),
 
-  agentSend: (id: string, text: string) => invoke<void>("agent_send", { id, text }),
+  agentSend: (id: string, text: string, images: ImageAttachment[] = []) =>
+    invoke<void>("agent_send", { id, text, images }),
+
+  /**
+   * Bölge seçtirip ekran görüntüsü alır; kullanıcı iptal ederse `null`.
+   * Yakalama sırasında uygulama penceresi gizleniyor.
+   */
+  captureScreenshot: () => invoke<ImageAttachment | null>("capture_screenshot"),
 
   /** Modeli süren oturumda değiştirir; sohbet bağlamı korunur. */
   agentSetModel: (id: string, model: string) =>

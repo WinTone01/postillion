@@ -36,6 +36,7 @@ doesn't break context — you just miss the cache on the first turn.
 | **Cross-account resume** | Same transcript, different account, context intact |
 | **Chat UI** | Token-by-token streaming, collapsible thinking blocks |
 | **Code diffs** | `Edit` / `Write` calls render as real line diffs, not raw JSON |
+| **Screenshots** | Capture a region, paste, drop or attach — images go straight to the model |
 | **Permission prompts** | Approve tool calls inline, with "always allow" shortcuts |
 | **Slash commands** | Autocomplete, sourced live from the running agent |
 | **Model & effort** | Both switchable mid-session |
@@ -228,6 +229,10 @@ otherwise React drops duplicate keys and half the conversation vanishes.
   exactly where Claude Code installs itself. Relying on PATH means the app works
   from a terminal and silently fails from the menu, so the binary is resolved
   against known locations and its directory is prepended to the child's PATH.
+- **Screenshots shell out.** WebKitGTK has no `getDisplayMedia`, so the desktop's
+  own region picker is used instead: `grim`+`slurp`, then `spectacle`,
+  `gnome-screenshot`, `maim`, `scrot`, `import` — first one found wins. Install
+  none of them and the button reports what to install.
 - **Wayland + NVIDIA.** WebKitGTK's DMABUF renderer crashes the window on open
   with `Error 71 (Protocol error)`. `main.rs` sets
   `WEBKIT_DISABLE_DMABUF_RENDERER=1` before GTK initialises.

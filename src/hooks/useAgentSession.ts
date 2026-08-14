@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 
-import { api, errText } from "@/api";
+import { api, errText, type ImageAttachment } from "@/api";
 import { log } from "@/lib/log";
 import {
   appendUserMessage,
@@ -226,11 +226,12 @@ export function useAgentSession(options: AgentSessionOptions | null) {
   }, [sessionKey, flush]);
 
   const send = useCallback(
-    async (text: string) => {
-      if (!options || !text.trim()) return;
-      setState((prev) => appendUserMessage(prev, text));
+    async (text: string, images: ImageAttachment[] = []) => {
+      // Yalnızca görüntüden oluşan bir mesaj da geçerli.
+      if (!options || (!text.trim() && images.length === 0)) return;
+      setState((prev) => appendUserMessage(prev, text, images));
       try {
-        await api.agentSend(options.id, text);
+        await api.agentSend(options.id, text, images);
       } catch (e) {
         setState((prev) => ({
           ...prev,

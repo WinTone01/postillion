@@ -4,6 +4,7 @@ mod auth;
 mod catalog;
 mod error;
 mod paths;
+mod screenshot;
 mod sessions;
 
 use std::path::PathBuf;
@@ -198,8 +199,38 @@ fn agent_set_model(state: State<'_, AppState>, id: String, model: String) -> Res
 }
 
 #[tauri::command]
-fn agent_send(state: State<'_, AppState>, id: String, text: String) -> Result<()> {
-    state.agent.send_user_message(&id, &text)
+fn agent_send(
+    state: State<'_, AppState>,
+    id: String,
+    text: String,
+    images: Option<Vec<agent::Image>>,
+) -> Result<()> {
+    state
+        .agent
+        .send_user_message(&id, &text, &images.unwrap_or_default())
+}
+
+// --------------------------------------------------------- ekran görüntüsü
+
+/// Bölge seçtirip ekran görüntüsü alır; iptal edilirse `None`.
+///
+/// Pencere yakalama sırasında gizleniyor: Claude Desktop da böyle yapıyor ve
+/// aksi halde uygulamanın kendisi görüntünün içinde kalıyor. Gizleme her
+/// durumda geri alınıyor — araç hata verse bile pencere kaybolmamalı.
+#[tauri::command]
+async fn capture_screenshot(window: tauri::Window) -> Result<Option<screenshot::Shot>> {
+    let _ = window.hide();
+
+    // Bileşik yöneticinin pencereyi gerçekten kaldırması bir kare sürüyor;
+    // beklenmezse uygulama görüntüye giriyor.
+    std::thread::sleep(std::time::Duration::from_millis(220));
+
+    let result = screenshot::capture_region();
+
+    let _ = window.show();
+    let _ = window.set_focus();
+
+    result
 }
 
 #[tauri::command]
@@ -441,6 +472,7 @@ pub fn run() {
             agent_start,
             agent_set_model,
             agent_send,
+            capture_screenshot,
             list_models,
             effort_levels,
             read_preferences,

@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangleIcon,
+  CameraIcon,
   CpuIcon,
   FolderIcon,
   GaugeIcon,
   GitBranchIcon,
+  Loader2Icon,
+  PaperclipIcon,
   ShieldIcon,
   SquareIcon,
+  XIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   Conversation,
@@ -32,11 +37,13 @@ import {
 import {
   PromptInput,
   PromptInputBody,
+  PromptInputButton,
   PromptInputFooter,
   PromptInputProvider,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputAttachments,
   usePromptInputController,
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
@@ -64,7 +71,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { api, prettyCwd, type ModelOption } from "@/api";
+import { api, errText, prettyCwd, type ModelOption } from "@/api";
+import { attachmentToFile, urlToAttachment } from "@/lib/images";
 import { log } from "@/lib/log";
 import {
   stringify,
@@ -403,6 +411,90 @@ function StreamingText({ text }: { text: string }) {
   );
 }
 
+/**
+ * Gönderilmeyi bekleyen görüntüler.
+ *
+ * Küçük önizlemeler: bir ekran görüntüsünün doğru olanı olup olmadığı ancak
+ * bakarak anlaşılıyor, dosya adı yetmiyor.
+ */
+function AttachmentStrip() {
+  const attachments = usePromptInputAttachments();
+  if (attachments.files.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 px-3 pt-3">
+      {attachments.files.map((file) => (
+        <div className="group relative" key={file.id}>
+          <img
+            alt={file.filename ?? "ek"}
+            className="size-16 rounded-lg border object-cover"
+            src={file.url}
+          />
+          <button
+            aria-label="Eki kaldır"
+            className="-right-1.5 -top-1.5 absolute grid size-5 place-items-center rounded-full border bg-background text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+            onClick={() => attachments.remove(file.id)}
+            type="button"
+          >
+            <XIcon className="size-3" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Görüntü iliştirme ve ekran görüntüsü butonları.
+ *
+ * Yapıştırma ve sürükle-bırak zaten `PromptInput` içinde; bunlar aynı ek
+ * listesini besleyen görünür yollar.
+ */
+function AttachmentButtons({ disabled }: { disabled: boolean }) {
+  const attachments = usePromptInputAttachments();
+  const [capturing, setCapturing] = useState(false);
+
+  async function screenshot() {
+    setCapturing(true);
+    try {
+      const shot = await api.captureScreenshot();
+      // İptal edildiyse `null` gelir; bu bir hata değil.
+      if (!shot) return;
+      attachments.add([attachmentToFile(shot, `ekran-${Date.now()}.png`)]);
+    } catch (e) {
+      log("error", "ekran görüntüsü alınamadı:", e);
+      toast.error(errText(e));
+    } finally {
+      setCapturing(false);
+    }
+  }
+
+  return (
+    <>
+      <PromptInputButton
+        aria-label="Görüntü ekle"
+        disabled={disabled}
+        onClick={() => attachments.openFileDialog()}
+        variant="ghost"
+      >
+        <PaperclipIcon className="size-3.5" />
+      </PromptInputButton>
+      <PromptInputButton
+        aria-label="Ekran görüntüsü al"
+        disabled={disabled || capturing}
+        onClick={() => void screenshot()}
+        variant="ghost"
+      >
+        {capturing ? (
+          <Loader2Icon className="size-3.5 animate-spin" />
+        ) : (
+          <CameraIcon className="size-3.5" />
+        )}
+      </PromptInputButton>
+    </>
+  );
+}
+
 /** `/effort` bir slash komutu; süren oturumda da çalışıyor (ölçüldü). */
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 
@@ -570,9 +662,23 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
   const reveal = useReveal(state);
 
   async function handleSubmit(message: PromptInputMessage) {
-    const text = message.text?.trim();
-    if (!text) return;
-    await send(text);
+    const text = message.text?.trim() ?? "";
+
+    // Ekler `blob:` URL'i olarak tutuluyor; gönderim base64 istiyor.
+    const images = (
+      await Promise.all(
+        (message.files ?? []).map((file) =>
+          urlToAttachment(file.url, file.mediaType ?? "").catch((e) => {
+            log("error", "ek okunamadı:", e);
+            return null;
+          }),
+        ),
+      )
+    ).filter((image) => image !== null);
+
+    // Yalnızca görüntüden oluşan bir mesaj da geçerli.
+    if (!text && images.length === 0) return;
+    await send(text, images);
   }
 
   return (
@@ -660,6 +766,16 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
                     }
                     return <MessageResponse key={index}>{part.text}</MessageResponse>;
                   }
+                  if (part.kind === "image") {
+                    return (
+                      <img
+                        alt="İliştirilen görüntü"
+                        className="mb-2 max-h-72 w-auto max-w-full rounded-lg border"
+                        key={index}
+                        src={part.url}
+                      />
+                    );
+                  }
                   if (part.kind === "thinking") {
                     return (
                       <Reasoning className="mb-3" defaultOpen key={index}>
@@ -703,7 +819,20 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
       <div className="border-t p-3">
         <PromptInputProvider>
           <SlashPalette commands={state.commands} />
-          <PromptInput onSubmit={handleSubmit}>
+          {/* `accept` yalnızca Claude'un okuyabildiği biçimleri geçiriyor;
+              başka bir dosya yapıştırıldığında sessizce yok sayılmak yerine
+              hata mesajı çıkıyor. */}
+          {/* `globalDrop` kasıtlı olarak kapalı: sekmeler açık kaldığı için
+              belge geneline bağlanan bırakma dinleyicisi görüntüyü her
+              sekmenin girdisine birden eklerdi. Sürükleme girdinin üzerine
+              yapılıyor. */}
+          <PromptInput
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            multiple
+            onError={(error) => toast.error(error.message)}
+            onSubmit={handleSubmit}
+          >
+            <AttachmentStrip />
             <PromptInputBody>
               <PromptInputTextarea
                 placeholder={
@@ -716,6 +845,7 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
               {/* Model, efor ve mod girdinin yanında — Claude Desktop'taki gibi
                   konuşurken erişilebilir olmalı, başlıkta değil. */}
               <PromptInputTools className="gap-1.5">
+                <AttachmentButtons disabled={!running} />
                 <BottomSelect
                   disabled={!running}
                   icon={<CpuIcon className="size-3.5" />}

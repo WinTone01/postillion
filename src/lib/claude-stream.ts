@@ -56,13 +56,20 @@ export interface TextPart {
   text: string;
 }
 
+/** Kullanıcının iliştirdiği görüntü. */
+export interface ImagePart {
+  kind: "image";
+  /** `data:` URL — hem ekranda hem gönderimde aynı kaynak kullanılıyor. */
+  url: string;
+}
+
 /** Modelin düşünme bloğu; Claude Desktop'taki gibi katlanır gösteriliyor. */
 export interface ThinkingPart {
   kind: "thinking";
   text: string;
 }
 
-export type Part = TextPart | ThinkingPart | ToolPart;
+export type Part = TextPart | ImagePart | ThinkingPart | ToolPart;
 
 export interface ChatMessage {
   id: string;
@@ -205,7 +212,14 @@ function mergeParts(existing: Part[], incoming: Part[]): Part[] {
     }
 
     const last = merged[merged.length - 1];
-    if (last?.kind === part.kind && "text" in last && last.text === part.text) continue;
+    if (
+      part.kind !== "image" &&
+      last?.kind === part.kind &&
+      "text" in last &&
+      last.text === part.text
+    ) {
+      continue;
+    }
     merged.push(part);
   }
 
@@ -375,8 +389,34 @@ export function reduce(state: SessionState, event: Json): SessionState {
         };
       }
 
-      // Araç sonuçları: ilgili tool part'a iliştir.
       if (Array.isArray(content)) {
+        // Görüntü iliştirilmiş bir kullanıcı mesajı da dizi biçiminde geliyor.
+        // Bir kayıt ya araç sonuçları ya da gerçek içerik taşır, ikisi bir
+        // arada olmaz.
+        const parts: Part[] = [];
+        for (const block of asArray(content)) {
+          if (block.type === "text" && typeof block.text === "string") {
+            if (block.text.trim()) parts.push({ kind: "text", text: block.text });
+          } else if (block.type === "image") {
+            const source = block.source as Json | undefined;
+            if (source?.type === "base64" && typeof source.data === "string") {
+              const mediaType = String(source.media_type ?? "image/png");
+              parts.push({ kind: "image", url: `data:${mediaType};base64,${source.data}` });
+            }
+          }
+        }
+
+        if (parts.length > 0) {
+          return {
+            ...state,
+            messages: [
+              ...state.messages,
+              { id: String(event.uuid ?? nextId("user")), role: "user", parts },
+            ],
+          };
+        }
+
+        // Araç sonuçları: ilgili tool part'a iliştir.
         let messages = state.messages;
         for (const block of asArray(content)) {
           if (block.type !== "tool_result") continue;
@@ -484,13 +524,20 @@ export function seedFromTranscript(records: Json[]): SessionState {
 }
 
 /** Kullanıcı mesajını iyimser olarak ekler (Claude onu geri yansıtmıyor). */
-export function appendUserMessage(state: SessionState, text: string): SessionState {
+export function appendUserMessage(
+  state: SessionState,
+  text: string,
+  images: { mediaType: string; data: string }[] = [],
+): SessionState {
+  const parts: Part[] = images.map((image) => ({
+    kind: "image",
+    url: `data:${image.mediaType};base64,${image.data}`,
+  }));
+  if (text) parts.push({ kind: "text", text });
+
   return {
     ...state,
     busy: true,
-    messages: [
-      ...state.messages,
-      { id: nextId("user"), role: "user", parts: [{ kind: "text", text }] },
-    ],
+    messages: [...state.messages, { id: nextId("user"), role: "user", parts }],
   };
 }

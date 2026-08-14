@@ -58,6 +58,50 @@ struct Handle {
     child: Child,
 }
 
+/// Kullanıcı mesajına iliştirilen görüntü.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Image {
+    /// `image/png`, `image/jpeg`, `image/gif`, `image/webp`.
+    pub media_type: String,
+    /// Base64; ham ikili veri IPC'den geçemiyor.
+    pub data: String,
+}
+
+/// Kullanıcı mesajının içerik alanını kurar.
+///
+/// Görüntü yoksa düz metin — Claude Code'un beklediği en sade biçim. Görüntü
+/// varsa blok dizisi; görüntüler metnin önünde, çünkü soru genelde görüntüye
+/// atıfta bulunuyor. (Ölçüldü: base64 `image` blokları stream-json girdisinde
+/// çalışıyor.)
+fn user_content(text: &str, images: &[Image]) -> Value {
+    if images.is_empty() {
+        return json!(text);
+    }
+
+    let mut blocks: Vec<Value> = images
+        .iter()
+        .map(|image| {
+            json!({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": image.media_type,
+                    "data": image.data,
+                }
+            })
+        })
+        .collect();
+
+    // Yalnızca görüntüden oluşan bir mesaj da geçerli; boş metin bloğu
+    // eklemek API tarafında hata veriyor.
+    if !text.is_empty() {
+        blocks.push(json!({ "type": "text", "text": text }));
+    }
+
+    json!(blocks)
+}
+
 #[derive(Default)]
 pub struct Manager {
     sessions: Mutex<HashMap<String, Handle>>,
@@ -233,12 +277,12 @@ impl Manager {
     }
 
     /// Kullanıcı mesajı gönderir.
-    pub fn send_user_message(&self, id: &str, text: &str) -> Result<()> {
+    pub fn send_user_message(&self, id: &str, text: &str, images: &[Image]) -> Result<()> {
         self.write_line(
             id,
             &json!({
                 "type": "user",
-                "message": { "role": "user", "content": text }
+                "message": { "role": "user", "content": user_content(text, images) }
             }),
         )
     }
@@ -371,5 +415,44 @@ mod tests {
         });
         assert_eq!(deny["behavior"], "deny");
         assert!(deny["message"].as_str().unwrap().contains("reddetti"));
+    }
+
+    fn png(data: &str) -> Image {
+        Image {
+            media_type: "image/png".into(),
+            data: data.into(),
+        }
+    }
+
+    /// Görüntüsüz mesaj düz metin kalmalı: blok dizisine sarmak da geçerli ama
+    /// transcript'i gereksiz yere şişiriyor ve geçmiş okuyucusu düz metni
+    /// gerçek kullanıcı mesajının işareti olarak kullanıyor.
+    #[test]
+    fn goruntusuz_mesaj_duz_metin() {
+        assert_eq!(user_content("merhaba", &[]), json!("merhaba"));
+    }
+
+    #[test]
+    fn goruntuler_metnin_onunde_gonderilir() {
+        let content = user_content("bu ne?", &[png("AAAA"), png("BBBB")]);
+        let blocks = content.as_array().unwrap();
+
+        assert_eq!(blocks.len(), 3);
+        assert_eq!(blocks[0]["type"], "image");
+        assert_eq!(blocks[0]["source"]["type"], "base64");
+        assert_eq!(blocks[0]["source"]["media_type"], "image/png");
+        assert_eq!(blocks[0]["source"]["data"], "AAAA");
+        assert_eq!(blocks[1]["source"]["data"], "BBBB");
+        assert_eq!(blocks[2], json!({ "type": "text", "text": "bu ne?" }));
+    }
+
+    /// Yalnızca görüntü gönderilebilmeli; boş metin bloğu API tarafında hata.
+    #[test]
+    fn bos_metin_blok_uretmez() {
+        let content = user_content("", &[png("AAAA")]);
+        let blocks = content.as_array().unwrap();
+
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0]["type"], "image");
     }
 }
