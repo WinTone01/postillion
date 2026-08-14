@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import { formatRelative, t } from "@/lib/i18n";
+
 /** Kullanıcı mesajına iliştirilen görüntü; Rust tarafındaki `agent::Image`. */
 export interface ImageAttachment {
   mediaType: string;
@@ -289,19 +291,11 @@ export function formatBytes(n: number): string {
 }
 
 export function formatWhen(ms: number): string {
-  const diff = Date.now() - ms;
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "az önce";
-  if (min < 60) return `${min} dk önce`;
-  const hour = Math.floor(min / 60);
-  if (hour < 24) return `${hour} sa önce`;
-  const day = Math.floor(hour / 24);
-  if (day < 30) return `${day} gün önce`;
-  return new Date(ms).toLocaleDateString("tr-TR");
+  return formatRelative(ms);
 }
 
 /** `/home/kullanici/Projects/foo` → `~/Projects/foo` */
 export function prettyCwd(cwd: string | null): string {
-  if (!cwd) return "bilinmiyor";
+  if (!cwd) return t("bilinmiyor");
   return cwd.replace(/^\/home\/[^/]+/, "~");
 }

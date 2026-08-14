@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { baseName, type DiffResult } from "@/lib/diff";
+import { t } from "@/lib/i18n";
 
 interface Props {
   filePath: string;
@@ -64,7 +65,7 @@ export default function DiffView({
 
         {pending && (
           <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-            çalışıyor
+            {t("çalışıyor")}
           </span>
         )}
 
@@ -120,15 +121,17 @@ export default function DiffView({
 
           {baselineUnknown && (
             <p className="border-t bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
-              Bu yazım tamamlandığı için dosyanın önceki hâli geri getirilemiyor;
-              tüm satırlar yeni olarak gösteriliyor.
+              {t(
+                "Bu yazım tamamlandığı için dosyanın önceki hâli geri getirilemiyor; tüm satırlar yeni olarak gösteriliyor.",
+              )}
             </p>
           )}
 
           {diff.truncated && (
             <p className="border-t bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
-              Değişiklik çok büyük; satır eşleştirme atlandı, bloklar olduğu gibi
-              gösteriliyor.
+              {t(
+                "Değişiklik çok büyük; satır eşleştirme atlandı, bloklar olduğu gibi gösteriliyor.",
+              )}
             </p>
           )}
         </div>

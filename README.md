@@ -44,6 +44,7 @@ doesn't break context — you just miss the cache on the first turn.
 | **Model & effort** | Both switchable mid-session |
 | **MCP, plugins, skills** | Add, remove and toggle from the settings panel |
 | **Command palette** | `Ctrl+K` to jump between sessions and accounts |
+| **Turkish and English** | Follows the system locale, overridable in settings |
 
 ## Install
 
@@ -231,6 +232,11 @@ otherwise React drops duplicate keys and half the conversation vanishes.
   exactly where Claude Code installs itself. Relying on PATH means the app works
   from a terminal and silently fails from the menu, so the binary is resolved
   against known locations and its directory is prepended to the child's PATH.
+- **The UI is bilingual, the backend is not.** Interface strings go through
+  `t()` in `src/lib/i18n.ts`, keyed by the Turkish source text the way gettext
+  keys by the source string. `npm run check:i18n` fails on a key that is used
+  but not translated, which is what keeps the two in step. Error messages
+  raised in Rust are still Turkish only.
 - **Usage comes from `/usage`, parsed.** There is no structured API for the
   limit percentages. The slash command works in headless mode, costs zero
   tokens, and takes about three seconds, so it is polled and cached. Only the

@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { api, formatWhen, prettyCwd, type McpServer, type Session } from "@/api";
 import { log } from "@/lib/log";
+import { t } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -91,7 +92,7 @@ export default function NewSessionDialog({
       const picked = await open({
         directory: true,
         multiple: false,
-        title: "Çalışma dizini seçin",
+        title: t("Çalışma dizini seçin"),
         defaultPath: path || undefined,
       });
       if (typeof picked === "string") setPath(picked);
@@ -115,16 +116,17 @@ export default function NewSessionDialog({
     <Dialog onOpenChange={onOpenChange} open={isOpen}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Yeni oturum</DialogTitle>
+          <DialogTitle>{t("Yeni oturum")}</DialogTitle>
           <DialogDescription>
-            Claude bu dizinde çalışacak — dosyaları burada arar ve oturum buraya
-            kaydedilir.
+            {t(
+              "Claude bu dizinde çalışacak — dosyaları burada arar ve oturum buraya kaydedilir.",
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs">Çalışma dizini</Label>
+            <Label className="text-xs">{t("Çalışma dizini")}</Label>
             <div className="flex gap-2">
               <Input
                 className="font-mono text-xs"
@@ -132,7 +134,7 @@ export default function NewSessionDialog({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") start();
                 }}
-                placeholder="/home/kullanici/Projects/proje"
+                placeholder={t("/home/kullanici/Projects/proje")}
                 value={path}
               />
               <Button onClick={() => void browse()} size="icon" variant="secondary">
@@ -143,7 +145,7 @@ export default function NewSessionDialog({
 
           {recent.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Son kullanılanlar</Label>
+              <Label className="text-xs">{t("Son kullanılanlar")}</Label>
               <div className="space-y-1">
                 {recent.map((entry) => (
                   <button
@@ -174,7 +176,7 @@ export default function NewSessionDialog({
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1.5 text-xs">
                 <PlugIcon className="size-3.5" />
-                MCP sunucuları
+                {t("MCP sunucuları")}
               </Label>
               <div className="flex flex-wrap gap-1.5">
                 {servers.map((server) => {
@@ -206,8 +208,12 @@ export default function NewSessionDialog({
               </div>
               <p className="text-[11px] text-muted-foreground leading-snug">
                 {chosen === null || chosen.size === servers.length
-                  ? "Hepsi açık — genel yapılandırma, eklentilerin getirdiği sunucular dahil."
-                  : "Yalnızca seçilenler bu sohbette açık; eklenti sunucuları da kapanır."}
+                  ? t(
+                      "Hepsi açık — genel yapılandırma, eklentilerin getirdiği sunucular dahil.",
+                    )
+                  : t(
+                      "Yalnızca seçilenler bu sohbette açık; eklenti sunucuları da kapanır.",
+                    )}
               </p>
             </div>
           )}
@@ -215,7 +221,7 @@ export default function NewSessionDialog({
 
         <DialogFooter>
           <Button disabled={!path.trim()} onClick={start}>
-            Başlat
+            {t("Başlat")}
           </Button>
         </DialogFooter>
       </DialogContent>

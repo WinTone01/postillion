@@ -10,6 +10,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { formatWhen, prettyCwd, type Account, type Session } from "@/api";
+import { t } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -56,27 +57,27 @@ export default function CommandPalette({
 
   return (
     <CommandDialog
-      description="Oturum, hesap ve eylem arayın"
+      description={t("Oturum, hesap ve eylem arayın")}
       onOpenChange={onOpenChange}
       open={open}
-      title="Komut paleti"
+      title={t("Komut paleti")}
     >
-      <CommandInput placeholder="Oturum ara ya da komut yazın…" />
+      <CommandInput placeholder={t("Oturum ara ya da komut yazın…")} />
       <CommandList>
-        <CommandEmpty>Sonuç yok.</CommandEmpty>
+        <CommandEmpty>{t("Sonuç yok.")}</CommandEmpty>
 
-        <CommandGroup heading="Eylemler">
+        <CommandGroup heading={t("Eylemler")}>
           <CommandItem onSelect={() => run(onNewSession)}>
             <SparklesIcon className="size-4" />
-            Yeni oturum başlat
+            {t("Yeni oturum başlat")}
           </CommandItem>
           <CommandItem onSelect={() => run(onOpenSettings)}>
             <SettingsIcon className="size-4" />
-            Ayarları aç
+            {t("Ayarları aç")}
           </CommandItem>
         </CommandGroup>
 
-        <CommandGroup heading="Hesaplar">
+        <CommandGroup heading={t("Hesaplar")}>
           {accounts.map((account) => (
             <CommandItem
               key={account.slug}
@@ -86,13 +87,13 @@ export default function CommandPalette({
               <UserIcon className="size-4" />
               <span>{account.label}</span>
               <span className="ml-auto text-muted-foreground text-xs">
-                {account.isActive ? "etkin" : (account.email ?? "")}
+                {account.isActive ? t("etkin") : (account.email ?? "")}
               </span>
             </CommandItem>
           ))}
         </CommandGroup>
 
-        <CommandGroup heading="Oturumlar">
+        <CommandGroup heading={t("Oturumlar")}>
           {/* cmdk tüm listeyi filtreliyor; 108 kaydın hepsini vermek yerine
               ilk 60'ı yeterli — arama zaten daraltıyor. */}
           {sessions.slice(0, 60).map((session) => (

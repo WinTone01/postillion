@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatWhen, type Account, type Usage } from "@/api";
+import { percent, t } from "@/lib/i18n";
 
 interface Props {
   accounts: Account[];
@@ -39,20 +40,34 @@ interface Props {
 }
 
 /** Maskot süs değil, durum göstergesi — ekran okuyucu da görebilmeli. */
-const MASCOT_LABELS: Record<MascotState, string> = {
-  idle: "Boşta",
-  thinking: "Claude düşünüyor",
-  working: "Araç çalışıyor",
-  waiting: "İzin bekleniyor",
-  error: "Hata var",
-};
+function mascotLabel(state: MascotState): string {
+  switch (state) {
+    case "thinking":
+      return t("Claude düşünüyor");
+    case "working":
+      return t("Araç çalışıyor");
+    case "waiting":
+      return t("İzin bekleniyor");
+    case "error":
+      return t("Hata var");
+    default:
+      return t("Boşta");
+  }
+}
 
 /** `/usage` etiketleri İngilizce geliyor; bilinenler çevriliyor. */
-const WINDOW_LABELS: Record<string, string> = {
-  session: "Oturum",
-  "week (all models)": "Hafta",
-  "week (Opus)": "Hafta · Opus",
-};
+function windowLabel(label: string): string {
+  switch (label) {
+    case "session":
+      return t("Oturum");
+    case "week (all models)":
+      return t("Hafta");
+    case "week (Opus)":
+      return t("Hafta · Opus");
+    default:
+      return label;
+  }
+}
 
 /**
  * Kullanım göstergesi.
@@ -73,12 +88,12 @@ function UsageMeter({ usage, stale }: { usage: Usage | undefined; stale: boolean
     primary.percent >= 85 ? "bg-destructive" : primary.percent >= 60 ? "bg-warning" : "bg-success";
 
   const summary = usage.windows
-    .map((w) => `${WINDOW_LABELS[w.label] ?? w.label} %${w.percent}`)
+    .map((w) => `${windowLabel(w.label)} ${percent(w.percent)}`)
     .join(" · ");
 
   const resets = usage.windows
     .filter((w) => w.resets)
-    .map((w) => `${WINDOW_LABELS[w.label] ?? w.label}: ${w.resets}`);
+    .map((w) => `${windowLabel(w.label)}: ${w.resets}`);
 
   return (
     <Tooltip>
@@ -91,9 +106,9 @@ function UsageMeter({ usage, stale }: { usage: Usage | undefined; stale: boolean
             />
           </div>
           <p className="mt-1 truncate text-[10.5px] text-muted-foreground">
-            {WINDOW_LABELS[primary.label] ?? primary.label} %{primary.percent}
+            {windowLabel(primary.label)} {percent(primary.percent)}
             {rest.length > 0 &&
-              ` · ${rest.map((w) => `${WINDOW_LABELS[w.label] ?? w.label} %${w.percent}`).join(" · ")}`}
+              ` · ${rest.map((w) => `${windowLabel(w.label)} ${percent(w.percent)}`).join(" · ")}`}
             {stale && ` · ${formatWhen(usage.measuredAtMs)}`}
           </p>
         </div>
@@ -102,13 +117,16 @@ function UsageMeter({ usage, stale }: { usage: Usage | undefined; stale: boolean
         <p className="font-medium">{summary}</p>
         {resets.map((line) => (
           <p className="text-[11px] opacity-80" key={line}>
-            sıfırlanma — {line}
+            {t("sıfırlanma")} — {line}
           </p>
         ))}
         <p className="mt-1 text-[11px] opacity-70">
           {stale
-            ? `En son etkin olduğunda ölçüldü (${formatWhen(usage.measuredAtMs)}). Bu hesaba geçince güncellenir.`
-            : `${formatWhen(usage.measuredAtMs)} ölçüldü`}
+            ? t(
+                "En son etkin olduğunda ölçüldü ({when}). Bu hesaba geçince güncellenir.",
+                { when: formatWhen(usage.measuredAtMs) },
+              )
+            : t("{when} ölçüldü", { when: formatWhen(usage.measuredAtMs) })}
         </p>
       </TooltipContent>
     </Tooltip>
@@ -143,14 +161,14 @@ export default function AccountSidebar({
         {/* Maskot taşmadan hareket edebilsin diye kutu figürden belirgin
             biçimde büyük; overflow-hidden yok. */}
         <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary">
-          <Mascot className="size-9" label={MASCOT_LABELS[mascotState]} state={mascotState} />
+          <Mascot className="size-9" label={mascotLabel(mascotState)} state={mascotState} />
         </div>
         <div className="min-w-0">
           <h1 className="truncate font-semibold text-lg leading-tight tracking-tight">
             Postillion
           </h1>
           <p className="truncate text-muted-foreground text-xs leading-tight">
-            Hesaplar arası oturum devamı
+            {t("Hesaplar arası oturum devamı")}
           </p>
         </div>
       </div>
@@ -161,32 +179,33 @@ export default function AccountSidebar({
         <NavItem
           active={navActive === "sessions"}
           icon={<MessagesSquareIcon className="size-4" />}
-          label="Oturumlar"
+          label={t("Oturumlar")}
           onClick={onOpenSessions}
         />
         <NavItem
           active={navActive === "settings"}
           icon={<SettingsIcon className="size-4" />}
-          label="Ayarlar"
+          label={t("Ayarlar")}
           onClick={onOpenSettings}
         />
       </nav>
 
       <p className="px-4 pt-2 pb-2 font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
-        Hesaplar
+        {t("Hesaplar")}
       </p>
 
       {locked && (
         <p className="mx-2 mb-1.5 rounded-lg bg-muted/60 px-2.5 py-2 text-[11px] text-muted-foreground leading-snug">
-          Bir sohbet sürüyor. Hesap değiştirmek paylaşılan kimlik dosyasını
-          değiştirdiği için çalışan oturumu bozar; bitmesini bekleyin.
+          {t(
+            "Bir sohbet sürüyor. Hesap değiştirmek paylaşılan kimlik dosyasını değiştirdiği için çalışan oturumu bozar; bitmesini bekleyin.",
+          )}
         </p>
       )}
 
       <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-2">
         {accounts.length === 0 && (
           <p className="px-2.5 py-3 text-[11px] text-muted-foreground leading-snug">
-            Henüz hesap yok. Aşağıdan ekleyin.
+            {t("Henüz hesap yok. Aşağıdan ekleyin.")}
           </p>
         )}
 
@@ -229,7 +248,7 @@ export default function AccountSidebar({
                   </div>
                   {active && (
                     <span
-                      aria-label="etkin hesap"
+                      aria-label={t("etkin hesap")}
                       className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-success ring-2 ring-sidebar"
                     />
                   )}
@@ -240,7 +259,7 @@ export default function AccountSidebar({
                     <span className="truncate font-medium text-sm">{account.label}</span>
                     {active && (
                       <span className="shrink-0 rounded bg-background/70 px-1 py-px text-[9px] text-muted-foreground uppercase tracking-wide">
-                        etkin
+                        {t("etkin")}
                       </span>
                     )}
                   </div>
@@ -255,7 +274,7 @@ export default function AccountSidebar({
               {!account.hasCredentials && (
                 <p className="mt-1.5 flex items-center gap-1 pl-[42px] text-[11px] text-warning">
                   <AlertTriangleIcon className="size-3 shrink-0" />
-                  oturum yok — yeniden giriş gerekiyor
+                  {t("oturum yok — yeniden giriş gerekiyor")}
                 </p>
               )}
 
@@ -269,7 +288,7 @@ export default function AccountSidebar({
                     transition={{ duration: 0.16 }}
                   >
                     <p className="pt-1.5 pl-[42px] text-[11px] text-muted-foreground leading-snug">
-                      Terminaldeki <code>claude</code> de bu hesabı kullanıyor.
+                      {t("Terminaldeki {cmd} de bu hesabı kullanıyor.", { cmd: "claude" })}
                     </p>
                   </motion.div>
                 )}
@@ -280,7 +299,7 @@ export default function AccountSidebar({
                   <IconAction
                     destructive
                     icon={<Trash2Icon className="size-3.5" />}
-                    label="Hesabı kaldır"
+                    label={t("Hesabı kaldır")}
                     onClick={() => onDelete(account.slug)}
                   />
                 </div>
@@ -299,7 +318,7 @@ export default function AccountSidebar({
           variant="secondary"
         >
           <PlusIcon className="size-3.5" />
-          Hesap ekle
+          {t("Hesap ekle")}
         </Button>
       </div>
     </aside>

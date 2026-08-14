@@ -5,6 +5,7 @@ import {
 } from "@tauri-apps/plugin-notification";
 
 import { log } from "@/lib/log";
+import { t } from "@/lib/i18n";
 
 /** Uyarı verilebilecek olaylar. */
 export type AlertEvent = "permission" | "done" | "error" | "question";
@@ -20,10 +21,18 @@ export type AlertSettings = Record<AlertEvent, AlertRule> & {
 };
 
 export const ALERT_EVENTS: { id: AlertEvent; label: string; hint: string }[] = [
-  { id: "permission", label: "İzin isteği", hint: "Claude bir araç çalıştırmak için onay beklediğinde" },
-  { id: "question", label: "Soru", hint: "Claude size bir soru sorduğunda" },
-  { id: "done", label: "Tamamlandı", hint: "Bir tur bittiğinde ve Claude beklemeye geçtiğinde" },
-  { id: "error", label: "Hata", hint: "Oturumda bir hata oluştuğunda" },
+  {
+    id: "permission",
+    label: t("İzin isteği"),
+    hint: t("Claude bir araç çalıştırmak için onay beklediğinde"),
+  },
+  { id: "question", label: t("Soru"), hint: t("Claude size bir soru sorduğunda") },
+  {
+    id: "done",
+    label: t("Tamamlandı"),
+    hint: t("Bir tur bittiğinde ve Claude beklemeye geçtiğinde"),
+  },
+  { id: "error", label: t("Hata"), hint: t("Oturumda bir hata oluştuğunda") },
 ];
 
 /**

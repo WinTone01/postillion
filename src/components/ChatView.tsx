@@ -75,6 +75,7 @@ import {
 import { api, errText, prettyCwd, type ModelOption, type Proc } from "@/api";
 import { attachmentToFile, urlToAttachment } from "@/lib/images";
 import { log } from "@/lib/log";
+import { t } from "@/lib/i18n";
 import {
   stringify,
   type SessionState,
@@ -162,12 +163,20 @@ type AnswerFn = ReturnType<typeof useAgentSession>["answerQuestions"];
  * CLI ham mod adını gönderiyor ("acceptEdits"); butonda böyle görünmesi neyin
  * kabul edildiğini gizliyordu.
  */
-const MODE_LABELS: Record<string, string> = {
-  acceptEdits: "Düzenlemeleri hep onayla",
-  bypassPermissions: "İzin sormayı kapat",
-  plan: "Plan moduna geç",
-  default: "Varsayılan moda dön",
-};
+function modeLabel(mode: string): string {
+  switch (mode) {
+    case "acceptEdits":
+      return t("Düzenlemeleri hep onayla");
+    case "bypassPermissions":
+      return t("İzin sormayı kapat");
+    case "plan":
+      return t("Plan moduna geç");
+    case "default":
+      return t("Varsayılan moda dön");
+    default:
+      return mode;
+  }
+}
 
 function ToolBlock({
   part,
@@ -260,7 +269,7 @@ function ToolBlock({
       <Confirmation approval={approval} state={part.state} className="mb-4">
         <ConfirmationTitle>
           <span className="font-medium">{part.name}</span>
-          {part.description ? ` — ${part.description}` : ""} çalıştırılsın mı?
+          {part.description ? ` — ${part.description}` : ""} {t("çalıştırılsın mı?")}
         </ConfirmationTitle>
 
         <ConfirmationRequest>
@@ -275,7 +284,7 @@ function ToolBlock({
                 })
               }
             >
-              Reddet
+              {t("Reddet")}
             </ConfirmationAction>
 
             {/* Tek tek onaylamak uzun sürüyor; aynı araç tekrar tekrar
@@ -291,7 +300,7 @@ function ToolBlock({
                 });
               }}
             >
-              {part.name}'a hep izin ver
+              {t("{tool} aracına hep izin ver", { tool: part.name })}
             </ConfirmationAction>
 
             {setModeSuggestion?.mode && (
@@ -306,7 +315,7 @@ function ToolBlock({
                   })
                 }
               >
-                {MODE_LABELS[setModeSuggestion.mode] ?? setModeSuggestion.mode}
+                {modeLabel(setModeSuggestion.mode)}
               </ConfirmationAction>
             )}
 
@@ -319,16 +328,16 @@ function ToolBlock({
                 })
               }
             >
-              İzin ver
+              {t("İzin ver")}
             </ConfirmationAction>
           </ConfirmationActions>
         </ConfirmationRequest>
 
         <ConfirmationAccepted>
-          <span className="text-muted-foreground text-xs">İzin verildi.</span>
+          <span className="text-muted-foreground text-xs">{t("İzin verildi.")}</span>
         </ConfirmationAccepted>
         <ConfirmationRejected>
-          <span className="text-muted-foreground text-xs">Reddedildi.</span>
+          <span className="text-muted-foreground text-xs">{t("Reddedildi.")}</span>
         </ConfirmationRejected>
       </Confirmation>
       )}
@@ -462,10 +471,10 @@ function StreamingText({ text }: { text: string }) {
 
 /** Saniyeyi okunur süreye çevirir. */
 function formatElapsed(seconds: number): string {
-  if (seconds < 60) return `${seconds} sn`;
+  if (seconds < 60) return t("{n} sn", { n: seconds });
   const min = Math.floor(seconds / 60);
-  if (min < 60) return `${min} dk`;
-  return `${Math.floor(min / 60)} sa ${min % 60} dk`;
+  if (min < 60) return t("{n} dk", { n: min });
+  return t("{h} sa {m} dk", { h: Math.floor(min / 60), m: min % 60 });
 }
 
 /**
@@ -503,17 +512,17 @@ function ProcessPanel({
       <div className="sticky top-0 flex items-center gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur">
         <TerminalIcon className="size-3.5 text-muted-foreground" />
         <span className="flex-1 font-medium text-xs">
-          Süreçler
+          {t("Süreçler")}
           <span className="ml-1.5 font-normal text-muted-foreground">{procs.length}</span>
         </span>
-        <Button aria-label="Kapat" onClick={onClose} size="icon" variant="ghost">
+        <Button aria-label={t("Kapat")} onClick={onClose} size="icon" variant="ghost">
           <XIcon className="size-3.5" />
         </Button>
       </div>
 
       {procs.length === 0 ? (
         <p className="px-3 py-3 text-[11.5px] text-muted-foreground">
-          {running ? "Şu anda alt süreç yok." : "Oturum kapalı."}
+          {running ? t("Şu anda alt süreç yok.") : t("Oturum kapalı.")}
         </p>
       ) : (
         <ul className="divide-y">
@@ -522,7 +531,7 @@ function ProcessPanel({
               <div className="min-w-0 flex-1">
                 <p className="truncate font-mono text-[11.5px]">{proc.command}</p>
                 <p className="text-[10.5px] text-muted-foreground">
-                  pid {proc.pid} · {formatElapsed(proc.elapsedSecs)} · {proc.state}
+                  {t("pid")} {proc.pid} · {formatElapsed(proc.elapsedSecs)} · {proc.state}
                 </p>
               </div>
               {/* SIGTERM önce: komutun kendini toparlama şansı olsun. */}
@@ -532,7 +541,7 @@ function ProcessPanel({
                 size="sm"
                 variant="ghost"
               >
-                Durdur
+                {t("Durdur")}
               </Button>
               <Button
                 disabled={killing === proc.pid}
@@ -540,7 +549,7 @@ function ProcessPanel({
                 size="sm"
                 variant="ghost"
               >
-                Zorla
+                {t("Zorla")}
               </Button>
             </li>
           ))}
@@ -578,18 +587,20 @@ function PendingBar({
       <span className="size-2 shrink-0 animate-pulse rounded-full bg-warning" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-xs">
-          {parts.length === 1 ? "Bir izin bekliyor" : `${parts.length} izin bekliyor`}
+          {parts.length === 1
+            ? t("Bir izin bekliyor")
+            : t("{n} izin bekliyor", { n: parts.length })}
           <span className="ml-1.5 font-normal text-muted-foreground">
             {names.join(", ")}
           </span>
         </p>
       </div>
       <Button onClick={() => onJump(parts[0])} size="sm" variant="ghost">
-        Göster
+        {t("Göster")}
       </Button>
       {bulk > 1 && (
         <Button onClick={onAllowAll} size="sm">
-          {bulk} isteğe izin ver
+          {t("{n} isteğe izin ver", { n: bulk })}
         </Button>
       )}
     </div>
@@ -611,12 +622,12 @@ function AttachmentStrip() {
       {attachments.files.map((file) => (
         <div className="group relative" key={file.id}>
           <img
-            alt={file.filename ?? "ek"}
+            alt={file.filename ?? t("ek")}
             className="size-16 rounded-lg border object-cover"
             src={file.url}
           />
           <button
-            aria-label="Eki kaldır"
+            aria-label={t("Eki kaldır")}
             className="-right-1.5 -top-1.5 absolute grid size-5 place-items-center rounded-full border bg-background text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
             onClick={() => attachments.remove(file.id)}
             type="button"
@@ -657,7 +668,7 @@ function AttachmentButtons({ disabled }: { disabled: boolean }) {
   return (
     <>
       <PromptInputButton
-        aria-label="Görüntü ekle"
+        aria-label={t("Görüntü ekle")}
         disabled={disabled}
         onClick={() => attachments.openFileDialog()}
         variant="ghost"
@@ -665,7 +676,7 @@ function AttachmentButtons({ disabled }: { disabled: boolean }) {
         <PaperclipIcon className="size-3.5" />
       </PromptInputButton>
       <PromptInputButton
-        aria-label="Ekran görüntüsü al"
+        aria-label={t("Ekran görüntüsü al")}
         disabled={disabled || capturing}
         onClick={() => void screenshot()}
         variant="ghost"
@@ -689,12 +700,12 @@ const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
  * `set_permission_mode` kontrol isteğiyle süren oturumda da değişiyor.
  */
 const PERMISSION_MODES = [
-  { value: "manual", label: "Her şeyi sor" },
-  { value: "acceptEdits", label: "Düzenlemeleri onayla" },
-  { value: "plan", label: "Plan" },
-  { value: "auto", label: "Otomatik" },
-  { value: "dontAsk", label: "Sorma" },
-  { value: "bypassPermissions", label: "İzinsiz" },
+  { value: "manual", label: t("Her şeyi sor") },
+  { value: "acceptEdits", label: t("Düzenlemeleri onayla") },
+  { value: "plan", label: t("Plan") },
+  { value: "auto", label: t("Otomatik") },
+  { value: "dontAsk", label: t("Sorma") },
+  { value: "bypassPermissions", label: t("İzinsiz") },
 ];
 
 /** Alt bardaki kompakt seçici; üçü de aynı görünsün diye ortak. */
@@ -870,8 +881,8 @@ export default function ChatView({
       fireAlert(loadAlertSettings(), asking ? "question" : "permission", {
         title,
         body: asking
-          ? "Claude size bir soru sordu."
-          : `${part.name} çalıştırmak için onay bekliyor.`,
+          ? t("Claude size bir soru sordu.")
+          : t("{tool} çalıştırmak için onay bekliyor.", { tool: part.name }),
       });
     }
   }, [pending, respondPermission, title]);
@@ -916,11 +927,11 @@ export default function ChatView({
     if (before === null || before === mascotState) return;
 
     if (mascotState === "idle" && (before === "thinking" || before === "working")) {
-      fireAlert(loadAlertSettings(), "done", { title, body: "Claude işini bitirdi." });
+      fireAlert(loadAlertSettings(), "done", { title, body: t("Claude işini bitirdi.") });
     } else if (mascotState === "error") {
       fireAlert(loadAlertSettings(), "error", {
         title,
-        body: state.errors.at(-1) ?? "Oturumda bir hata oluştu.",
+        body: state.errors.at(-1) ?? t("Oturumda bir hata oluştu."),
       });
     }
   }, [mascotState, state.errors, title]);
@@ -1002,7 +1013,7 @@ export default function ChatView({
             {state.busy && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
                 <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-                çalışıyor
+                {t("çalışıyor")}
               </span>
             )}
           </div>
@@ -1036,7 +1047,7 @@ export default function ChatView({
           variant={showProcesses ? "secondary" : "ghost"}
         >
           <TerminalIcon className="size-3.5" />
-          Süreçler
+          {t("Süreçler")}
           {procCount > 0 && (
             <span className="ml-1 rounded bg-primary/15 px-1.5 py-px text-[10px] text-primary tabular-nums">
               {procCount}
@@ -1047,7 +1058,7 @@ export default function ChatView({
         {state.busy && (
           <Button size="sm" variant="ghost" onClick={() => void interrupt()}>
             <SquareIcon className="size-3" />
-            Durdur
+            {t("Durdur")}
           </Button>
         )}
       </header>
@@ -1075,12 +1086,16 @@ export default function ChatView({
           {state.messages.length === 0 && !state.streamingText && (
             <ConversationEmptyState
               title={
-                loadingHistory ? "Geçmiş yükleniyor…" : running ? "Hazır" : "Başlatılıyor…"
+                loadingHistory
+                  ? t("Geçmiş yükleniyor…")
+                  : running
+                    ? t("Hazır")
+                    : t("Başlatılıyor…")
               }
               description={
                 options.resume
-                  ? "Önceki oturum geri yükleniyor."
-                  : "Bir şey yazarak başlayın."
+                  ? t("Önceki oturum geri yükleniyor.")
+                  : t("Bir şey yazarak başlayın.")
               }
             />
           )}
@@ -1104,7 +1119,7 @@ export default function ChatView({
                   if (part.kind === "image") {
                     return (
                       <img
-                        alt="İliştirilen görüntü"
+                        alt={t("İliştirilen görüntü")}
                         className="mb-2 max-h-72 w-auto max-w-full rounded-lg border"
                         key={index}
                         src={part.url}
@@ -1175,7 +1190,9 @@ export default function ChatView({
             <PromptInputBody>
               <PromptInputTextarea
                 placeholder={
-                  running ? "Claude'a yazın — komutlar için / yazın" : "Oturum başlatılıyor…"
+                  running
+                    ? t("Claude'a yazın — komutlar için / yazın")
+                    : t("Oturum başlatılıyor…")
                 }
                 disabled={!running}
               />
@@ -1193,7 +1210,7 @@ export default function ChatView({
                   icon={<CpuIcon className="size-3.5" />}
                   onChange={changeModel}
                   options={models.map((m) => ({ value: m.value, label: m.label }))}
-                  placeholder={state.model ?? "Model"}
+                  placeholder={state.model ?? t("Model")}
                   value={picked}
                   width="w-[124px]"
                 />
@@ -1202,7 +1219,7 @@ export default function ChatView({
                   icon={<GaugeIcon className="size-3.5" />}
                   onChange={(v) => void changeEffort(v)}
                   options={EFFORT_LEVELS.map((l) => ({ value: l, label: l }))}
-                  placeholder="Efor"
+                  placeholder={t("Efor")}
                   value={effort}
                   width="w-[104px]"
                 />
@@ -1211,7 +1228,7 @@ export default function ChatView({
                   icon={<ShieldIcon className="size-3.5" />}
                   onChange={(v) => void changeMode(v)}
                   options={PERMISSION_MODES}
-                  placeholder="Mod"
+                  placeholder={t("Mod")}
                   value={mode}
                   width="w-[132px]"
                 />

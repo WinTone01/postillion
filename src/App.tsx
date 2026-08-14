@@ -22,6 +22,7 @@ import {
 } from "@/api";
 import { releaseAgentSession, type AgentSessionOptions } from "@/hooks/useAgentSession";
 import { primeAudio } from "@/lib/alerts";
+import { t } from "@/lib/i18n";
 import { log } from "@/lib/log";
 import { cn } from "@/lib/utils";
 
@@ -249,7 +250,7 @@ export default function App() {
       },
       // Geçici; ilk mesaj gönderilir gönderilmez ChatView gerçek başlığı
       // bildiriyor.
-      title: cwd.split("/").filter(Boolean).pop() ?? "yeni oturum",
+      title: cwd.split("/").filter(Boolean).pop() ?? t("yeni oturum"),
       titleFromSession: false,
       gitBranch: null,
     });
@@ -260,8 +261,8 @@ export default function App() {
     try {
       const next = await api.switchAccount(slug);
       await loadAccounts();
-      toast.success(`${next.label} hesabına geçildi`, {
-        description: "Terminaldeki claude de artık bu hesabı kullanıyor.",
+      toast.success(t("{name} hesabına geçildi", { name: next.label }), {
+        description: t("Terminaldeki claude de artık bu hesabı kullanıyor."),
       });
     } catch (e) {
       notifyError(errText(e));
@@ -324,7 +325,7 @@ export default function App() {
                     {tab.title}
                   </button>
                   <button
-                    aria-label="Sekmeyi kapat"
+                    aria-label={t("Sekmeyi kapat")}
                     className="rounded p-0.5 hover:bg-background/60"
                     onClick={() => closeTab(tab.options.id)}
                     type="button"

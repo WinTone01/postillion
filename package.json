@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "check:i18n": "node scripts/check-i18n.mjs"
   },
   "dependencies": {
     "@radix-ui/react-use-controllable-state": "^1.2.6",

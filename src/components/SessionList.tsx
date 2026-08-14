@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatBytes, formatWhen, prettyCwd, type Account, type Session } from "@/api";
+import { t } from "@/lib/i18n";
 
 interface Props {
   sessions: Session[];
@@ -71,16 +72,16 @@ export default function SessionList({
         <div className="relative flex-1">
           <SearchIcon className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
           <Input
-            aria-label="Oturum ara"
+            aria-label={t("Oturum ara")}
             className="h-9 pl-9"
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Oturum ara — başlık, proje, dal"
+            placeholder={t("Oturum ara — başlık, proje, dal")}
             value={query}
           />
         </div>
 
         <Button
-          aria-label="Yenile"
+          aria-label={t("Yenile")}
           disabled={loading}
           onClick={onRefresh}
           size="icon"
@@ -90,7 +91,7 @@ export default function SessionList({
         </Button>
         <Button disabled={!canRun} onClick={onNew} size="sm">
           <PlusIcon className="size-3.5" />
-          Yeni oturum
+          {t("Yeni oturum")}
         </Button>
       </header>
 
@@ -98,10 +99,11 @@ export default function SessionList({
         <div className="mx-5 mt-4 flex items-start gap-2.5 rounded-xl border border-warning/25 bg-warning/10 px-4 py-3">
           <div className="mt-0.5 size-2 shrink-0 rounded-full bg-warning" />
           <div>
-            <p className="font-medium text-sm">Etkin hesap yok</p>
+            <p className="font-medium text-sm">{t("Etkin hesap yok")}</p>
             <p className="mt-0.5 text-muted-foreground text-xs">
-              Sol panelden giriş yapın — OAuth akışını Claude yürütür, token bu
-              uygulamadan geçmez.
+              {t(
+                "Sol panelden giriş yapın — OAuth akışını Claude yürütür, token bu uygulamadan geçmez.",
+              )}
             </p>
           </div>
         </div>
@@ -122,12 +124,14 @@ export default function SessionList({
               <MessagesSquareIcon className="size-5 text-muted-foreground" />
             </div>
             <p className="mt-3 font-medium text-sm">
-              {query ? "Eşleşen oturum yok" : "Henüz oturum yok"}
+              {query ? t("Eşleşen oturum yok") : t("Henüz oturum yok")}
             </p>
             <p className="mt-1 max-w-xs text-muted-foreground text-xs">
               {query
-                ? "Farklı bir arama deneyin."
-                : "Oturumlar ~/.claude/projects altından okunur. Yeni bir tane başlatın."}
+                ? t("Farklı bir arama deneyin.")
+                : t(
+                    "Oturumlar ~/.claude/projects altından okunur. Yeni bir tane başlatın.",
+                  )}
             </p>
           </div>
         )}

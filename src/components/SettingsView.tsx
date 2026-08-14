@@ -41,6 +41,7 @@ import {
   type Skill,
 } from "@/api";
 import { log } from "@/lib/log";
+import { languageOverride, setLanguageOverride, t, type Lang } from "@/lib/i18n";
 import {
   ALERT_EVENTS,
   fireAlert,
@@ -56,20 +57,54 @@ interface Props {
 type Section = "model" | "alerts" | "mcp" | "plugins" | "skills";
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode; hint: string }[] = [
-  { id: "model", label: "Model & Efor", icon: <BrainIcon className="size-4" />, hint: "Varsayılan model ve düşünme derinliği" },
-  { id: "alerts", label: "Bildirimler", icon: <BellIcon className="size-4" />, hint: "Hangi olayda bildirim ve ses" },
-  { id: "mcp", label: "MCP", icon: <PlugIcon className="size-4" />, hint: "Sunucular ve erişim anahtarları" },
-  { id: "plugins", label: "Eklentiler", icon: <BlocksIcon className="size-4" />, hint: "Marketplace ve kurulu eklentiler" },
-  { id: "skills", label: "Skill'ler", icon: <SparklesIcon className="size-4" />, hint: "Sohbette /isim ile çağrılır" },
+  {
+    id: "model",
+    label: t("Model & Efor"),
+    icon: <BrainIcon className="size-4" />,
+    hint: t("Varsayılan model ve düşünme derinliği"),
+  },
+  {
+    id: "alerts",
+    label: t("Bildirimler"),
+    icon: <BellIcon className="size-4" />,
+    hint: t("Hangi olayda bildirim ve ses"),
+  },
+  {
+    id: "mcp",
+    label: t("MCP"),
+    icon: <PlugIcon className="size-4" />,
+    hint: t("Sunucular ve erişim anahtarları"),
+  },
+  {
+    id: "plugins",
+    label: t("Eklentiler"),
+    icon: <BlocksIcon className="size-4" />,
+    hint: t("Marketplace ve kurulu eklentiler"),
+  },
+  {
+    id: "skills",
+    label: t("Skill'ler"),
+    icon: <SparklesIcon className="size-4" />,
+    hint: t("Sohbette /isim ile çağrılır"),
+  },
 ];
 
-const EFFORT_LABELS: Record<string, string> = {
-  low: "Düşük — hızlı ve ucuz",
-  medium: "Orta — varsayılan",
-  high: "Yüksek",
-  xhigh: "Çok yüksek",
-  max: "Azami — en yavaş, en derin",
-};
+function effortLabel(level: string): string {
+  switch (level) {
+    case "low":
+      return t("Düşük — hızlı ve ucuz");
+    case "medium":
+      return t("Orta — varsayılan");
+    case "high":
+      return t("Yüksek");
+    case "xhigh":
+      return t("Çok yüksek");
+    case "max":
+      return t("Azami — en yavaş, en derin");
+    default:
+      return level;
+  }
+}
 
 export default function SettingsView({ onError }: Props) {
   const [section, setSection] = useState<Section>("model");
@@ -103,7 +138,7 @@ export default function SettingsView({ onError }: Props) {
       setEfforts(e);
       setPrefs(p);
     } catch (e) {
-      fail("tercihler okunamadı", e);
+      fail(t("tercihler okunamadı"), e);
     }
   }, [fail]);
 
@@ -111,7 +146,7 @@ export default function SettingsView({ onError }: Props) {
     try {
       setMcp(await api.listMcpServers());
     } catch (e) {
-      fail("MCP sunucuları okunamadı", e);
+      fail(t("MCP sunucuları okunamadı"), e);
     }
   }, [fail]);
 
@@ -124,7 +159,7 @@ export default function SettingsView({ onError }: Props) {
       setPlugins(installed);
       setMarkets(marketList);
     } catch (e) {
-      fail("eklentiler okunamadı", e);
+      fail(t("eklentiler okunamadı"), e);
     }
   }, [fail]);
 
@@ -132,7 +167,7 @@ export default function SettingsView({ onError }: Props) {
     try {
       setSkills(await api.listSkills());
     } catch (e) {
-      fail("skill'ler okunamadı", e);
+      fail(t("skill'ler okunamadı"), e);
     }
   }, [fail]);
 
@@ -148,7 +183,7 @@ export default function SettingsView({ onError }: Props) {
     try {
       await api.writePreferences(next);
     } catch (e) {
-      fail("tercih kaydedilemedi", e);
+      fail(t("tercih kaydedilemedi"), e);
     }
   }
 
@@ -170,7 +205,7 @@ export default function SettingsView({ onError }: Props) {
       {/* Yan gezinme: dört bölüm sekmeye sığmıyordu, dikeyde nefes alıyor. */}
       <nav className="w-[212px] shrink-0 space-y-0.5 border-r bg-sidebar/40 p-3">
         <p className="px-2.5 pb-2 font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
-          Ayarlar
+          {t("Ayarlar")}
         </p>
         {SECTIONS.map((item) => (
           <button
@@ -197,7 +232,7 @@ export default function SettingsView({ onError }: Props) {
         ))}
 
         <p className="px-2.5 pt-4 text-[11px] text-muted-foreground leading-snug">
-          Ayarlar tüm hesaplar için ortak — tek bir yapılandırma var.
+          {t("Ayarlar tüm hesaplar için ortak — tek bir yapılandırma var.")}
         </p>
       </nav>
 
@@ -215,15 +250,17 @@ export default function SettingsView({ onError }: Props) {
           {section === "model" && (
             <div className="space-y-5">
               <Field
-                hint="Yeni oturumlarda kullanılır. Açık bir sohbetin modelini başlıktaki seçiciden anında değiştirebilirsiniz."
-                label="Varsayılan model"
+                hint={t(
+                  "Yeni oturumlarda kullanılır. Açık bir sohbetin modelini başlıktaki seçiciden anında değiştirebilirsiniz.",
+                )}
+                label={t("Varsayılan model")}
               >
                 <Select
                   onValueChange={(value) => void savePrefs({ ...prefs, model: value })}
                   value={prefs.model ?? ""}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Model seçin" />
+                    <SelectValue placeholder={t("Model seçin")} />
                   </SelectTrigger>
                   <SelectContent>
                     {models.map((model) => (
@@ -237,8 +274,10 @@ export default function SettingsView({ onError }: Props) {
               </Field>
 
               <Field
-                hint="Yeni oturumların başlangıç değeri. Süren bir sohbette başlıktaki efor seçicisi /effort komutunu gönderir."
-                label="Efor seviyesi"
+                hint={t(
+                  "Yeni oturumların başlangıç değeri. Süren bir sohbette başlıktaki efor seçicisi /effort komutunu gönderir.",
+                )}
+                label={t("Efor seviyesi")}
               >
                 <Select
                   onValueChange={(value) =>
@@ -247,14 +286,41 @@ export default function SettingsView({ onError }: Props) {
                   value={prefs.effortLevel ?? ""}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seviye seçin" />
+                    <SelectValue placeholder={t("Seviye seçin")} />
                   </SelectTrigger>
                   <SelectContent>
                     {efforts.map((level) => (
                       <SelectItem key={level} value={level}>
-                        {EFFORT_LABELS[level] ?? level}
+                        {effortLabel(level)}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              {/* Dil sistemden algılanıyor; bu seçici yalnızca algılamayı
+                  geçersiz kılmak için. Değişiklik pencereyi yeniden yüklüyor:
+                  metinler React durumuna bağlı değil. */}
+              <Field
+                hint={t(
+                  "Varsayılan olarak sistem dilinizi izler. Türkçe dışındaki diller İngilizce'ye düşer.",
+                )}
+                label={t("Dil")}
+              >
+                <Select
+                  onValueChange={(value) => {
+                    setLanguageOverride(value === "auto" ? null : (value as Lang));
+                    window.location.reload();
+                  }}
+                  value={languageOverride() ?? "auto"}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">{t("Sistem dili")}</SelectItem>
+                    <SelectItem value="tr">Türkçe</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -263,10 +329,10 @@ export default function SettingsView({ onError }: Props) {
 
           {section === "alerts" && (
             <div className="space-y-4">
-            <SectionCard title="Ses düzeyi">
+            <SectionCard title={t("Ses düzeyi")}>
               <div className="flex items-center gap-4 px-4 py-3">
                 <input
-                  aria-label="Ses düzeyi"
+                  aria-label={t("Ses düzeyi")}
                   className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-muted accent-primary"
                   max={1}
                   min={0}
@@ -286,18 +352,18 @@ export default function SettingsView({ onError }: Props) {
                   onClick={() =>
                     fireAlert({ ...alerts, done: { notify: false, sound: true } }, "done", {
                       title: "Postillion",
-                      body: "Ses örneği",
+                      body: t("Ses örneği"),
                     })
                   }
                   size="sm"
                   variant="secondary"
                 >
-                  Çal
+                  {t("Çal")}
                 </Button>
               </div>
             </SectionCard>
 
-            <SectionCard title="Olay başına uyarılar">
+            <SectionCard title={t("Olay başına uyarılar")}>
               <div className="divide-y">
                 {ALERT_EVENTS.map((event) => {
                   const rule = alerts[event.id];
@@ -319,27 +385,27 @@ export default function SettingsView({ onError }: Props) {
                           checked={rule.notify}
                           onCheckedChange={(v) => update({ notify: v })}
                         />
-                        Bildirim
+                        {t("Bildirim")}
                       </label>
                       <label className="flex shrink-0 items-center gap-2 text-xs">
                         <Switch
                           checked={rule.sound}
                           onCheckedChange={(v) => update({ sound: v })}
                         />
-                        Ses
+                        {t("Ses")}
                       </label>
 
                       <Button
                         onClick={() =>
                           fireAlert({ ...alerts, [event.id]: { notify: true, sound: true } }, event.id, {
                             title: "Postillion",
-                            body: `${event.label} örneği`,
+                            body: t("{label} örneği", { label: event.label }),
                           })
                         }
                         size="sm"
                         variant="ghost"
                       >
-                        Dene
+                        {t("Dene")}
                       </Button>
                     </div>
                   );
@@ -353,12 +419,12 @@ export default function SettingsView({ onError }: Props) {
             <McpSection
               busy={busy}
               onAdd={(args) =>
-                guarded("MCP sunucusu eklenemedi", () => api.mcpAdd(args), () =>
+                guarded(t("MCP sunucusu eklenemedi"), () => api.mcpAdd(args), () =>
                   void loadMcp(),
                 )
               }
               onRemove={(name) =>
-                guarded("MCP sunucusu silinemedi", () => api.mcpRemove(name), () =>
+                guarded(t("MCP sunucusu silinemedi"), () => api.mcpRemove(name), () =>
                   void loadMcp(),
                 )
               }
@@ -383,13 +449,13 @@ export default function SettingsView({ onError }: Props) {
               busy={busy}
               onCreate={(name, description) =>
                 guarded(
-                  "skill oluşturulamadı",
+                  t("skill oluşturulamadı"),
                   () => api.skillCreate(name, description),
                   () => void loadSkills(),
                 )
               }
               onDelete={(name) =>
-                guarded("skill silinemedi", () => api.skillDelete(name), () =>
+                guarded(t("skill silinemedi"), () => api.skillDelete(name), () =>
                   void loadSkills(),
                 )
               }
@@ -515,13 +581,13 @@ function McpSection({
 
   return (
     <div className="space-y-5">
-      <SectionCard title="Sunucu ekle">
+      <SectionCard title={t("Sunucu ekle")}>
         <div className="space-y-3 p-4">
           <div className="flex gap-2">
             <Input
               className="flex-1"
               onChange={(e) => setName(e.target.value)}
-              placeholder="sunucu-adı"
+              placeholder={t("sunucu-adı")}
               value={name}
             />
             <Select
@@ -541,15 +607,17 @@ function McpSection({
 
           <Input
             onChange={(e) => setTarget(e.target.value)}
-            placeholder={isStdio ? "npx my-mcp-server --flag" : "https://ornek.com/mcp"}
+            placeholder={isStdio ? t("npx my-mcp-server --flag") : "https://ornek.com/mcp"}
             value={target}
           />
 
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="mb-2 flex items-center gap-1.5 font-medium text-xs">
               <KeyRoundIcon className="size-3.5" />
-              Erişim anahtarı
-              <span className="font-normal text-muted-foreground">(isteğe bağlı)</span>
+              {t("Erişim anahtarı")}
+              <span className="font-normal text-muted-foreground">
+                {t("(isteğe bağlı)")}
+              </span>
             </p>
 
             <div className="flex gap-2">
@@ -569,14 +637,15 @@ function McpSection({
             </div>
 
             <p className="mt-2 text-[11px] text-muted-foreground leading-snug">
-              Anahtar doğrudan <code>claude mcp add</code>'e geçer. Bu uygulama onu
-              saklamaz ve listede bir daha göstermez — yalnızca alan adını görürsünüz.
+              {t(
+                "Anahtar doğrudan claude mcp add'e geçer. Bu uygulama onu saklamaz ve listede bir daha göstermez — yalnızca alan adını görürsünüz.",
+              )}
             </p>
           </div>
 
           <details className="group">
             <summary className="cursor-pointer text-muted-foreground text-xs hover:text-foreground">
-              Ek {isStdio ? "ortam değişkenleri" : "başlıklar"}
+              {isStdio ? t("Ek ortam değişkenleri") : t("Ek başlıklar")}
             </summary>
             <textarea
               className="mt-2 min-h-[60px] w-full rounded-lg border bg-transparent px-3 py-2 font-mono text-xs outline-none focus:border-ring"
@@ -588,14 +657,14 @@ function McpSection({
 
           <Button disabled={busy || !name.trim() || !target.trim()} onClick={submit} size="sm">
             <PlusIcon className="size-3.5" />
-            Sunucu ekle
+            {t("Sunucu ekle")}
           </Button>
         </div>
       </SectionCard>
 
-      <SectionCard title={`Yapılandırılmış sunucular (${servers.length})`}>
+      <SectionCard title={t("Yapılandırılmış sunucular ({n})", { n: servers.length })}>
         <div className="divide-y">
-          {servers.length === 0 && <EmptyRow>Henüz MCP sunucusu yok.</EmptyRow>}
+          {servers.length === 0 && <EmptyRow>{t("Henüz MCP sunucusu yok.")}</EmptyRow>}
           {servers.map((server) => (
             <div
               className="flex items-start gap-3 px-4 py-3"
@@ -611,20 +680,20 @@ function McpSection({
                 <p className="truncate text-[11px] text-muted-foreground">{server.target}</p>
                 {server.scope && (
                   <p className="truncate text-[11px] text-muted-foreground">
-                    proje: {server.scope}
+                    {t("proje")}: {server.scope}
                   </p>
                 )}
                 {server.secretFields.length > 0 && (
                   <p className="mt-1 flex items-center gap-1 text-[11px] text-warning">
                     <KeyRoundIcon className="size-3" />
-                    {server.secretFields.join(", ")} · gizli
+                    {server.secretFields.join(", ")} · {t("gizli")}
                   </p>
                 )}
               </div>
 
               <IconButton
                 busy={busy}
-                label="Sunucuyu sil"
+                label={t("Sunucuyu sil")}
                 onClick={() => onRemove(server.name)}
               />
             </div>
@@ -701,43 +770,43 @@ function PluginSection({
           <Button
             disabled={busy}
             onClick={() =>
-              guarded("marketplace güncellenemedi", () => api.marketplaceUpdate(), reload)
+              guarded(t("marketplace güncellenemedi"), () => api.marketplaceUpdate(), reload)
             }
             size="sm"
             variant="ghost"
           >
             <RefreshCwIcon className="size-3.5" />
-            Güncelle
+            {t("Güncelle")}
           </Button>
         }
-        title={`Marketplace'ler (${markets.length})`}
+        title={t("Marketplace'ler ({n})", { n: markets.length })}
       >
         <div className="flex gap-2 border-b p-4">
           <Input
             onChange={(e) => setSource(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== "Enter" || !source.trim()) return;
-              guarded("marketplace eklenemedi", () => api.marketplaceAdd(source.trim()), reload);
+              guarded(t("marketplace eklenemedi"), () => api.marketplaceAdd(source.trim()), reload);
               setSource("");
             }}
-            placeholder="kullanıcı/depo, URL ya da yerel yol"
+            placeholder={t("kullanıcı/depo, URL ya da yerel yol")}
             value={source}
           />
           <Button
             disabled={busy || !source.trim()}
             onClick={() => {
-              guarded("marketplace eklenemedi", () => api.marketplaceAdd(source.trim()), reload);
+              guarded(t("marketplace eklenemedi"), () => api.marketplaceAdd(source.trim()), reload);
               setSource("");
             }}
             size="sm"
           >
             <PlusIcon className="size-3.5" />
-            Ekle
+            {t("Ekle")}
           </Button>
         </div>
 
         <div className="divide-y">
-          {markets.length === 0 && <EmptyRow>Kayıtlı marketplace yok.</EmptyRow>}
+          {markets.length === 0 && <EmptyRow>{t("Kayıtlı marketplace yok.")}</EmptyRow>}
           {markets.map((market) => (
             <div className="flex items-center gap-3 px-4 py-2.5" key={market.name}>
               <StoreIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -749,10 +818,10 @@ function PluginSection({
               </div>
               <IconButton
                 busy={busy}
-                label="Marketplace'i kaldır"
+                label={t("Marketplace'i kaldır")}
                 onClick={() =>
                   guarded(
-                    "marketplace silinemedi",
+                    t("marketplace silinemedi"),
                     () => api.marketplaceRemove(market.name),
                     reload,
                   )
@@ -763,9 +832,9 @@ function PluginSection({
         </div>
       </SectionCard>
 
-      <SectionCard title={`Kurulu eklentiler (${plugins.length})`}>
+      <SectionCard title={t("Kurulu eklentiler ({n})", { n: plugins.length })}>
         <div className="divide-y">
-          {plugins.length === 0 && <EmptyRow>Kurulu eklenti yok.</EmptyRow>}
+          {plugins.length === 0 && <EmptyRow>{t("Kurulu eklenti yok.")}</EmptyRow>}
           {plugins.map((plugin) => (
             <div className="flex items-center gap-3 px-4 py-3" key={plugin.id}>
               <div className="min-w-0 flex-1">
@@ -785,7 +854,7 @@ function PluginSection({
                       disabled={busy}
                       onCheckedChange={(checked) =>
                         guarded(
-                          "eklenti durumu değiştirilemedi",
+                          t("eklenti durumu değiştirilemedi"),
                           () => api.pluginSetEnabled(plugin.id, checked),
                           reload,
                         )
@@ -794,16 +863,16 @@ function PluginSection({
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {plugin.enabled ? "Devre dışı bırak" : "Etkinleştir"}
+                  {plugin.enabled ? t("Devre dışı bırak") : t("Etkinleştir")}
                 </TooltipContent>
               </Tooltip>
 
               <IconButton
                 busy={busy}
-                label="Eklentiyi kaldır"
+                label={t("Eklentiyi kaldır")}
                 onClick={() =>
                   guarded(
-                    "eklenti kaldırılamadı",
+                    t("eklenti kaldırılamadı"),
                     () => api.pluginUninstall(plugin.id),
                     reload,
                   )
@@ -823,18 +892,18 @@ function PluginSection({
               ) : (
                 <DownloadIcon className="size-3.5" />
               )}
-              Listele
+              {t("Listele")}
             </Button>
           ) : (
             <span className="text-[11px] text-muted-foreground">
-              {available.length} eklenti
+              {t("{n} eklenti", { n: available.length })}
             </span>
           )
         }
-        title="Marketplace'ten kur"
+        title={t("Marketplace'ten kur")}
       >
         {available === null ? (
-          <EmptyRow>Kurulabilir eklentileri görmek için “Listele”ye basın.</EmptyRow>
+          <EmptyRow>{t("Kurulabilir eklentileri görmek için “Listele”ye basın.")}</EmptyRow>
         ) : (
           <>
             <div className="relative border-b p-3">
@@ -842,7 +911,7 @@ function PluginSection({
               <Input
                 className="pl-9"
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Eklenti ara…"
+                placeholder={t("Eklenti ara…")}
                 value={query}
               />
             </div>
@@ -850,10 +919,10 @@ function PluginSection({
             <div className="divide-y">
               {!query && (
                 <p className="px-4 py-2 text-[11px] text-muted-foreground">
-                  En çok kurulan 20 eklenti gösteriliyor — aramayla daraltın.
+                  {t("En çok kurulan 20 eklenti gösteriliyor — aramayla daraltın.")}
                 </p>
               )}
-              {shown.length === 0 && <EmptyRow>Eşleşen eklenti yok.</EmptyRow>}
+              {shown.length === 0 && <EmptyRow>{t("Eşleşen eklenti yok.")}</EmptyRow>}
               {shown.map((plugin) => {
                 const installed = installedIds.has(plugin.id);
                 return (
@@ -877,14 +946,14 @@ function PluginSection({
                     {installed ? (
                       <span className="flex shrink-0 items-center gap-1 text-[11px] text-success">
                         <CheckIcon className="size-3.5" />
-                        kurulu
+                        {t("kurulu")}
                       </span>
                     ) : (
                       <Button
                         disabled={busy}
                         onClick={() =>
                           guarded(
-                            "eklenti kurulamadı",
+                            t("eklenti kurulamadı"),
                             () => api.pluginInstall(plugin.id),
                             reload,
                           )
@@ -892,7 +961,7 @@ function PluginSection({
                         size="sm"
                         variant="secondary"
                       >
-                        Kur
+                        {t("Kur")}
                       </Button>
                     )}
                   </div>
@@ -927,16 +996,16 @@ function SkillSection({
 
   return (
     <div className="space-y-5">
-      <SectionCard title="Yeni skill oluştur">
+      <SectionCard title={t("Yeni skill oluştur")}>
         <div className="space-y-3 p-4">
           <Input
             onChange={(e) => setName(e.target.value)}
-            placeholder="skill-adi"
+            placeholder={t("skill-adi")}
             value={name}
           />
           <Input
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Ne zaman kullanılacağını anlatan kısa açıklama"
+            placeholder={t("Ne zaman kullanılacağını anlatan kısa açıklama")}
             value={description}
           />
           <Button
@@ -949,18 +1018,19 @@ function SkillSection({
             size="sm"
           >
             <PlusIcon className="size-3.5" />
-            Oluştur
+            {t("Oluştur")}
           </Button>
           <p className="text-[11px] text-muted-foreground leading-snug">
-            <code>~/.claude/skills/&lt;ad&gt;/</code> altında iskelet oluşturulur ve
-            bir sonraki oturumda yüklenir.
+            {t("{path} altında iskelet oluşturulur ve bir sonraki oturumda yüklenir.", {
+              path: "~/.claude/skills/<ad>/",
+            })}
           </p>
         </div>
       </SectionCard>
 
-      <SectionCard title={`Kendi skill'leriniz (${userSkills.length})`}>
+      <SectionCard title={t("Kendi skill'leriniz ({n})", { n: userSkills.length })}>
         <div className="divide-y">
-          {userSkills.length === 0 && <EmptyRow>Henüz kendi skill'iniz yok.</EmptyRow>}
+          {userSkills.length === 0 && <EmptyRow>{t("Henüz kendi skill'iniz yok.")}</EmptyRow>}
           {userSkills.map((skill) => (
             <div className="flex items-start gap-3 px-4 py-3" key={skill.path}>
               <div className="min-w-0 flex-1">
@@ -973,7 +1043,7 @@ function SkillSection({
               </div>
               <IconButton
                 busy={busy}
-                label="Skill'i sil"
+                label={t("Skill'i sil")}
                 onClick={() => onDelete(skill.name)}
               />
             </div>
@@ -981,9 +1051,9 @@ function SkillSection({
         </div>
       </SectionCard>
 
-      <SectionCard title={`Eklentilerden gelenler (${pluginSkills.length})`}>
+      <SectionCard title={t("Eklentilerden gelenler ({n})", { n: pluginSkills.length })}>
         <div className="divide-y">
-          {pluginSkills.length === 0 && <EmptyRow>Eklenti skill'i yok.</EmptyRow>}
+          {pluginSkills.length === 0 && <EmptyRow>{t("Eklenti skill'i yok.")}</EmptyRow>}
           {pluginSkills.map((skill) => (
             <div className="px-4 py-3" key={skill.path}>
               <div className="flex items-center gap-2">

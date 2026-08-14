@@ -4,6 +4,7 @@ import { CheckIcon, MessageCircleQuestionIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 export interface QuestionOption {
   label: string;
@@ -94,7 +95,7 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
       <div className="not-prose mb-4 rounded-xl border bg-card px-4 py-3">
         <div className="flex items-center gap-2 text-muted-foreground text-xs">
           <CheckIcon className="size-3.5 text-success" />
-          Cevaplandı
+          {t("Cevaplandı")}
         </div>
         <p className="mt-1 text-sm">{settled}</p>
       </div>
@@ -106,7 +107,9 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
       <div className="flex items-center gap-2">
         <MessageCircleQuestionIcon className="size-4 text-primary" />
         <span className="font-medium text-sm">
-          {questions.length > 1 ? `${questions.length} soru` : "Bir sorusu var"}
+          {questions.length > 1
+            ? t("{n} soru", { n: questions.length })
+            : t("Bir sorusu var")}
         </span>
       </div>
 
@@ -125,7 +128,7 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
               <p className="font-medium text-sm">{q.question}</p>
               {multi && (
                 <p className="text-[11px] text-muted-foreground">
-                  Birden fazla seçebilirsiniz
+                  {t("Birden fazla seçebilirsiniz")}
                 </p>
               )}
             </div>
@@ -181,7 +184,7 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
                 onClick={() => toggle(i, OTHER, multi)}
                 type="button"
               >
-                <span className="text-muted-foreground text-sm">Başka…</span>
+                <span className="text-muted-foreground text-sm">{t("Başka…")}</span>
               </button>
 
               {set.has(OTHER) && (
@@ -189,7 +192,7 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
                   autoFocus
                   className="text-sm"
                   onChange={(e) => setCustom((prev) => ({ ...prev, [i]: e.target.value }))}
-                  placeholder="Kendi cevabınızı yazın"
+                  placeholder={t("Kendi cevabınızı yazın")}
                   value={custom[i] ?? ""}
                 />
               )}
@@ -199,7 +202,7 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
       })}
 
       <Button disabled={!complete || sent !== null} onClick={submit} size="sm">
-        Gönder
+        {t("Gönder")}
       </Button>
     </div>
   );

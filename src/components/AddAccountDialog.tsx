@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/lib/i18n";
 import { api, errText, type Account } from "@/api";
 import { log } from "@/lib/log";
 
@@ -72,7 +73,7 @@ export default function AddAccountDialog({ open, onOpenChange, onAdded }: Props)
           onOpenChange(false);
         } else {
           setPhase("waiting");
-          setError(e.payload.error ?? "giriş tamamlanamadı");
+          setError(e.payload.error ?? t("giriş tamamlanamadı"));
         }
       });
 
@@ -117,10 +118,11 @@ export default function AddAccountDialog({ open, onOpenChange, onAdded }: Props)
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Hesap ekle</DialogTitle>
+          <DialogTitle>{t("Hesap ekle")}</DialogTitle>
           <DialogDescription>
-            Tarayıcıda Anthropic hesabınıza giriş yapın, ardından verilen kodu
-            buraya yapıştırın.
+            {t(
+              "Tarayıcıda Anthropic hesabınıza giriş yapın, ardından verilen kodu buraya yapıştırın.",
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -128,13 +130,13 @@ export default function AddAccountDialog({ open, onOpenChange, onAdded }: Props)
           {phase === "starting" && (
             <p className="flex items-center gap-2 text-muted-foreground text-sm">
               <Loader2Icon className="size-4 animate-spin" />
-              Giriş bağlantısı hazırlanıyor…
+              {t("Giriş bağlantısı hazırlanıyor…")}
             </p>
           )}
 
           {url && (
             <div className="space-y-2">
-              <Label className="text-xs">1. Tarayıcıda açın</Label>
+              <Label className="text-xs">{t("1. Tarayıcıda açın")}</Label>
               <div className="flex gap-2">
                 <Input className="font-mono text-xs" readOnly value={url} />
                 <Button
@@ -146,15 +148,16 @@ export default function AddAccountDialog({ open, onOpenChange, onAdded }: Props)
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Tarayıcı kendiliğinden açılmış olabilir. Açılmadıysa bu adresi
-                kullanın.
+                {t(
+                  "Tarayıcı kendiliğinden açılmış olabilir. Açılmadıysa bu adresi kullanın.",
+                )}
               </p>
             </div>
           )}
 
           {(phase === "waiting" || phase === "submitting") && (
             <div className="space-y-2">
-              <Label className="text-xs">2. Kodu yapıştırın</Label>
+              <Label className="text-xs">{t("2. Kodu yapıştırın")}</Label>
               <div className="flex gap-2">
                 <Input
                   autoFocus
@@ -163,7 +166,7 @@ export default function AddAccountDialog({ open, onOpenChange, onAdded }: Props)
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void submit();
                   }}
-                  placeholder="giriş sonrası verilen kod"
+                  placeholder={t("giriş sonrası verilen kod")}
                   value={code}
                 />
                 <Button
@@ -175,7 +178,7 @@ export default function AddAccountDialog({ open, onOpenChange, onAdded }: Props)
                   ) : (
                     <CheckIcon className="size-4" />
                   )}
-                  Tamamla
+                  {t("Tamamla")}
                 </Button>
               </div>
             </div>
