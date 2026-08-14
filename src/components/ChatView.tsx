@@ -716,7 +716,6 @@ function BottomSelect({
   placeholder,
   icon,
   disabled,
-  width,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -724,12 +723,15 @@ function BottomSelect({
   placeholder: string;
   icon: React.ReactNode;
   disabled?: boolean;
-  width: string;
 }) {
   return (
     <Select disabled={disabled} onValueChange={onChange} value={value}>
+      {/* Genişlik içerikten geliyor. Sabit piksel değerleri en uzun etikete
+          göre seçilmişti ve dil değişince tutmuyordu — "medium" 104 piksele
+          sığmayıp son harfi kırpılıyordu. `max-w` uzun bir model adının
+          satırı ele geçirmesini engelliyor. */}
       <SelectTrigger
-        className={`h-7 gap-1.5 border-none bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/60 ${width}`}
+        className="h-7 max-w-[168px] gap-1.5 border-none bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/60"
       >
         {icon}
         <SelectValue placeholder={placeholder} />
@@ -988,9 +990,10 @@ export default function ChatView({
     const text = message.text?.trim() ?? "";
 
     // Ekler `blob:` URL'i olarak tutuluyor; gönderim base64 istiyor.
+    const attached = message.files ?? [];
     const images = (
       await Promise.all(
-        (message.files ?? []).map((file) =>
+        attached.map((file) =>
           urlToAttachment(file.url, file.mediaType ?? "").catch((e) => {
             log("error", "ek okunamadı:", e);
             return null;
@@ -998,6 +1001,13 @@ export default function ChatView({
         ),
       )
     ).filter((image) => image !== null);
+
+    // Sessizce metin göndermek yerine söyle: bir ek okunamadıysa kullanıcı
+    // görüntüyü gönderdiğini sanıp cevabın neden alakasız olduğunu anlamaz.
+    if (images.length < attached.length) {
+      toast.error(t("{n} ek okunamadı ve gönderilmedi.", { n: attached.length - images.length }));
+      return;
+    }
 
     // Yalnızca görüntüden oluşan bir mesaj da geçerli.
     if (!text && images.length === 0) return;
@@ -1212,7 +1222,6 @@ export default function ChatView({
                   options={models.map((m) => ({ value: m.value, label: m.label }))}
                   placeholder={state.model ?? t("Model")}
                   value={picked}
-                  width="w-[124px]"
                 />
                 <BottomSelect
                   disabled={!running || state.busy}
@@ -1221,7 +1230,6 @@ export default function ChatView({
                   options={EFFORT_LEVELS.map((l) => ({ value: l, label: l }))}
                   placeholder={t("Efor")}
                   value={effort}
-                  width="w-[104px]"
                 />
                 <BottomSelect
                   disabled={!running}
@@ -1230,7 +1238,6 @@ export default function ChatView({
                   options={PERMISSION_MODES}
                   placeholder={t("Mod")}
                   value={mode}
-                  width="w-[132px]"
                 />
               </PromptInputTools>
               <PromptInputSubmit

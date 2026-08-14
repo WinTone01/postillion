@@ -242,6 +242,10 @@ otherwise React drops duplicate keys and half the conversation vanishes.
   tokens, and takes about three seconds, so it is polled and cached. Only the
   active account can be measured — `claude` reads one shared credentials file —
   so other accounts show their last reading with its age.
+- **The CSP has to allow `blob:`.** Attachments are held as object URLs, so
+  the preview reads them through `img-src` and sending reads them through
+  `connect-src`. Neither is covered by `default-src`, and a dev server has no
+  CSP at all — so this only breaks in an installed build, silently.
 - **Screenshots shell out.** WebKitGTK has no `getDisplayMedia`, so the desktop's
   own region picker is used instead: `grim`+`slurp`, then `spectacle`,
   `gnome-screenshot`, `maim`, `scrot`, `import` — first one found wins. Install
