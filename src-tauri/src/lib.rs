@@ -4,6 +4,7 @@ mod auth;
 mod catalog;
 mod error;
 mod paths;
+mod processes;
 mod screenshot;
 mod sessions;
 mod usage;
@@ -187,6 +188,7 @@ fn agent_start(
     resume: Option<String>,
     model: Option<String>,
     effort: Option<String>,
+    mcp_servers: Option<Vec<String>>,
 ) -> Result<String> {
     let cwd = cwd.map(PathBuf::from);
 
@@ -204,8 +206,39 @@ fn agent_start(
             resume: resume.as_deref(),
             model: model.as_deref(),
             effort: effort.as_deref(),
+            mcp_servers: mcp_servers.as_deref(),
         },
     )
+}
+
+// ---------------------------------------------------------------- süreçler
+
+/// Oturumun `claude` sürecinin altında çalışan her şey.
+///
+/// Arka planda çalıştırılan komutlar arayüzde yalnızca "çalışıyor" olarak
+/// görünüyordu; burada ne olduğu görülüyor ve tek tek durdurulabiliyor.
+#[tauri::command]
+fn agent_processes(state: State<'_, AppState>, id: String) -> Vec<processes::Proc> {
+    match state.agent.session_pid(&id) {
+        Some(pid) => processes::descendants(pid),
+        None => Vec::new(),
+    }
+}
+
+/// Bir alt süreci durdurur; `force` ile SIGKILL.
+#[tauri::command]
+fn agent_kill_process(
+    state: State<'_, AppState>,
+    id: String,
+    pid: u32,
+    force: bool,
+) -> Result<()> {
+    let root = state
+        .agent
+        .session_pid(&id)
+        .ok_or_else(|| Error::SessionNotFound(id.clone()))?;
+
+    processes::kill(root, pid, force)
 }
 
 /// Modeli süren oturumda değiştirir; bağlam korunuyor.
@@ -555,6 +588,8 @@ pub fn run() {
             agent_interrupt,
             agent_stop,
             agent_active,
+            agent_processes,
+            agent_kill_process,
         ])
         .run(tauri::generate_context!())
         .expect("postillion başlatılamadı");

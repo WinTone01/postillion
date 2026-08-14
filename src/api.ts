@@ -1,11 +1,20 @@
 import { invoke } from "@tauri-apps/api/core";
 
-/** Rust tarafındaki `accounts::Account` ile birebir. */
 /** Kullanıcı mesajına iliştirilen görüntü; Rust tarafındaki `agent::Image`. */
 export interface ImageAttachment {
   mediaType: string;
   /** Base64 — ham ikili veri IPC'den geçemiyor. */
   data: string;
+}
+
+/** Oturumun `claude` sürecinin altında çalışan bir süreç. */
+export interface Proc {
+  pid: number;
+  ppid: number;
+  command: string;
+  /** `stat` alanındaki tek harf: R çalışıyor, S uyuyor, Z zombi… */
+  state: string;
+  elapsedSecs: number;
 }
 
 /** `/usage` çıktısındaki tek bir limit penceresi. */
@@ -24,6 +33,7 @@ export interface Usage {
   detail: string;
 }
 
+/** Rust tarafındaki `accounts::Account` ile birebir. */
 export interface Account {
   /** Dizin adı; komutlarda kimlik olarak bu kullanılıyor. */
   slug: string;
@@ -92,6 +102,8 @@ export const api = {
     resume?: string | null;
     model?: string | null;
     effort?: string | null;
+    /** `null` genel MCP yapılandırması; liste yalnızca seçilenler. */
+    mcpServers?: string[] | null;
   }) =>
     invoke<string>("agent_start", {
       id: args.id,
@@ -99,7 +111,15 @@ export const api = {
       resume: args.resume ?? null,
       model: args.model ?? null,
       effort: args.effort ?? null,
+      mcpServers: args.mcpServers ?? null,
     }),
+
+  /** Oturumun alt süreçleri; oturum kapalıysa boş. */
+  agentProcesses: (id: string) => invoke<Proc[]>("agent_processes", { id }),
+
+  /** Bir alt süreci durdurur; `force` ile SIGKILL. */
+  agentKillProcess: (id: string, pid: number, force = false) =>
+    invoke<void>("agent_kill_process", { id, pid, force }),
 
   agentSend: (id: string, text: string, images: ImageAttachment[] = []) =>
     invoke<void>("agent_send", { id, text, images }),

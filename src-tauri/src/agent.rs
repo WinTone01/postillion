@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
+use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -56,6 +57,8 @@ struct StderrEvent {
 struct Handle {
     stdin: ChildStdin,
     child: Child,
+    /// Oturuma özel MCP yapılandırması; kapanışta siliniyor.
+    mcp_config: Option<std::path::PathBuf>,
 }
 
 /// Kullanıcı mesajına iliştirilen görüntü.
@@ -102,6 +105,42 @@ fn user_content(text: &str, images: &[Image]) -> Value {
     json!(blocks)
 }
 
+/// Seçilen MCP sunucularını geçici bir dosyaya yazar.
+///
+/// Adlar arayüzden geliyor ama tanımlar kullanıcının kendi yapılandırmasından
+/// okunuyor; bilinmeyen bir ad sessizce atlanıyor (silinmiş olabilir).
+fn write_mcp_config(session_id: &str, names: &[String]) -> Result<std::path::PathBuf> {
+    let defined = crate::catalog::mcp_definitions(None)?;
+
+    let mut servers = serde_json::Map::new();
+    for name in names {
+        if let Some(def) = defined.get(name) {
+            servers.insert(name.clone(), def.clone());
+        }
+    }
+
+    // Dosya adı oturum kimliğinden; kimlik zaten benzersiz ve dosya sistemi
+    // için güvenli hale getiriliyor.
+    let safe: String = session_id
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let path = std::env::temp_dir().join(format!("postillion-mcp-{safe}.json"));
+
+    // Tanımlar API anahtarı taşıyabiliyor ve /tmp paylaşılan bir dizin.
+    // `create_new` + 0600: dosya yalnızca bu kullanıcı tarafından okunabilsin
+    // ve önceden var olan (belki başkasına ait) bir dosyaya yazılmasın.
+    let _ = std::fs::remove_file(&path);
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)?;
+
+    file.write_all(&serde_json::to_vec(&json!({ "mcpServers": servers }))?)?;
+    Ok(path)
+}
+
 #[derive(Default)]
 pub struct Manager {
     sessions: Mutex<HashMap<String, Handle>>,
@@ -122,6 +161,12 @@ pub struct StartOptions<'a> {
     /// Modelin aksine çalışma anında değiştirilemiyor (`set_effort` diye bir
     /// kontrol isteği yok), yalnızca başlatırken veriliyor.
     pub effort: Option<&'a str>,
+    /// Bu oturumun kullanacağı MCP sunucularının adları.
+    ///
+    /// `None` genel yapılandırma demek. Liste verildiğinde geçici bir dosyaya
+    /// yazılıp `--mcp-config` ile veriliyor ve `--strict-mcp-config` diğer
+    /// kaynakları kapatıyor.
+    pub mcp_servers: Option<&'a [String]>,
 }
 
 impl Manager {
@@ -156,6 +201,18 @@ impl Manager {
         }
         if let Some(effort) = opts.effort {
             cmd.arg("--effort").arg(effort);
+        }
+
+        // Sunucu tanımları burada, arayüzde değil kuruluyor: tanımlar API
+        // anahtarı taşıyabiliyor ve gizli değerlerin frontend'e geçmemesi
+        // katalogda korunan bir kural.
+        let mcp_config = match opts.mcp_servers {
+            Some(names) => Some(write_mcp_config(&opts.id, names)?),
+            None => None,
+        };
+        if let Some(path) = &mcp_config {
+            cmd.arg("--mcp-config").arg(path);
+            cmd.arg("--strict-mcp-config");
         }
 
         // Claude kendi alt süreçlerini (node, git, ripgrep) PATH'ten arıyor;
@@ -246,7 +303,14 @@ impl Manager {
         self.sessions
             .lock()
             .unwrap()
-            .insert(opts.id.clone(), Handle { stdin, child });
+            .insert(
+                opts.id.clone(),
+                Handle {
+                    stdin,
+                    child,
+                    mcp_config,
+                },
+            );
 
         // Handshake: cevabı slash komut listesini, model listesini ve
         // alt-ajanları taşıyor. Bunları başka hiçbir yerden öğrenemiyoruz —
@@ -373,8 +437,16 @@ impl Manager {
             drop(handle.stdin);
             let _ = handle.child.kill();
             let _ = handle.child.wait();
+            if let Some(path) = handle.mcp_config {
+                let _ = std::fs::remove_file(path);
+            }
         }
         Ok(())
+    }
+
+    /// Oturumun `claude` süreç kimliği; süreç ağacı buradan çıkarılıyor.
+    pub fn session_pid(&self, id: &str) -> Option<u32> {
+        self.sessions.lock().unwrap().get(id).map(|h| h.child.id())
     }
 
     pub fn active_ids(&self) -> Vec<String> {

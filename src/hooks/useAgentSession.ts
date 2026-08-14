@@ -37,6 +37,13 @@ export interface AgentSessionOptions {
   model: string | null;
   /** low | medium | high | xhigh | max. Yalnızca başlatırken geçerli. */
   effort: string | null;
+  /**
+   * Bu sohbetin kullanacağı MCP sunucuları.
+   *
+   * `null` genel yapılandırma demek. Liste verildiğinde `--strict-mcp-config`
+   * devreye giriyor, yani eklentilerin getirdiği sunucular da kapanıyor.
+   */
+  mcpServers: string[] | null;
 }
 
 /**
@@ -196,6 +203,7 @@ export function useAgentSession(options: AgentSessionOptions | null) {
           resume: opts.resume,
           model: opts.model,
           effort: opts.effort,
+          mcpServers: opts.mcpServers,
         });
         log("info", "ajan başlatıldı", opts.id);
         setRunning(true);

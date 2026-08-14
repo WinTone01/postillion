@@ -95,6 +95,22 @@ export default function App() {
     );
   }, []);
 
+  /**
+   * Bir sohbet sürüyor mu.
+   *
+   * Hesap değiştirmek sistem genelinde kimlik dosyasını değiştiriyor; süren bir
+   * `claude` süreci bunu altından çekilince bozuk duruma düşer. Rust tarafı
+   * zaten reddediyor — arayüz de aynı kuralı gösteriyor, hata çıkmasını
+   * beklemek yerine.
+   */
+  const sessionRunning = useMemo(
+    () =>
+      Object.values(tabStates).some(
+        (s) => s === "thinking" || s === "working" || s === "waiting",
+      ),
+    [tabStates],
+  );
+
   // Öncelik sırası: en çok ilgi isteyen durum kazanır.
   const mascotState: MascotState = useMemo(() => {
     const values = Object.values(tabStates);
@@ -209,6 +225,9 @@ export default function App() {
         transcriptPath: session.path,
         model: prefs.model ?? null,
         effort: prefs.effortLevel ?? null,
+        // Devam ettirilen oturumda genel yapılandırma: kaldığı yerdeki
+        // araçların kaybolmaması gerekiyor.
+        mcpServers: null,
       },
       title: session.title ?? session.sessionId,
       titleFromSession: session.title !== null,
@@ -216,7 +235,7 @@ export default function App() {
     });
   }
 
-  function startSession(cwd: string) {
+  function startSession(cwd: string, mcpServers: string[] | null) {
     if (!account) return;
     openTab({
       options: {
@@ -226,6 +245,7 @@ export default function App() {
         transcriptPath: null,
         model: prefs.model ?? null,
         effort: prefs.effortLevel ?? null,
+        mcpServers,
       },
       // Geçici; ilk mesaj gönderilir gönderilmez ChatView gerçek başlığı
       // bildiriyor.
@@ -268,6 +288,7 @@ export default function App() {
         <AccountSidebar
           accounts={accounts}
           busy={busy}
+          locked={sessionRunning}
           mascotState={mascotState}
           onAddAccount={() => setAddOpen(true)}
           onDelete={removeAccount}

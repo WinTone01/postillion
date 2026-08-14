@@ -7,7 +7,7 @@
 //! Listeleme ise mümkün olduğunca JSON çıktısından okunuyor. `claude mcp list`
 //! JSON desteklemediği için MCP sunucuları doğrudan config'den okunuyor.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -303,6 +303,43 @@ pub fn list_mcp_servers(config_dir: Option<&Path>) -> Result<Vec<McpServer>> {
     }
 
     out.sort_by(|a, b| a.name.cmp(&b.name).then(a.scope.cmp(&b.scope)));
+    Ok(out)
+}
+
+/// Sunucu adı → ham tanım.
+///
+/// `list_mcp_servers`'ın aksine tanımın tamamını veriyor, gizli değerler dahil.
+/// **Yalnızca backend içinde** kullanılmalı: oturuma özel `--mcp-config`
+/// dosyasını kurmak için. Aynı ad hem kullanıcı hem proje kapsamında varsa
+/// proje kapsamı kazanıyor — Claude'un kendi önceliği de bu.
+pub fn mcp_definitions(config_dir: Option<&Path>) -> Result<HashMap<String, Value>> {
+    let path = config_json_for(config_dir)?;
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return Ok(HashMap::new());
+    };
+    let Ok(config) = serde_json::from_str::<Value>(&raw) else {
+        return Ok(HashMap::new());
+    };
+
+    let mut out = HashMap::new();
+
+    if let Some(servers) = config.get("mcpServers").and_then(Value::as_object) {
+        for (name, def) in servers {
+            out.insert(name.clone(), def.clone());
+        }
+    }
+
+    if let Some(projects) = config.get("projects").and_then(Value::as_object) {
+        for entry in projects.values() {
+            let Some(servers) = entry.get("mcpServers").and_then(Value::as_object) else {
+                continue;
+            };
+            for (name, def) in servers {
+                out.insert(name.clone(), def.clone());
+            }
+        }
+    }
+
     Ok(out)
 }
 

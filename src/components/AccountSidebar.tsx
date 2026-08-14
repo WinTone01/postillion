@@ -25,6 +25,13 @@ interface Props {
   navActive: "sessions" | "settings" | null;
   /** Geçiş sürerken tıklamalar kilitleniyor; çift geçiş yarış yaratır. */
   busy: boolean;
+  /**
+   * Bir sohbet sürüyor: hesap değiştirmek ve eklemek kapalı.
+   *
+   * Hesap değişimi paylaşılan kimlik dosyasını değiştiriyor ve çalışan bir
+   * `claude` süreci onu altından çekilince bozulur.
+   */
+  locked: boolean;
   /** Maskotun yansıttığı genel uygulama durumu. */
   mascotState: MascotState;
   /** Hesap kısa adı → son kullanım ölçümü. */
@@ -126,8 +133,10 @@ export default function AccountSidebar({
   navActive,
   mascotState,
   busy,
+  locked,
   usage,
 }: Props) {
+  const frozen = busy || locked;
   return (
     <aside className="flex h-full w-[272px] shrink-0 flex-col border-r bg-sidebar">
       <div className="flex items-center gap-3 px-4 pt-4 pb-4">
@@ -167,6 +176,13 @@ export default function AccountSidebar({
         Hesaplar
       </p>
 
+      {locked && (
+        <p className="mx-2 mb-1.5 rounded-lg bg-muted/60 px-2.5 py-2 text-[11px] text-muted-foreground leading-snug">
+          Bir sohbet sürüyor. Hesap değiştirmek paylaşılan kimlik dosyasını
+          değiştirdiği için çalışan oturumu bozar; bitmesini bekleyin.
+        </p>
+      )}
+
       <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-2">
         {accounts.length === 0 && (
           <p className="px-2.5 py-3 text-[11px] text-muted-foreground leading-snug">
@@ -181,7 +197,7 @@ export default function AccountSidebar({
               className={cn(
                 "group relative rounded-xl px-2.5 py-2.5 transition-colors",
                 active ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/55",
-                busy ? "pointer-events-none opacity-60" : "cursor-pointer",
+                frozen ? "pointer-events-none opacity-60" : "cursor-pointer",
               )}
               key={account.slug}
               onClick={() => !active && onSwitch(account.slug)}
@@ -277,7 +293,7 @@ export default function AccountSidebar({
       <div className="border-t p-2.5">
         <Button
           className="w-full"
-          disabled={busy}
+          disabled={frozen}
           onClick={onAddAccount}
           size="sm"
           variant="secondary"

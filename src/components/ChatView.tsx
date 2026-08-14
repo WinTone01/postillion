@@ -10,6 +10,7 @@ import {
   PaperclipIcon,
   ShieldIcon,
   SquareIcon,
+  TerminalIcon,
   XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -71,7 +72,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { api, errText, prettyCwd, type ModelOption } from "@/api";
+import { api, errText, prettyCwd, type ModelOption, type Proc } from "@/api";
 import { attachmentToFile, urlToAttachment } from "@/lib/images";
 import { log } from "@/lib/log";
 import {
@@ -459,6 +460,96 @@ function StreamingText({ text }: { text: string }) {
   );
 }
 
+/** Saniyeyi okunur süreye çevirir. */
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds} sn`;
+  const min = Math.floor(seconds / 60);
+  if (min < 60) return `${min} dk`;
+  return `${Math.floor(min / 60)} sa ${min % 60} dk`;
+}
+
+/**
+ * Oturumun altında çalışan süreçler.
+ *
+ * Claude'un `Bash` aracı komutları kendi alt süreci olarak açıyor; arayüzde
+ * bunlar yalnızca "çalışıyor" olarak görünüyordu ve takılan bir komutu
+ * durdurmanın tek yolu turu kesmekti. Burada ne çalıştığı, ne kadardır
+ * çalıştığı görülüyor ve tek tek durdurulabiliyor.
+ */
+function ProcessPanel({
+  procs,
+  running,
+  onKill,
+  onClose,
+}: {
+  procs: Proc[];
+  running: boolean;
+  onKill: (pid: number, force: boolean) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [killing, setKilling] = useState<number | null>(null);
+
+  async function stop(pid: number, force: boolean) {
+    setKilling(pid);
+    try {
+      await onKill(pid, force);
+    } finally {
+      setKilling(null);
+    }
+  }
+
+  return (
+    <div className="max-h-64 overflow-y-auto border-t bg-card/40">
+      <div className="sticky top-0 flex items-center gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur">
+        <TerminalIcon className="size-3.5 text-muted-foreground" />
+        <span className="flex-1 font-medium text-xs">
+          Süreçler
+          <span className="ml-1.5 font-normal text-muted-foreground">{procs.length}</span>
+        </span>
+        <Button aria-label="Kapat" onClick={onClose} size="icon" variant="ghost">
+          <XIcon className="size-3.5" />
+        </Button>
+      </div>
+
+      {procs.length === 0 ? (
+        <p className="px-3 py-3 text-[11.5px] text-muted-foreground">
+          {running ? "Şu anda alt süreç yok." : "Oturum kapalı."}
+        </p>
+      ) : (
+        <ul className="divide-y">
+          {procs.map((proc) => (
+            <li className="flex items-center gap-2 px-3 py-2" key={proc.pid}>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-mono text-[11.5px]">{proc.command}</p>
+                <p className="text-[10.5px] text-muted-foreground">
+                  pid {proc.pid} · {formatElapsed(proc.elapsedSecs)} · {proc.state}
+                </p>
+              </div>
+              {/* SIGTERM önce: komutun kendini toparlama şansı olsun. */}
+              <Button
+                disabled={killing === proc.pid}
+                onClick={() => void stop(proc.pid, false)}
+                size="sm"
+                variant="ghost"
+              >
+                Durdur
+              </Button>
+              <Button
+                disabled={killing === proc.pid}
+                onClick={() => void stop(proc.pid, true)}
+                size="sm"
+                variant="ghost"
+              >
+                Zorla
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /**
  * Bekleyen izinler için girdinin hemen üstünde duran çubuk.
  *
@@ -836,6 +927,52 @@ export default function ChatView({
 
   const reveal = useReveal(state);
 
+  /**
+   * Oturumun alt süreçleri.
+   *
+   * Panel kapalıyken de yoklanıyor: başlıktaki sayaç, arka planda bir şeyin
+   * çalıştığını panel açılmadan göstermeli. `/proc` okuması ucuz.
+   */
+  const [showProcesses, setShowProcesses] = useState(false);
+  const [procs, setProcs] = useState<Proc[]>([]);
+
+  useEffect(() => {
+    if (!running) {
+      setProcs([]);
+      return;
+    }
+
+    let cancelled = false;
+    const read = () => {
+      api
+        .agentProcesses(options.id)
+        .then((list) => !cancelled && setProcs(list))
+        .catch((e) => log("warn", "süreçler okunamadı:", e));
+    };
+
+    read();
+    const timer = window.setInterval(read, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [options.id, running]);
+
+  const killProcess = useCallback(
+    async (pid: number, force: boolean) => {
+      try {
+        await api.agentKillProcess(options.id, pid, force);
+        // Bir sonraki yoklamayı beklemeden listeden düşür.
+        setProcs((prev) => prev.filter((p) => p.pid !== pid));
+      } catch (e) {
+        toast.error(errText(e));
+      }
+    },
+    [options.id],
+  );
+
+  const procCount = procs.length;
+
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text?.trim() ?? "";
 
@@ -893,6 +1030,20 @@ export default function ChatView({
         </div>
 
 
+        <Button
+          onClick={() => setShowProcesses((v) => !v)}
+          size="sm"
+          variant={showProcesses ? "secondary" : "ghost"}
+        >
+          <TerminalIcon className="size-3.5" />
+          Süreçler
+          {procCount > 0 && (
+            <span className="ml-1 rounded bg-primary/15 px-1.5 py-px text-[10px] text-primary tabular-nums">
+              {procCount}
+            </span>
+          )}
+        </Button>
+
         {state.busy && (
           <Button size="sm" variant="ghost" onClick={() => void interrupt()}>
             <SquareIcon className="size-3" />
@@ -900,6 +1051,15 @@ export default function ChatView({
           </Button>
         )}
       </header>
+
+      {showProcesses && (
+        <ProcessPanel
+          onClose={() => setShowProcesses(false)}
+          onKill={killProcess}
+          procs={procs}
+          running={running}
+        />
+      )}
 
       {state.errors.length > 0 && (
         <div className="flex items-start gap-2 border-b bg-destructive/10 px-5 py-2">
@@ -1025,8 +1185,11 @@ export default function ChatView({
                   konuşurken erişilebilir olmalı, başlıkta değil. */}
               <PromptInputTools className="gap-1.5">
                 <AttachmentButtons disabled={!running} />
+                {/* Süren bir turun ortasında model değiştirmek `set_model`'i
+                    yarım kalmış bir istekle çakıştırıyor; tur bitene kadar
+                    kapalı — eforda da aynı kural. */}
                 <BottomSelect
-                  disabled={!running}
+                  disabled={!running || state.busy}
                   icon={<CpuIcon className="size-3.5" />}
                   onChange={changeModel}
                   options={models.map((m) => ({ value: m.value, label: m.label }))}

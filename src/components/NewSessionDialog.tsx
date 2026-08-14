@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderIcon, FolderOpenIcon } from "lucide-react";
+import { CheckIcon, FolderIcon, FolderOpenIcon, PlugIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { formatWhen, prettyCwd, type Session } from "@/api";
+import { api, formatWhen, prettyCwd, type McpServer, type Session } from "@/api";
 import { log } from "@/lib/log";
 
 interface Props {
@@ -22,7 +22,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Oturum geçmişi; son kullanılan projeleri buradan çıkarıyoruz. */
   sessions: Session[];
-  onStart: (cwd: string) => void;
+  /** `mcpServers` null ise genel MCP yapılandırması kullanılıyor. */
+  onStart: (cwd: string, mcpServers: string[] | null) => void;
 }
 
 /**
@@ -39,6 +40,9 @@ export default function NewSessionDialog({
   onStart,
 }: Props) {
   const [path, setPath] = useState("");
+  const [servers, setServers] = useState<McpServer[]>([]);
+  /** Seçili sunucu adları; `null` "hepsi" demek ve genel yapılandırmayı korur. */
+  const [chosen, setChosen] = useState<Set<string> | null>(null);
 
   /** Geçmiş oturumlardan en son kullanılan dizinler. */
   const recent = useMemo(() => {
@@ -60,7 +64,27 @@ export default function NewSessionDialog({
     if (!isOpen) return;
     // En son çalışılan proje makul bir varsayılan.
     setPath(recent[0]?.cwd ?? "");
+    setChosen(null);
+    api
+      .listMcpServers()
+      .then(setServers)
+      .catch((e) => log("warn", "MCP sunucuları okunamadı:", e));
   }, [isOpen, recent]);
+
+  /**
+   * Bir sunucuyu açıp kapatır.
+   *
+   * İlk dokunuşta "hepsi" durumundan çıkılıyor: o ana kadar seçim yok ve genel
+   * yapılandırma geçerli.
+   */
+  function toggleServer(name: string) {
+    setChosen((prev) => {
+      const next = new Set(prev ?? servers.map((s) => s.name));
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
 
   async function browse() {
     try {
@@ -79,7 +103,11 @@ export default function NewSessionDialog({
   function start() {
     const trimmed = path.trim();
     if (!trimmed) return;
-    onStart(trimmed);
+
+    // Hiçbir şeye dokunulmadıysa genel yapılandırma korunuyor; aksi halde
+    // `--strict-mcp-config` devreye girer ve eklenti sunucuları da kapanır.
+    const untouched = chosen === null || chosen.size === servers.length;
+    onStart(trimmed, untouched ? null : [...chosen]);
     onOpenChange(false);
   }
 
@@ -139,6 +167,48 @@ export default function NewSessionDialog({
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {servers.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-xs">
+                <PlugIcon className="size-3.5" />
+                MCP sunucuları
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {servers.map((server) => {
+                  const active = chosen === null || chosen.has(server.name);
+                  return (
+                    <button
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors",
+                        active
+                          ? "border-primary bg-primary/10"
+                          : "text-muted-foreground hover:border-foreground/25",
+                      )}
+                      key={`${server.scope ?? "user"}:${server.name}`}
+                      onClick={() => toggleServer(server.name)}
+                      type="button"
+                    >
+                      <span
+                        className={cn(
+                          "grid size-3.5 shrink-0 place-items-center rounded border",
+                          active ? "border-primary bg-primary" : "border-muted-foreground/40",
+                        )}
+                      >
+                        {active && <CheckIcon className="size-2.5 text-primary-foreground" />}
+                      </span>
+                      {server.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                {chosen === null || chosen.size === servers.length
+                  ? "Hepsi açık — genel yapılandırma, eklentilerin getirdiği sunucular dahil."
+                  : "Yalnızca seçilenler bu sohbette açık; eklenti sunucuları da kapanır."}
+              </p>
             </div>
           )}
         </div>
