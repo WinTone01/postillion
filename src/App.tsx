@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CommandIcon, XIcon } from "lucide-react";
 
@@ -12,9 +12,17 @@ import type { MascotState } from "@/components/Mascot";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import SettingsView from "@/components/SettingsView";
-import { api, errText, type Account, type Preferences, type Session } from "@/api";
+import {
+  api,
+  errText,
+  type Account,
+  type Preferences,
+  type Session,
+  type Usage,
+} from "@/api";
 import { releaseAgentSession, type AgentSessionOptions } from "@/hooks/useAgentSession";
 import { primeAudio } from "@/lib/alerts";
+import { log } from "@/lib/log";
 import { cn } from "@/lib/utils";
 
 interface Tab {
@@ -24,6 +32,12 @@ interface Tab {
 }
 
 type View = { kind: "sessions" } | { kind: "settings" } | { kind: "chat"; id: string };
+
+/** Kullanım yoklama aralığı. Limit pencereleri saatlik; sık bakmak anlamsız. */
+const USAGE_POLL_MS = 5 * 60_000;
+
+/** İki ölçüm arasındaki en kısa süre; her tur sonunda süreç açmamak için. */
+const USAGE_MIN_GAP_MS = 60_000;
 
 export default function App() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -41,6 +55,8 @@ export default function App() {
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   // Yeni sekmeler bu tercihlerle başlatılıyor (efor sonradan değiştirilemiyor).
   const [prefs, setPrefs] = useState<Preferences>({});
+  // Hesap kısa adı → son kullanım ölçümü.
+  const [usage, setUsage] = useState<Record<string, Usage>>({});
   // Sekme başına maskot durumu; kenar çubuğu en dikkat çekeni gösteriyor.
   const [tabStates, setTabStates] = useState<Record<string, MascotState>>({});
 
@@ -94,6 +110,48 @@ export default function App() {
   useEffect(() => {
     api.readPreferences().then(setPrefs).catch(() => setPrefs({}));
   }, []);
+
+  // Diskteki son ölçümler; etkin olmayan hesaplar için tek kaynak.
+  useEffect(() => {
+    api.usageCache().then(setUsage).catch((e) => log("warn", "kullanım okunamadı:", e));
+  }, []);
+
+  /**
+   * Etkin hesabın kullanımını yeniler.
+   *
+   * Sorgu bir `claude` süreci başlatıyor (~3 sn, token harcamıyor), o yüzden
+   * kısıtlanıyor. Tetikleyiciler: açılış, hesap değişimi, bir turun bitmesi ve
+   * beş dakikalık zamanlayıcı.
+   */
+  const lastUsageRef = useRef(0);
+  const refreshUsage = useCallback(async (force = false) => {
+    if (!force && Date.now() - lastUsageRef.current < USAGE_MIN_GAP_MS) return;
+    lastUsageRef.current = Date.now();
+    try {
+      await api.refreshUsage();
+      setUsage(await api.usageCache());
+    } catch (e) {
+      // Kullanım göstergesi ikincil; hata bildirimiyle araya girmiyor.
+      log("warn", "kullanım yenilenemedi:", e);
+    }
+  }, []);
+
+  const activeSlug = account?.slug ?? null;
+
+  useEffect(() => {
+    if (!activeSlug) return;
+    void refreshUsage(true);
+    const timer = window.setInterval(() => void refreshUsage(), USAGE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [activeSlug, refreshUsage]);
+
+  // Bir tur bittiğinde pay değişmiş oluyor; en anlamlı yenileme anı bu.
+  const previousMascot = useRef(mascotState);
+  useEffect(() => {
+    const before = previousMascot.current;
+    previousMascot.current = mascotState;
+    if (mascotState === "idle" && before !== "idle") void refreshUsage();
+  }, [mascotState, refreshUsage]);
 
   function openTab(tab: Tab) {
     setTabs((prev) => [...prev, tab]);
@@ -191,6 +249,7 @@ export default function App() {
           onOpenSessions={() => setView({ kind: "sessions" })}
           onOpenSettings={() => setView({ kind: "settings" })}
           onSwitch={switchAccount}
+          usage={usage}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">

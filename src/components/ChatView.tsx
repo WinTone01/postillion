@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangleIcon,
   CameraIcon,
@@ -82,7 +82,7 @@ import {
 } from "@/lib/claude-stream";
 import { useAgentSession, type AgentSessionOptions } from "@/hooks/useAgentSession";
 import { useTypewriter } from "@/hooks/useTypewriter";
-import { fireAlert, loadAlertSettings, type AlertEvent } from "@/lib/alerts";
+import { fireAlert, loadAlertSettings } from "@/lib/alerts";
 
 interface Props {
   options: AgentSessionOptions;
@@ -138,19 +138,48 @@ function useWriteBaseline(part: ToolPart) {
   return baseline;
 }
 
+/**
+ * İzin bloğunun DOM kimliği.
+ *
+ * Sekme kimliğiyle önekleniyor: açık sekmelerin hepsi mount kalıyor ve
+ * yalnızca araç kimliği kullanılsaydı iki sekmede aynı id bulunurdu.
+ */
+function anchorFor(sessionId: string, toolCallId: string): string {
+  return `perm-${sessionId}-${toolCallId}`;
+}
+
 /** Kullanıcının bir izin isteğine verdiği cevabı yukarı taşır. */
 type RespondFn = ReturnType<typeof useAgentSession>["respondPermission"];
 
 type AnswerFn = ReturnType<typeof useAgentSession>["answerQuestions"];
 
+/**
+ * `setMode` önerilerinin insan okunur karşılığı.
+ *
+ * CLI ham mod adını gönderiyor ("acceptEdits"); butonda böyle görünmesi neyin
+ * kabul edildiğini gizliyordu.
+ */
+const MODE_LABELS: Record<string, string> = {
+  acceptEdits: "Düzenlemeleri hep onayla",
+  bypassPermissions: "İzin sormayı kapat",
+  plan: "Plan moduna geç",
+  default: "Varsayılan moda dön",
+};
+
 function ToolBlock({
   part,
   respond,
   answer,
+  anchorId,
+  onAllowTool,
 }: {
   part: ToolPart;
   respond: RespondFn;
   answer: AnswerFn;
+  /** Bekleyen izin çubuğundan bu bloğa atlayabilmek için. */
+  anchorId: string;
+  /** Bu araca oturum boyunca izin ver. */
+  onAllowTool: (name: string) => void;
 }) {
   // AskUserQuestion bir izin isteği gibi geliyor ama aslında bir soru;
   // ham JSON yerine seçim arayüzü çiziyoruz.
@@ -205,7 +234,7 @@ function ToolBlock({
   );
 
   return (
-    <div className="w-full">
+    <div className="w-full" id={anchorId}>
       {change ? (
         <DiffView
           baselineUnknown={change.baselineUnknown}
@@ -246,6 +275,22 @@ function ToolBlock({
               Reddet
             </ConfirmationAction>
 
+            {/* Tek tek onaylamak uzun sürüyor; aynı araç tekrar tekrar
+                soruluyorsa oturum boyunca geçilebilmeli. */}
+            <ConfirmationAction
+              variant="secondary"
+              onClick={() => {
+                onAllowTool(part.name);
+                void respond({
+                  toolCallId: part.toolCallId,
+                  requestId: part.permissionRequestId ?? "",
+                  allow: true,
+                });
+              }}
+            >
+              {part.name}'a hep izin ver
+            </ConfirmationAction>
+
             {setModeSuggestion?.mode && (
               <ConfirmationAction
                 variant="secondary"
@@ -258,7 +303,7 @@ function ToolBlock({
                   })
                 }
               >
-                Hep izin ver
+                {MODE_LABELS[setModeSuggestion.mode] ?? setModeSuggestion.mode}
               </ConfirmationAction>
             )}
 
@@ -408,6 +453,52 @@ function StreamingText({ text }: { text: string }) {
       {text}
       <span className="cs-caret" />
     </p>
+  );
+}
+
+/**
+ * Bekleyen izinler için girdinin hemen üstünde duran çubuk.
+ *
+ * İstekler sohbetin içinde, bazen ekranın çok yukarısında çiziliyor; birden
+ * fazla araç aynı anda izin istediğinde biri gözden kaçıyor ve tur sessizce
+ * bekliyordu. Çubuk kaç tane olduğunu söylüyor, hepsini tek hamlede
+ * onaylatıyor ve tek tek olanına götürüyor.
+ */
+function PendingBar({
+  parts,
+  onAllowAll,
+  onJump,
+}: {
+  parts: ToolPart[];
+  onAllowAll: () => void;
+  onJump: (part: ToolPart) => void;
+}) {
+  if (parts.length === 0) return null;
+
+  const names = [...new Set(parts.map((p) => p.name))];
+  // Soruların toplu onayı yok; cevap gerektiriyorlar.
+  const bulk = parts.filter((p) => p.name !== "AskUserQuestion").length;
+
+  return (
+    <div className="flex items-center gap-2 border-warning/30 border-t bg-warning/10 px-3 py-2">
+      <span className="size-2 shrink-0 animate-pulse rounded-full bg-warning" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-xs">
+          {parts.length === 1 ? "Bir izin bekliyor" : `${parts.length} izin bekliyor`}
+          <span className="ml-1.5 font-normal text-muted-foreground">
+            {names.join(", ")}
+          </span>
+        </p>
+      </div>
+      <Button onClick={() => onJump(parts[0])} size="sm" variant="ghost">
+        Göster
+      </Button>
+      {bulk > 1 && (
+        <Button onClick={onAllowAll} size="sm">
+          {bulk} isteğe izin ver
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -610,6 +701,75 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
     }
   }
 
+  /** Cevap bekleyen izin istekleri. */
+  const pending = useMemo(
+    () =>
+      state.messages
+        .flatMap((m) => m.parts)
+        .filter((p): p is ToolPart => p.kind === "tool" && p.state === "approval-requested"),
+    [state.messages],
+  );
+
+  /**
+   * Oturum boyunca otomatik onaylanan araçlar.
+   *
+   * Aynı aracın her çağrısını tek tek onaylamak turu uzatıyordu; kullanıcı bir
+   * kez "hep izin ver" dediyse sonraki istekler beklemeden geçiyor. Kapsam
+   * kasıtlı olarak bu sekme: kalıcı bir izin listesi izin diyaloğunun anlamını
+   * sessizce yok ederdi.
+   */
+  const autoAllowed = useRef(new Set<string>());
+  const handled = useRef(new Set<string>());
+
+  const allowTool = useCallback((name: string) => {
+    autoAllowed.current.add(name);
+  }, []);
+
+  const allowAll = useCallback(() => {
+    for (const part of pending) {
+      // Soruya düz "allow" cevabı vermek CLI'a "kullanıcı cevaplamadı"
+      // dedirtiyor (ölçüldü); soru kartı elle cevaplanmalı.
+      if (!part.permissionRequestId || part.name === "AskUserQuestion") continue;
+      handled.current.add(part.permissionRequestId);
+      void respondPermission({
+        toolCallId: part.toolCallId,
+        requestId: part.permissionRequestId,
+        allow: true,
+      });
+    }
+  }, [pending, respondPermission]);
+
+  function jumpTo(part: ToolPart) {
+    document
+      .getElementById(anchorFor(options.id, part.toolCallId))
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // Otomatik onay ve uyarı, istek BAŞINA veriliyor. Önceden ikisi de maskot
+  // durumunun geçişine bağlıydı: durum zaten "waiting" iken gelen ikinci istek
+  // ne ses çıkarıyor ne bildirim gönderiyordu, kullanıcı da beklendiğini
+  // fark etmiyordu.
+  useEffect(() => {
+    for (const part of pending) {
+      const requestId = part.permissionRequestId;
+      if (!requestId || handled.current.has(requestId)) continue;
+      handled.current.add(requestId);
+
+      if (autoAllowed.current.has(part.name)) {
+        void respondPermission({ toolCallId: part.toolCallId, requestId, allow: true });
+        continue;
+      }
+
+      const asking = part.name === "AskUserQuestion";
+      fireAlert(loadAlertSettings(), asking ? "question" : "permission", {
+        title,
+        body: asking
+          ? "Claude size bir soru sordu."
+          : `${part.name} çalıştırmak için onay bekliyor.`,
+      });
+    }
+  }, [pending, respondPermission, title]);
+
   // Oturumun durumunu maskot için tek bir değere indirger.
   // Sıralama önem taşıyor: en çok ilgi isteyen durum kazanır.
   const mascotState: MascotState = useMemo(() => {
@@ -628,8 +788,8 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
     onStateChange?.(options.id, mascotState);
   }, [onStateChange, options.id, mascotState]);
 
-  // Uyarılar durum GEÇİŞİNDE veriliyor, durumun kendisinde değil: aksi halde
-  // her render'da yeniden çalardı.
+  // Tamamlanma ve hata uyarıları durum geçişinde kalıyor; onların istek başına
+  // bir karşılığı yok.
   const previousState = useRef<MascotState | null>(null);
 
   useEffect(() => {
@@ -637,27 +797,15 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
     previousState.current = mascotState;
     if (before === null || before === mascotState) return;
 
-    const pending = state.messages
-      .flatMap((m) => m.parts)
-      .find((p): p is ToolPart => p.kind === "tool" && p.state === "approval-requested");
-
-    let event: AlertEvent | null = null;
-    let body = "";
-
-    if (mascotState === "waiting" && pending) {
-      const asking = pending.name === "AskUserQuestion";
-      event = asking ? "question" : "permission";
-      body = asking ? "Claude size bir soru sordu." : `${pending.name} çalıştırmak için onay bekliyor.`;
-    } else if (mascotState === "idle" && (before === "thinking" || before === "working")) {
-      event = "done";
-      body = "Claude işini bitirdi.";
+    if (mascotState === "idle" && (before === "thinking" || before === "working")) {
+      fireAlert(loadAlertSettings(), "done", { title, body: "Claude işini bitirdi." });
     } else if (mascotState === "error") {
-      event = "error";
-      body = state.errors.at(-1) ?? "Oturumda bir hata oluştu.";
+      fireAlert(loadAlertSettings(), "error", {
+        title,
+        body: state.errors.at(-1) ?? "Oturumda bir hata oluştu.",
+      });
     }
-
-    if (event) fireAlert(loadAlertSettings(), event, { title, body });
-  }, [mascotState, state.messages, state.errors, title]);
+  }, [mascotState, state.errors, title]);
 
   const reveal = useReveal(state);
 
@@ -786,8 +934,10 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
                   }
                   return (
                     <ToolBlock
+                      anchorId={anchorFor(options.id, part.toolCallId)}
                       answer={answerQuestions}
                       key={part.toolCallId}
+                      onAllowTool={allowTool}
                       part={part}
                       respond={respondPermission}
                     />
@@ -815,6 +965,8 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
+
+      <PendingBar onAllowAll={allowAll} onJump={jumpTo} parts={pending} />
 
       <div className="border-t p-3">
         <PromptInputProvider>

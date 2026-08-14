@@ -8,6 +8,22 @@ export interface ImageAttachment {
   data: string;
 }
 
+/** `/usage` çıktısındaki tek bir limit penceresi. */
+export interface UsageWindow {
+  /** İngilizce etiket: "session", "week (all models)", "week (Opus)"… */
+  label: string;
+  percent: number;
+  /** Sıfır kullanımda gelmiyor. */
+  resets: string | null;
+}
+
+export interface Usage {
+  windows: UsageWindow[];
+  measuredAtMs: number;
+  /** Komutun tam çıktısı; ayrıntı kartında gösteriliyor. */
+  detail: string;
+}
+
 export interface Account {
   /** Dizin adı; komutlarda kimlik olarak bu kullanılıyor. */
   slug: string;
@@ -93,6 +109,15 @@ export const api = {
    * Yakalama sırasında uygulama penceresi gizleniyor.
    */
   captureScreenshot: () => invoke<ImageAttachment | null>("capture_screenshot"),
+
+  /** Diskteki son ölçümler: hesap kısa adı → kullanım. */
+  usageCache: () => invoke<Record<string, Usage>>("usage_cache"),
+
+  /**
+   * Etkin hesabın kullanımını ölçer (~3 sn, token harcamıyor).
+   * Etkin hesap yoksa `null`.
+   */
+  refreshUsage: () => invoke<Usage | null>("refresh_usage"),
 
   /** Modeli süren oturumda değiştirir; sohbet bağlamı korunur. */
   agentSetModel: (id: string, model: string) =>

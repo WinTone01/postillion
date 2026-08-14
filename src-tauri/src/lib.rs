@@ -6,6 +6,7 @@ mod error;
 mod paths;
 mod screenshot;
 mod sessions;
+mod usage;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -22,6 +23,20 @@ struct AppState {
     sessions: Arc<sessions::Cache>,
 }
 
+/// Hesap geçişi ile kullanım sorgusunu birbirinden ayırır.
+///
+/// `switch` çalışan bir `claude` süreci görürse geçişi reddediyor — kimlik
+/// dosyası altından değişen bir süreç bozuk duruma düşer. Kullanım sorgusu da
+/// kısa ömürlü bir `claude` süreci; kilitlenmezse arka plandaki yoklama
+/// kullanıcının geçişini rastgele anlarda başarısız kılardı.
+static EXCLUSIVE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Kilidi alır; başka bir iş panikleyip zehirlemişse yine de devam eder —
+/// koruduğumuz şey bir veri değil, sıralama.
+fn exclusive() -> std::sync::MutexGuard<'static, ()> {
+    EXCLUSIVE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 // ---------------------------------------------------------------- hesaplar
 
 #[tauri::command]
@@ -32,6 +47,7 @@ fn list_accounts() -> Result<Vec<Account>> {
 /// Sistem genelinde etkin hesabı değiştirir; terminaldeki `claude` de etkilenir.
 #[tauri::command]
 fn switch_account(slug: String) -> Result<Account> {
+    let _guard = exclusive();
     accounts::switch(&slug)
 }
 
@@ -267,6 +283,36 @@ fn agent_active(state: State<'_, AppState>) -> Vec<String> {
     state.agent.active_ids()
 }
 
+// ------------------------------------------------------------- kullanım
+
+/// Diskteki son ölçümler: hesap kısa adı → kullanım.
+///
+/// Etkin olmayan hesaplar için tek kaynak bu. Ölçüm zamanı da döndüğü için
+/// arayüz değerin ne kadar eski olduğunu gösterebiliyor.
+#[tauri::command]
+fn usage_cache() -> usage::Cache {
+    usage::read_cache()
+}
+
+/// Etkin hesabın kullanımını ölçüp önbelleğe yazar.
+///
+/// Yalnızca etkin hesap sorgulanabiliyor: `claude` kimliği paylaşılan
+/// `.credentials.json`'dan okuyor. Başka bir hesabı sorgulamak onu geçici
+/// olarak etkin yapmak demek olurdu ve bu, terminaldeki oturumları da
+/// etkilerdi.
+#[tauri::command]
+fn refresh_usage() -> Result<Option<usage::Usage>> {
+    let _guard = exclusive();
+
+    let Some(active) = accounts::list()?.into_iter().find(|a| a.is_active) else {
+        return Ok(None);
+    };
+
+    let measured = usage::query()?;
+    usage::write_cache(&active.slug, &measured)?;
+    Ok(Some(measured))
+}
+
 
 /// Entegrasyon testlerinin çekirdeğe erişimi.
 ///
@@ -303,6 +349,12 @@ pub mod testing {
         max_records: usize,
     ) -> Result<Vec<serde_json::Value>> {
         sessions::read_transcript(path, max_records)
+    }
+
+    pub use usage::Usage;
+
+    pub fn query_usage() -> Result<Usage> {
+        usage::query()
     }
 }
 
@@ -473,6 +525,8 @@ pub fn run() {
             agent_set_model,
             agent_send,
             capture_screenshot,
+            usage_cache,
+            refresh_usage,
             list_models,
             effort_levels,
             read_preferences,

@@ -37,6 +37,8 @@ doesn't break context — you just miss the cache on the first turn.
 | **Chat UI** | Token-by-token streaming, collapsible thinking blocks |
 | **Code diffs** | `Edit` / `Write` calls render as real line diffs, not raw JSON |
 | **Screenshots** | Capture a region, paste, drop or attach — images go straight to the model |
+| **Usage meter** | Session and weekly limits per account, right in the sidebar |
+| **Batched approvals** | Approve everything pending at once, or allow a tool for the session |
 | **Permission prompts** | Approve tool calls inline, with "always allow" shortcuts |
 | **Slash commands** | Autocomplete, sourced live from the running agent |
 | **Model & effort** | Both switchable mid-session |
@@ -229,6 +231,11 @@ otherwise React drops duplicate keys and half the conversation vanishes.
   exactly where Claude Code installs itself. Relying on PATH means the app works
   from a terminal and silently fails from the menu, so the binary is resolved
   against known locations and its directory is prepended to the child's PATH.
+- **Usage comes from `/usage`, parsed.** There is no structured API for the
+  limit percentages. The slash command works in headless mode, costs zero
+  tokens, and takes about three seconds, so it is polled and cached. Only the
+  active account can be measured — `claude` reads one shared credentials file —
+  so other accounts show their last reading with its age.
 - **Screenshots shell out.** WebKitGTK has no `getDisplayMedia`, so the desktop's
   own region picker is used instead: `grim`+`slurp`, then `spectacle`,
   `gnome-screenshot`, `maim`, `scrot`, `import` — first one found wins. Install

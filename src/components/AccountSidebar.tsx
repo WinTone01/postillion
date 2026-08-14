@@ -11,7 +11,7 @@ import Mascot, { type MascotState } from "@/components/Mascot";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { Account } from "@/api";
+import { formatWhen, type Account, type Usage } from "@/api";
 
 interface Props {
   accounts: Account[];
@@ -27,6 +27,8 @@ interface Props {
   busy: boolean;
   /** Maskotun yansıttığı genel uygulama durumu. */
   mascotState: MascotState;
+  /** Hesap kısa adı → son kullanım ölçümü. */
+  usage: Record<string, Usage>;
 }
 
 /** Maskot süs değil, durum göstergesi — ekran okuyucu da görebilmeli. */
@@ -37,6 +39,74 @@ const MASCOT_LABELS: Record<MascotState, string> = {
   waiting: "İzin bekleniyor",
   error: "Hata var",
 };
+
+/** `/usage` etiketleri İngilizce geliyor; bilinenler çevriliyor. */
+const WINDOW_LABELS: Record<string, string> = {
+  session: "Oturum",
+  "week (all models)": "Hafta",
+  "week (Opus)": "Hafta · Opus",
+};
+
+/**
+ * Kullanım göstergesi.
+ *
+ * En dar pencere (oturum) çubuk olarak, kalanlar yanında yüzde olarak
+ * gösteriliyor: karar anında bakılan şey "şimdi ne kadar payım var".
+ *
+ * Etkin olmayan hesaplarda değer ölçülemiyor — `claude` kimliği paylaşılan
+ * dosyadan okuyor ve sorgulamak için o hesaba geçmek gerekirdi. Bu yüzden en
+ * son etkin olduğu andaki ölçüm, yaşıyla birlikte gösteriliyor.
+ */
+function UsageMeter({ usage, stale }: { usage: Usage | undefined; stale: boolean }) {
+  if (!usage || usage.windows.length === 0) return null;
+
+  const [primary, ...rest] = usage.windows;
+  // Sıcaklık eşikleri: %85 üstü "bugün bitebilir" demek.
+  const tone =
+    primary.percent >= 85 ? "bg-destructive" : primary.percent >= 60 ? "bg-warning" : "bg-success";
+
+  const summary = usage.windows
+    .map((w) => `${WINDOW_LABELS[w.label] ?? w.label} %${w.percent}`)
+    .join(" · ");
+
+  const resets = usage.windows
+    .filter((w) => w.resets)
+    .map((w) => `${WINDOW_LABELS[w.label] ?? w.label}: ${w.resets}`);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className={cn("mt-2 pl-[42px]", stale && "opacity-55")}>
+          <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn("h-full rounded-full transition-[width]", tone)}
+              style={{ width: `${Math.min(100, Math.max(2, primary.percent))}%` }}
+            />
+          </div>
+          <p className="mt-1 truncate text-[10.5px] text-muted-foreground">
+            {WINDOW_LABELS[primary.label] ?? primary.label} %{primary.percent}
+            {rest.length > 0 &&
+              ` · ${rest.map((w) => `${WINDOW_LABELS[w.label] ?? w.label} %${w.percent}`).join(" · ")}`}
+            {stale && ` · ${formatWhen(usage.measuredAtMs)}`}
+          </p>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[260px]" side="right">
+        <p className="font-medium">{summary}</p>
+        {resets.map((line) => (
+          <p className="text-[11px] opacity-80" key={line}>
+            sıfırlanma — {line}
+          </p>
+        ))}
+        <p className="mt-1 text-[11px] opacity-70">
+          {stale
+            ? `En son etkin olduğunda ölçüldü (${formatWhen(usage.measuredAtMs)}). Bu hesaba geçince güncellenir.`
+            : `${formatWhen(usage.measuredAtMs)} ölçüldü`}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** İsimden iki harflik baş harf; avatar için. */
 function initials(account: Account): string {
@@ -56,6 +126,7 @@ export default function AccountSidebar({
   navActive,
   mascotState,
   busy,
+  usage,
 }: Props) {
   return (
     <aside className="flex h-full w-[272px] shrink-0 flex-col border-r bg-sidebar">
@@ -162,6 +233,8 @@ export default function AccountSidebar({
                   </p>
                 </div>
               </div>
+
+              <UsageMeter stale={!active} usage={usage[account.slug]} />
 
               {!account.hasCredentials && (
                 <p className="mt-1.5 flex items-center gap-1 pl-[42px] text-[11px] text-warning">

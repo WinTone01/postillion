@@ -193,3 +193,27 @@ fn gercek_transcriptler_taranabiliyor() {
     );
     eprintln!("{with_title}/{} oturumda başlık var", sessions.len());
 }
+
+/// `/usage` gerçekten çalışıyor mu.
+///
+/// `#[ignore]`: giriş yapılmış bir hesap ve bir `claude` süreci gerektiriyor
+/// (~3 sn). Token harcamıyor — komut yerel. Elle çalıştırmak için:
+/// `cargo test --test integration -- --ignored kullanim`
+#[test]
+#[ignore]
+fn kullanim_sorgusu_pencere_dondurur() {
+    let usage = postillion_lib::testing::query_usage().expect("sorgu başarılı olmalı");
+
+    eprintln!("{:#?}", usage.windows);
+
+    assert!(
+        !usage.windows.is_empty(),
+        "hiç limit penceresi ayrıştırılamadı — /usage çıktı biçimi değişmiş olabilir:\n{}",
+        usage.detail
+    );
+    assert!(
+        usage.windows.iter().any(|w| w.label.contains("session")),
+        "oturum penceresi bekleniyordu"
+    );
+    assert!(usage.measured_at_ms > 0);
+}
