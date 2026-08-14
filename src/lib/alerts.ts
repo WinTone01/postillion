@@ -14,7 +14,10 @@ export interface AlertRule {
   sound: boolean;
 }
 
-export type AlertSettings = Record<AlertEvent, AlertRule>;
+export type AlertSettings = Record<AlertEvent, AlertRule> & {
+  /** 0–1 arası ses düzeyi. */
+  volume: number;
+};
 
 export const ALERT_EVENTS: { id: AlertEvent; label: string; hint: string }[] = [
   { id: "permission", label: "İzin isteği", hint: "Claude bir araç çalıştırmak için onay beklediğinde" },
@@ -33,6 +36,7 @@ const DEFAULTS: AlertSettings = {
   question: { notify: true, sound: true },
   done: { notify: false, sound: true },
   error: { notify: false, sound: false },
+  volume: 0.7,
 };
 
 const STORAGE_KEY = "postillion.alerts";
@@ -42,8 +46,9 @@ export function loadAlertSettings(): AlertSettings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<AlertSettings>;
-    // Eksik anahtarlar varsayılanla tamamlanıyor; ileride yeni olay eklenirse
-    // kayıtlı ayar bozulmasın.
+    // Eksik anahtarlar varsayılanla tamamlanıyor: hem ileride yeni bir olay
+    // eklendiğinde hem de `volume` gibi sonradan gelen alanlarda kayıtlı ayar
+    // bozulmasın.
     return { ...DEFAULTS, ...parsed };
   } catch {
     return DEFAULTS;
@@ -63,54 +68,89 @@ export function saveAlertSettings(settings: AlertSettings) {
 let audioContext: AudioContext | null = null;
 
 /**
+ * Tepe kazanç.
+ *
+ * Önceki 0.09 masaüstü bildirim seslerinin yanında duyulmayacak kadar
+ * kısıktı. Bu değer ayardaki ses düzeyiyle çarpılıyor.
+ */
+const PEAK_GAIN = 0.55;
+
+/**
  * Kısa bir bildirim sesi üretir.
  *
  * Ses dosyası paketlemek yerine Web Audio ile sentezleniyor: tek bir varlık
  * bile eklemeden, her olay için farklı bir ton verilebiliyor.
+ *
+ * Saf sinüs zayıf duyuluyordu; üstüne kısık bir üçgen dalga bindiriliyor.
+ * Üst harmonikler sesi hoparlörde belirgin kılıyor, gürültülü yapmadan.
  */
-function tone(frequency: number, duration = 0.12) {
+function tone(frequency: number, volume: number, duration = 0.12) {
   try {
     audioContext ??= new AudioContext();
     // Tarayıcı otomatik oynatmayı askıya almış olabilir.
     if (audioContext.state === "suspended") void audioContext.resume();
 
     const now = audioContext.currentTime;
-    const oscillator = audioContext.createOscillator();
+    const peak = Math.max(0, Math.min(1, volume)) * PEAK_GAIN;
+    if (peak === 0) return;
+
     const gain = audioContext.createGain();
-
-    oscillator.type = "sine";
-    oscillator.frequency.value = frequency;
-
     // Ani başlangıç ve bitiş "tık" sesi yapıyor; kısa bir zarf yumuşatıyor.
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.09, now + 0.015);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(peak, now + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    gain.connect(audioContext.destination);
 
-    oscillator.connect(gain).connect(audioContext.destination);
-    oscillator.start(now);
-    oscillator.stop(now + duration + 0.02);
+    for (const [type, mix] of [
+      ["sine", 1],
+      ["triangle", 0.35],
+    ] as const) {
+      const oscillator = audioContext.createOscillator();
+      const level = audioContext.createGain();
+      oscillator.type = type;
+      oscillator.frequency.value = frequency;
+      level.gain.value = mix;
+      oscillator.connect(level).connect(gain);
+      oscillator.start(now);
+      oscillator.stop(now + duration + 0.02);
+    }
   } catch (e) {
     log("warn", "ses çalınamadı:", e);
   }
 }
 
 /** Olaya göre ton; kulak hangi olay olduğunu bakmadan ayırabilsin. */
-function playSound(event: AlertEvent) {
+function playSound(event: AlertEvent, volume: number) {
   switch (event) {
     case "permission":
-      tone(660);
-      setTimeout(() => tone(880), 110);
+      tone(660, volume);
+      setTimeout(() => tone(880, volume), 110);
       break;
     case "question":
-      tone(740);
-      setTimeout(() => tone(988), 110);
+      tone(740, volume);
+      setTimeout(() => tone(988, volume), 110);
       break;
     case "done":
-      tone(880, 0.16);
+      tone(880, volume, 0.16);
       break;
     case "error":
-      tone(300, 0.2);
+      tone(300, volume, 0.2);
       break;
+  }
+}
+
+/**
+ * Ses bağlamını bir kullanıcı hareketiyle uyandırır.
+ *
+ * Otomatik oynatma politikası yüzünden ilk ses, kullanıcı sayfaya hiç
+ * dokunmadıysa sessizce düşüyor. Uygulama içindeki ilk tıklamada çağrılıyor.
+ */
+export function primeAudio() {
+  try {
+    audioContext ??= new AudioContext();
+    if (audioContext.state === "suspended") void audioContext.resume();
+  } catch {
+    // Ses yoksa uygulama yine de çalışmalı.
   }
 }
 
@@ -140,6 +180,6 @@ export function fireAlert(
   const rule = settings[event];
   if (!rule) return;
 
-  if (rule.sound) playSound(event);
+  if (rule.sound) playSound(event, settings.volume ?? 1);
   if (rule.notify) void notify(detail.title, detail.body);
 }

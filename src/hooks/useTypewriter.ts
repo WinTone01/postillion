@@ -1,15 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Metni sabit bir hızda açar.
+ * En yavaş yazma hızı (karakter/saniye). Model çok az metin göndermiş olsa
+ * bile yazının akıyor gibi görünmesi için bir taban gerekiyor.
+ */
+const MIN_CPS = 140;
+
+/**
+ * En hızlı yazma hızı. Asıl mesele bu: birikmiş metnin oranına göre
+ * hızlanmak tek başına yetmiyordu — Haiku gibi hızlı modellerde cevabın
+ * tamamı tek karede geldiği için "yazma" değil ışınlanma oluyordu.
+ */
+const MAX_CPS = 900;
+
+/** Birikmiş metnin yaklaşık ne kadar sürede eritileceği. */
+const DRAIN_SECONDS = 0.6;
+
+/**
+ * Metni okunabilir bir hızda açar.
  *
- * Neden gerekli: model token'ları düzensiz büyüklükte parçalar hâlinde
- * gönderiyor — bazen bir kelime, bazen bir paragraf. Geleni olduğu gibi
- * basmak metni sıçratıyordu. Burada gelen metin bir hedef olarak tutuluyor ve
- * ekrandaki metin her karede ona doğru yaklaşıyor.
- *
- * Geride kalındıkça hız artıyor: sabit hız, model bizden hızlıysa yazının
- * giderek gerisine düşmesine yol açardı.
+ * Gelen metin bir *hedef*; ekrandaki metin her karede ona doğru ilerliyor.
+ * Hız geride kalındıkça artıyor ama `MAX_CPS` ile sınırlı: sınır olmadan
+ * hızlı modellerde efekt hiç görünmüyordu.
  */
 export function useTypewriter(target: string, enabled: boolean): string {
   const [shown, setShown] = useState(target);
@@ -27,20 +39,43 @@ export function useTypewriter(target: string, enabled: boolean): string {
 
     let frame = 0;
     let cancelled = false;
+    let last = performance.now();
+    // Kare başına düşen karakter çoğu zaman kesirli; artan kısım burada
+    // birikiyor, yoksa aşağı yuvarlama hızı sistematik olarak düşürürdü.
+    let carry = 0;
 
-    function step() {
+    function step(now: number) {
+      // Sekme arka plandayken rAF durur; dönünce dev bir `dt` gelmesin.
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+
       setShown((prev) => {
         const goal = targetRef.current;
 
-        // Yeni mesaj başladı ya da metin kısaldı: baştan başla.
-        if (!goal.startsWith(prev)) return goal;
-        if (prev.length >= goal.length) return prev;
+        // Yeni bir tur başladı: gösterilen metin artık hedefin öneki değil.
+        // Hedefe atlamak yerine sıfırdan yazıyoruz — ilk karede tamamına
+        // atlamak tam da düzeltmeye çalıştığımız sıçramaydı. İlk render'da bu
+        // yola girilmiyor: başlangıç durumu zaten hedefin kendisi, dolayısıyla
+        // geçmiş yüklenirken eski mesajlar yeniden yazılmıyor.
+        if (!goal.startsWith(prev)) {
+          carry = 0;
+          return "";
+        }
 
         const remaining = goal.length - prev.length;
-        // Kalanın bir bölümü kadar ilerle; böylece hem akıcı hem de
-        // büyük bir parça geldiğinde hızla yetişiyor.
-        const chunk = Math.max(2, Math.ceil(remaining / 10));
-        return goal.slice(0, prev.length + chunk);
+        if (remaining === 0) {
+          carry = 0;
+          return prev;
+        }
+
+        const cps = Math.min(Math.max(remaining / DRAIN_SECONDS, MIN_CPS), MAX_CPS);
+        carry += cps * dt;
+
+        const chars = Math.floor(carry);
+        if (chars < 1) return prev;
+        carry -= chars;
+
+        return goal.slice(0, prev.length + Math.min(chars, remaining));
       });
 
       if (!cancelled) frame = requestAnimationFrame(step);

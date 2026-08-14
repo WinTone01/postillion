@@ -310,6 +310,9 @@ export function useAgentSession(options: AgentSessionOptions | null) {
                   ...part,
                   state: "output-available" as const,
                   output: args.summary,
+                  // Arkasından gelen `is_error` tool_result'ın kartı yeniden
+                  // açmasını engelliyor.
+                  answered: args.summary,
                   permissionRequestId: undefined,
                 }
               : part,

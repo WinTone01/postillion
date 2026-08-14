@@ -14,6 +14,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import SettingsView from "@/components/SettingsView";
 import { api, errText, type Account, type Preferences, type Session } from "@/api";
 import { releaseAgentSession, type AgentSessionOptions } from "@/hooks/useAgentSession";
+import { primeAudio } from "@/lib/alerts";
 import { cn } from "@/lib/utils";
 
 interface Tab {
@@ -42,6 +43,13 @@ export default function App() {
   const [prefs, setPrefs] = useState<Preferences>({});
   // Sekme başına maskot durumu; kenar çubuğu en dikkat çekeni gösteriyor.
   const [tabStates, setTabStates] = useState<Record<string, MascotState>>({});
+
+  // Otomatik oynatma politikası ses bağlamını kullanıcı sayfaya dokunana
+  // kadar askıda tutuyor; ilk tıklamada uyandırılmazsa ilk uyarı sessiz düşer.
+  useEffect(() => {
+    window.addEventListener("pointerdown", primeAudio, { once: true });
+    return () => window.removeEventListener("pointerdown", primeAudio);
+  }, []);
 
   const reportTabState = useCallback((id: string, next: MascotState) => {
     setTabStates((prev) => (prev[id] === next ? prev : { ...prev, [id]: next }));

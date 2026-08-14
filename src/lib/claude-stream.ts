@@ -37,6 +37,15 @@ export interface ToolPart {
   permissionRequestId?: string;
   /** Kullanıcının kararı — Confirmation bileşeni bunu okuyor. */
   approved?: boolean;
+  /**
+   * `AskUserQuestion` cevaplandıysa cevabın özeti.
+   *
+   * Ayrı bir alan olmasının sebebi: cevabı izin kanalından "reddet + mesaj"
+   * olarak gönderiyoruz, dolayısıyla arkasından `is_error: true` bir
+   * `tool_result` geliyor ve `state`'i `output-error`'a çekiyor. Karar
+   * `state`'ten okunsaydı kart cevaplandıktan sonra yeniden açılırdı.
+   */
+  answered?: string;
   /** CLI'ın önerdiği kısayollar, ör. "hep izin ver". */
   suggestions?: PermissionSuggestion[];
   description?: string;
@@ -88,6 +97,14 @@ export interface SessionState {
   messages: ChatMessage[];
   /** Akmakta olan asistan metni; `assistant` event'i gelince temizlenir. */
   streamingText: string;
+  /**
+   * Akmakta olan düşünme metni.
+   *
+   * Ayrı tutuluyor çünkü `assistant` event'i beklenirse düşünme süreci ancak
+   * bittikten sonra görünüyor — uzun düşünmelerde ekran dakikalarca boş
+   * kalıyordu.
+   */
+  streamingThinking: string;
   /** Model bir tur yürütüyor mu. */
   busy: boolean;
   sessionId: string | null;
@@ -105,6 +122,7 @@ export interface SessionState {
 export const initialState: SessionState = {
   messages: [],
   streamingText: "",
+  streamingThinking: "",
   busy: false,
   sessionId: null,
   model: null,
@@ -145,7 +163,7 @@ function parseModels(value: unknown): ModelInfo[] {
 function patchTool(
   messages: ChatMessage[],
   toolCallId: string,
-  patch: Partial<ToolPart>,
+  patch: Partial<ToolPart> | ((part: ToolPart) => Partial<ToolPart>),
 ): ChatMessage[] {
   let found = false;
 
@@ -155,7 +173,7 @@ function patchTool(
     const parts = message.parts.map((part) => {
       if (part.kind !== "tool" || part.toolCallId !== toolCallId) return part;
       found = true;
-      return { ...part, ...patch };
+      return { ...part, ...(typeof patch === "function" ? patch(part) : patch) };
     });
 
     return found ? { ...message, parts } : message;
@@ -192,6 +210,24 @@ function mergeParts(existing: Part[], incoming: Part[]): Part[] {
   }
 
   return merged;
+}
+
+/**
+ * `formatAnswers` ile yazılmış bir cevabı okunabilir özete çevirir.
+ *
+ * Girdi: `The user answered: "Soru"="Cevap", "Soru2"="Cevap2". Read the ...`
+ * Çıktı: `Cevap · Cevap2`
+ */
+export function parseAnsweredSummary(text: string): string | null {
+  const marker = "The user answered:";
+  const start = text.indexOf(marker);
+  if (start === -1) return null;
+
+  const answers = [...text.slice(start + marker.length).matchAll(/"[^"]*"="([^"]*)"/g)].map(
+    (m) => m[1],
+  );
+
+  return answers.length > 0 ? answers.join(" · ") : null;
 }
 
 let counter = 0;
@@ -246,13 +282,18 @@ export function reduce(state: SessionState, event: Json): SessionState {
       const innerType = inner?.type as string | undefined;
 
       if (innerType === "message_start") {
-        return { ...state, streamingText: "", busy: true };
+        return { ...state, streamingText: "", streamingThinking: "", busy: true };
       }
 
       if (innerType === "content_block_delta") {
         const delta = inner?.delta as Json | undefined;
         if (delta?.type === "text_delta" && typeof delta.text === "string") {
           return { ...state, streamingText: state.streamingText + delta.text };
+        }
+        // Düşünme deltaları da akıyor; bunları atlamak düşünme sürecini
+        // ancak blok kapandıktan sonra görünür kılıyordu.
+        if (delta?.type === "thinking_delta" && typeof delta.thinking === "string") {
+          return { ...state, streamingThinking: state.streamingThinking + delta.thinking };
         }
       }
 
@@ -282,7 +323,7 @@ export function reduce(state: SessionState, event: Json): SessionState {
       }
 
       if (parts.length === 0) {
-        return { ...state, streamingText: "" };
+        return { ...state, streamingText: "", streamingThinking: "" };
       }
 
       const id = String(message?.id ?? nextId("msg"));
@@ -296,6 +337,7 @@ export function reduce(state: SessionState, event: Json): SessionState {
         return {
           ...state,
           streamingText: "",
+          streamingThinking: "",
           messages: [
             ...state.messages.slice(0, -1),
             { ...last, parts: mergeParts(last.parts, parts) },
@@ -306,6 +348,7 @@ export function reduce(state: SessionState, event: Json): SessionState {
       return {
         ...state,
         streamingText: "",
+        streamingThinking: "",
         messages: [...state.messages, { id, role: "assistant", parts }],
       };
     }
@@ -339,10 +382,27 @@ export function reduce(state: SessionState, event: Json): SessionState {
           if (block.type !== "tool_result") continue;
 
           const isError = block.is_error === true;
-          messages = patchTool(messages, String(block.tool_use_id), {
-            state: isError ? "output-error" : "output-available",
-            output: isError ? undefined : block.content,
-            errorText: isError ? stringify(block.content) : undefined,
+          messages = patchTool(messages, String(block.tool_use_id), (existing) => {
+            // Cevaplanmış bir soru geri alınamaz. Cevabı izin kanalından
+            // "reddet + mesaj" olarak gönderdiğimiz için buraya `is_error`
+            // olarak dönüyor; olduğu gibi uygulasaydık kart yeniden açılırdı.
+            if (existing.answered !== undefined) return {};
+
+            // Geçmiş yüklerken de aynı durum: diskteki kayıtta cevap bir hata
+            // sonucu gibi duruyor. Kendi yazdığımız biçimi tanıyıp cevaba
+            // geri çeviriyoruz, yoksa eski sorular tekrar sorulabilir görünür.
+            if (existing.name === "AskUserQuestion" && isError) {
+              const summary = parseAnsweredSummary(stringify(block.content));
+              if (summary) {
+                return { state: "output-available", output: summary, answered: summary };
+              }
+            }
+
+            return {
+              state: isError ? "output-error" : "output-available",
+              output: isError ? undefined : block.content,
+              errorText: isError ? stringify(block.content) : undefined,
+            };
           });
         }
         return { ...state, messages };
@@ -372,6 +432,7 @@ export function reduce(state: SessionState, event: Json): SessionState {
         ...state,
         busy: false,
         streamingText: "",
+        streamingThinking: "",
         totalCostUsd:
           typeof event.total_cost_usd === "number"
             ? event.total_cost_usd
@@ -410,6 +471,7 @@ export function seedFromTranscript(records: Json[]): SessionState {
     ...seeded,
     busy: false,
     streamingText: "",
+    streamingThinking: "",
     messages: seeded.messages.map((message) => ({
       ...message,
       parts: message.parts.map((part) =>

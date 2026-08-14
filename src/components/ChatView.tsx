@@ -66,7 +66,12 @@ import {
 } from "@/components/ui/select";
 import { api, prettyCwd, type ModelOption } from "@/api";
 import { log } from "@/lib/log";
-import { stringify, type SlashCommand, type ToolPart } from "@/lib/claude-stream";
+import {
+  stringify,
+  type SessionState,
+  type SlashCommand,
+  type ToolPart,
+} from "@/lib/claude-stream";
 import { useAgentSession, type AgentSessionOptions } from "@/hooks/useAgentSession";
 import { useTypewriter } from "@/hooks/useTypewriter";
 import { fireAlert, loadAlertSettings, type AlertEvent } from "@/lib/alerts";
@@ -147,9 +152,10 @@ function ToolBlock({
 
     if (questions.length > 0) {
       const answered =
-        part.state === "output-available" && typeof part.output === "string"
+        part.answered ??
+        (part.state === "output-available" && typeof part.output === "string"
           ? part.output
-          : null;
+          : null);
 
       return (
         <QuestionCard
@@ -318,6 +324,66 @@ function SlashPalette({ commands }: { commands: SlashCommand[] }) {
   );
 }
 
+interface Reveal {
+  /** Daktilo şu anda çalışıyor mu. */
+  active: boolean;
+  /** Hedef metnin ekranda görünen kısmı. */
+  shown: string;
+  /** Daktilonun sahiplendiği kalıcı mesaj — henüz yoksa null. */
+  messageId: string | null;
+  /** O mesajdaki parça sırası. */
+  partIndex: number;
+}
+
+/**
+ * Turun sonundaki metni tek bir daktilo akışı olarak yönetir.
+ *
+ * Neden tek yerde: metin önce `streamingText` önizlemesi olarak, sonra
+ * `assistant` event'i gelince kalıcı mesajın parçası olarak çiziliyor. İki ayrı
+ * daktilo örneği kullanıldığında bu geçişte metin bir anda tamamlanıyordu —
+ * Haiku gibi hızlı modellerde tur o kadar çabuk bitiyor ki efekt hiç
+ * görünmeden "ışınlanma" oluyordu. Aynı hedef tek bir hook'tan geçtiği için
+ * geçiş artık görünmüyor.
+ */
+function useReveal(state: SessionState): Reveal {
+  // Turun sonundaki metin: ya akan önizleme ya da son asistan mesajının son
+  // metin parçası. Boş dize "daktilo edilecek bir şey yok" demek.
+  const target = useMemo(() => {
+    if (state.streamingText) {
+      return { text: state.streamingText, messageId: null, partIndex: -1 };
+    }
+
+    const last = state.messages[state.messages.length - 1];
+    if (last?.role !== "assistant") return { text: "", messageId: null, partIndex: -1 };
+
+    // Metnin ardından bir araç çağrısı gelmiş olabilir; sondaki parçaya değil,
+    // sondaki *metin* parçasına bakıyoruz.
+    for (let i = last.parts.length - 1; i >= 0; i -= 1) {
+      const part = last.parts[i];
+      if (part.kind === "text") {
+        return { text: part.text, messageId: last.id, partIndex: i };
+      }
+    }
+    return { text: "", messageId: null, partIndex: -1 };
+  }, [state.streamingText, state.messages]);
+
+  // Daktilo yalnızca canlı akış görüldükten sonra devreye giriyor. Aksi halde
+  // geçmişi yüklenen bir oturumda son mesaj yeniden yazılırdı.
+  const streamed = useRef(false);
+  if (state.streamingText.length > 0) streamed.current = true;
+
+  const shown = useTypewriter(target.text, streamed.current);
+
+  // Tur bitse bile daktilo geride kaldıysa yazmayı sürdürüyor; yoksa son anda
+  // yine sıçrardı.
+  const active =
+    streamed.current &&
+    target.text.length > 0 &&
+    (state.busy || shown.length < target.text.length);
+
+  return { active, shown, messageId: target.messageId, partIndex: target.partIndex };
+}
+
 /**
  * Akmakta olan cevap.
  *
@@ -329,11 +395,9 @@ function SlashPalette({ commands }: { commands: SlashCommand[] }) {
  * `::after`'ı olduğunda bir alt satıra düşüyordu.
  */
 function StreamingText({ text }: { text: string }) {
-  const shown = useTypewriter(text, true);
-
   return (
     <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-      {shown}
+      {text}
       <span className="cs-caret" />
     </p>
   );
@@ -503,6 +567,8 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
     if (event) fireAlert(loadAlertSettings(), event, { title, body });
   }, [mascotState, state.messages, state.errors, title]);
 
+  const reveal = useReveal(state);
+
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text?.trim();
     if (!text) return;
@@ -583,6 +649,15 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
               <MessageContent>
                 {message.parts.map((part, index) => {
                   if (part.kind === "text") {
+                    // Daktilo hâlâ bu parçanın üzerindeyse markdown yerine
+                    // açılmakta olan düz metni çiziyoruz.
+                    if (
+                      reveal.active &&
+                      reveal.messageId === message.id &&
+                      reveal.partIndex === index
+                    ) {
+                      return <StreamingText key={index} text={reveal.shown} />;
+                    }
                     return <MessageResponse key={index}>{part.text}</MessageResponse>;
                   }
                   if (part.kind === "thinking") {
@@ -606,11 +681,18 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
             </Message>
           ))}
 
-          {/* Akmakta olan metin; `assistant` event'i gelince kalıcıya döner. */}
-          {state.streamingText && (
+          {/* Akmakta olan düşünme ve metin; `assistant` event'i gelince
+              kalıcı mesaja dönüyorlar. */}
+          {(state.streamingThinking || state.streamingText) && (
             <Message from="assistant">
               <MessageContent>
-                <StreamingText text={state.streamingText} />
+                {state.streamingThinking && (
+                  <Reasoning className="mb-3" defaultOpen isStreaming>
+                    <ReasoningTrigger />
+                    <ReasoningContent>{state.streamingThinking}</ReasoningContent>
+                  </Reasoning>
+                )}
+                {state.streamingText && <StreamingText text={reveal.shown} />}
               </MessageContent>
             </Message>
           )}

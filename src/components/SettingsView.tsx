@@ -262,6 +262,41 @@ export default function SettingsView({ onError }: Props) {
           )}
 
           {section === "alerts" && (
+            <div className="space-y-4">
+            <SectionCard title="Ses düzeyi">
+              <div className="flex items-center gap-4 px-4 py-3">
+                <input
+                  aria-label="Ses düzeyi"
+                  className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+                  max={1}
+                  min={0}
+                  onChange={(e) => {
+                    const next = { ...alerts, volume: Number(e.target.value) };
+                    setAlerts(next);
+                    saveAlertSettings(next);
+                  }}
+                  step={0.05}
+                  type="range"
+                  value={alerts.volume}
+                />
+                <span className="w-10 shrink-0 text-right text-muted-foreground text-xs tabular-nums">
+                  {Math.round(alerts.volume * 100)}%
+                </span>
+                <Button
+                  onClick={() =>
+                    fireAlert({ ...alerts, done: { notify: false, sound: true } }, "done", {
+                      title: "Postillion",
+                      body: "Ses örneği",
+                    })
+                  }
+                  size="sm"
+                  variant="secondary"
+                >
+                  Çal
+                </Button>
+              </div>
+            </SectionCard>
+
             <SectionCard title="Olay başına uyarılar">
               <div className="divide-y">
                 {ALERT_EVENTS.map((event) => {
@@ -311,6 +346,7 @@ export default function SettingsView({ onError }: Props) {
                 })}
               </div>
             </SectionCard>
+            </div>
           )}
 
           {section === "mcp" && (

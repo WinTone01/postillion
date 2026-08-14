@@ -38,6 +38,14 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
   const [picked, setPicked] = useState<Record<number, Set<string>>>({});
   const [custom, setCustom] = useState<Record<number, string>>({});
 
+  /**
+   * Gönderildikten sonra kart kendi kendine kapanır.
+   *
+   * Yukarıdaki durum da güncelleniyor ama ona bağlı kalmak kartı iki kez
+   * gönderilebilir bırakıyordu; karar burada da tutuluyor.
+   */
+  const [sent, setSent] = useState<string | null>(null);
+
   const complete = useMemo(
     () =>
       questions.every((_, i) => {
@@ -65,6 +73,8 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
   }
 
   function submit() {
+    if (sent !== null) return;
+
     const answers: Record<string, string> = {};
     questions.forEach((q, i) => {
       const labels = [...(picked[i] ?? [])].map((l) =>
@@ -72,17 +82,21 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
       );
       answers[q.question] = labels.filter(Boolean).join(",");
     });
+
+    setSent(Object.values(answers).join(" · "));
     onSubmit(answers);
   }
 
-  if (answered) {
+  const settled = answered ?? sent;
+
+  if (settled) {
     return (
       <div className="not-prose mb-4 rounded-xl border bg-card px-4 py-3">
         <div className="flex items-center gap-2 text-muted-foreground text-xs">
           <CheckIcon className="size-3.5 text-success" />
           Cevaplandı
         </div>
-        <p className="mt-1 text-sm">{answered}</p>
+        <p className="mt-1 text-sm">{settled}</p>
       </div>
     );
   }
@@ -184,7 +198,7 @@ export default function QuestionCard({ questions, answered, onSubmit }: Props) {
         );
       })}
 
-      <Button disabled={!complete} onClick={submit} size="sm">
+      <Button disabled={!complete || sent !== null} onClick={submit} size="sm">
         Gönder
       </Button>
     </div>
