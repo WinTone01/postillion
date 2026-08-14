@@ -494,6 +494,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        // Kod bloklarındaki kopyala butonu için: WebKitGTK'da
+        // `navigator.clipboard` güvenli bağlam istiyor ve Tauri'nin özel
+        // protokolü öyle sayılmıyor, çağrı sessizce düşüyordu.
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             app.manage(AppState {
                 agent: Arc::new(agent::Manager::default()),

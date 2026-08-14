@@ -17,6 +17,15 @@ const MAX_CPS = 900;
 const DRAIN_SECONDS = 0.6;
 
 /**
+ * İki güncelleme arasındaki en kısa süre.
+ *
+ * Açılan metin markdown olarak çiziliyor, yani her güncelleme bir ayrıştırma
+ * demek. Kare başına bir kez ayrıştırmak gereksizce pahalı; ~30/sn hem akıcı
+ * görünüyor hem de eski akış yolunun (~22/sn) üstünde.
+ */
+const COMMIT_MS = 33;
+
+/**
  * Metni okunabilir bir hızda açar.
  *
  * Gelen metin bir *hedef*; ekrandaki metin her karede ona doğru ilerliyor.
@@ -40,12 +49,19 @@ export function useTypewriter(target: string, enabled: boolean): string {
     let frame = 0;
     let cancelled = false;
     let last = performance.now();
+    let lastCommit = 0;
     // Kare başına düşen karakter çoğu zaman kesirli; artan kısım burada
     // birikiyor, yoksa aşağı yuvarlama hızı sistematik olarak düşürürdü.
     let carry = 0;
 
     function step(now: number) {
       // Sekme arka plandayken rAF durur; dönünce dev bir `dt` gelmesin.
+      if (now - lastCommit < COMMIT_MS) {
+        if (!cancelled) frame = requestAnimationFrame(step);
+        return;
+      }
+      lastCommit = now;
+
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
 

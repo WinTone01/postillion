@@ -90,6 +90,8 @@ interface Props {
   gitBranch: string | null;
   /** Maskotun beslendiği durum; üst bileşen sekmeler arasında topluyor. */
   onStateChange?: (id: string, state: MascotState) => void;
+  /** İlk mesajdan türetilen başlık; yeni sohbetlerde sekme adını düzeltiyor. */
+  onTitleChange?: (id: string, title: string) => void;
 }
 
 /**
@@ -440,19 +442,20 @@ function useReveal(state: SessionState): Reveal {
 /**
  * Akmakta olan cevap.
  *
- * Markdown yerine düz metin: yarım kalmış markdown (kapanmamış kod bloğu,
- * yarım tablo) her karede farklı ayrıştığı için metin zıplıyordu. Biçimlendirme
- * tam mesaj gelince zaten uygulanıyor.
+ * Markdown, tamamlanmış mesajlardaki bileşenin aynısıyla çiziliyor. Bir ara düz
+ * metin basılıyordu — yarım kalmış markdown her karede farklı ayrıştığı için —
+ * ama bunun bedeli, efekt bitene kadar kod bloklarının ve kalın yazının ham
+ * işaretleriyle görünmesiydi. Streamdown zaten yarım blokları bekliyor; asıl
+ * sorun ayrıştırma sıklığıydı ve o `useTypewriter` içinde sınırlandı.
  *
- * İmleç metnin hemen ardında kendi elemanı olarak duruyor; blok sarmalayıcının
- * `::after`'ı olduğunda bir alt satıra düşüyordu.
+ * İmleç ayrı bir eleman değil, son bloğun `::after`'ı: kendi elemanı olarak
+ * eklendiğinde markdown bloğundan sonra geldiği için bir alt satıra düşüyordu.
  */
 function StreamingText({ text }: { text: string }) {
   return (
-    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-      {text}
-      <span className="cs-caret" />
-    </p>
+    <div className="cs-streaming">
+      <MessageResponse>{text}</MessageResponse>
+    </div>
   );
 }
 
@@ -640,7 +643,19 @@ function BottomSelect({
   );
 }
 
-export default function ChatView({ options, title, gitBranch, onStateChange }: Props) {
+/** Sekme başlığı için ilk kullanıcı mesajını kısaltır. */
+function titleFromMessage(text: string): string {
+  const line = text.trim().split("\n")[0].trim();
+  return line.length > 60 ? `${line.slice(0, 60)}…` : line;
+}
+
+export default function ChatView({
+  options,
+  title,
+  gitBranch,
+  onStateChange,
+  onTitleChange,
+}: Props) {
   const {
     state,
     running,
@@ -787,6 +802,18 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
   useEffect(() => {
     onStateChange?.(options.id, mascotState);
   }, [onStateChange, options.id, mascotState]);
+
+  // Başlık ilk kullanıcı mesajından: transcript taramasının da son çare olarak
+  // kullandığı kaynak bu, yani sekme kapanıp açıldığında değer değişmiyor.
+  const firstPrompt = useMemo(() => {
+    const first = state.messages.find((m) => m.role === "user");
+    const text = first?.parts.find((p) => p.kind === "text")?.text;
+    return text ? titleFromMessage(text) : null;
+  }, [state.messages]);
+
+  useEffect(() => {
+    if (firstPrompt) onTitleChange?.(options.id, firstPrompt);
+  }, [firstPrompt, onTitleChange, options.id]);
 
   // Tamamlanma ve hata uyarıları durum geçişinde kalıyor; onların istek başına
   // bir karşılığı yok.

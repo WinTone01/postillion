@@ -11,6 +11,7 @@
     "core:window:default",
     "core:webview:default",
     "dialog:allow-open",
-    "notification:default"
+    "notification:default",
+    "clipboard-manager:allow-write-text"
   ]
 }

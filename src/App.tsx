@@ -29,6 +29,13 @@ interface Tab {
   options: AgentSessionOptions;
   title: string;
   gitBranch: string | null;
+  /**
+   * Başlık transcript taramasından geldi mi.
+   *
+   * Geldiyse ilk kullanıcı mesajından türetilen başlıkla ezilmemeli: tarama
+   * `custom-title` ve `ai-title` kayıtlarını da görüyor, o yüzden daha iyi.
+   */
+  titleFromSession: boolean;
 }
 
 type View = { kind: "sessions" } | { kind: "settings" } | { kind: "chat"; id: string };
@@ -69,6 +76,23 @@ export default function App() {
 
   const reportTabState = useCallback((id: string, next: MascotState) => {
     setTabStates((prev) => (prev[id] === next ? prev : { ...prev, [id]: next }));
+  }, []);
+
+  /**
+   * Yeni bir sohbetin başlığını ilk mesajdan alır.
+   *
+   * Önceden başlık sekme açılırken bir kez kuruluyordu, yani yeni oturumlarda
+   * klasör adı olarak kalıyor ve ancak sekme kapatılıp yeniden açıldığında —
+   * transcript taraması devreye girince — düzeliyordu.
+   */
+  const reportTabTitle = useCallback((id: string, next: string) => {
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.options.id === id && !tab.titleFromSession && tab.title !== next
+          ? { ...tab, title: next }
+          : tab,
+      ),
+    );
   }, []);
 
   // Öncelik sırası: en çok ilgi isteyen durum kazanır.
@@ -187,6 +211,7 @@ export default function App() {
         effort: prefs.effortLevel ?? null,
       },
       title: session.title ?? session.sessionId,
+      titleFromSession: session.title !== null,
       gitBranch: session.gitBranch,
     });
   }
@@ -202,7 +227,10 @@ export default function App() {
         model: prefs.model ?? null,
         effort: prefs.effortLevel ?? null,
       },
+      // Geçici; ilk mesaj gönderilir gönderilmez ChatView gerçek başlığı
+      // bildiriyor.
       title: cwd.split("/").filter(Boolean).pop() ?? "yeni oturum",
+      titleFromSession: false,
       gitBranch: null,
     });
   }
@@ -330,6 +358,7 @@ export default function App() {
                 <ChatView
                   gitBranch={tab.gitBranch}
                   onStateChange={reportTabState}
+                  onTitleChange={reportTabTitle}
                   options={tab.options}
                   title={tab.title}
                 />

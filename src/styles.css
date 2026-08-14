@@ -228,13 +228,28 @@ button,
   }
 }
 
-.cs-caret {
+/*
+ * İmleç, akan cevabın son bloğunun sonuna iliştiriliyor.
+ *
+ * Kendi elemanı olarak eklendiğinde markdown bloğundan *sonra* geldiği için bir
+ * alt satıra düşüyordu. Son bloğun `::after`'ı olarak paragrafın son
+ * karakterinin hemen ardında akıyor. İki seviye yazılı: Streamdown içeriği bir
+ * sarmalayıcı içine koyuyor ama bu bir uygulama ayrıntısı.
+ */
+.cs-streaming > :last-child::after,
+.cs-streaming > * > :last-child::after {
+  content: "";
   display: inline-block;
   width: 0.5ch;
   height: 1.05em;
-  margin-left: 1px;
+  margin-left: 2px;
   vertical-align: text-bottom;
   background: var(--primary);
   border-radius: 1px;
   animation: cs-caret-blink 1.1s steps(1, end) infinite;
+}
+
+/* Dıştaki sarmalayıcı da `:last-child` sayıldığı için iki imleç çıkardı. */
+.cs-streaming > :last-child:has(> :last-child)::after {
+  content: none;
 }
