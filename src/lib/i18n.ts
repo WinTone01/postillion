@@ -93,6 +93,23 @@ export function t(source: string, vars?: Record<string, string | number>): strin
   );
 }
 
+/**
+ * Gelecekteki bir ana kalan süre.
+ *
+ * `formatRelative`'in aynası: o geçmişe bakıyor, bu ileriye. Kullanım
+ * göstergesinde payın ne zaman geri geleceğini yazıyor.
+ */
+export function formatUntil(ms: number): string {
+  const min = Math.round((ms - Date.now()) / 60000);
+  if (min <= 1) return t("birazdan");
+  if (min < 60) return t("{n} dk sonra", { n: min });
+
+  const hour = Math.round(min / 60);
+  if (hour < 24) return t("{n} sa sonra", { n: hour });
+
+  return t("{n} gün sonra", { n: Math.round(hour / 24) });
+}
+
 /** Yüzde: Türkçe işareti önce, İngilizce sonra yazıyor. */
 export function percent(value: number): string {
   return lang === "tr" ? `%${value}` : `${value}%`;

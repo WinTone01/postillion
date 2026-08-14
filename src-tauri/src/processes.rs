@@ -94,7 +94,7 @@ fn descendant_pids(root: u32) -> Vec<u32> {
     // Ağacı tepeden kurmak yerine her süreçten köke yürüyoruz: /proc listesi
     // zaten tek geçişte okundu ve zincirler kısa.
     let mut out = Vec::new();
-    for (&pid, _) in parents.iter() {
+    for &pid in parents.keys() {
         if pid == root {
             continue;
         }

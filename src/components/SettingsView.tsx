@@ -4,6 +4,7 @@ import {
   BellIcon,
   BlocksIcon,
   BrainIcon,
+  LanguagesIcon,
   CheckIcon,
   DownloadIcon,
   KeyRoundIcon,
@@ -54,9 +55,15 @@ interface Props {
   onError: (message: string) => void;
 }
 
-type Section = "model" | "alerts" | "mcp" | "plugins" | "skills";
+type Section = "general" | "model" | "alerts" | "mcp" | "plugins" | "skills";
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode; hint: string }[] = [
+  {
+    id: "general",
+    label: t("Genel"),
+    icon: <LanguagesIcon className="size-4" />,
+    hint: t("Arayüz dili"),
+  },
   {
     id: "model",
     label: t("Model & Efor"),
@@ -89,6 +96,25 @@ const SECTIONS: { id: Section; label: string; icon: React.ReactNode; hint: strin
   },
 ];
 
+/**
+ * Model takma adlarının açıklaması.
+ *
+ * Rust tarafından gelmiyordu: metin çevrilmesi gereken bir şey ve sözlük
+ * burada. Sunucudan gelen ek modeller kendi açıklamalarıyla geliyor.
+ */
+function modelDescription(model: ModelOption): string | null {
+  switch (model.value) {
+    case "opus":
+      return t("En yetenekli; karmaşık işler için");
+    case "sonnet":
+      return t("Dengeli hız ve yetenek");
+    case "haiku":
+      return t("En hızlı; basit işler için");
+    default:
+      return model.description;
+  }
+}
+
 function effortLabel(level: string): string {
   switch (level) {
     case "low":
@@ -107,7 +133,7 @@ function effortLabel(level: string): string {
 }
 
 export default function SettingsView({ onError }: Props) {
-  const [section, setSection] = useState<Section>("model");
+  const [section, setSection] = useState<Section>("general");
   const [models, setModels] = useState<ModelOption[]>([]);
   const [efforts, setEfforts] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<Preferences>({});
@@ -247,6 +273,37 @@ export default function SettingsView({ onError }: Props) {
             </p>
           </header>
 
+          {section === "general" && (
+            <div className="space-y-5">
+              {/* Dil sistemden algılanıyor; bu seçici yalnızca algılamayı
+                  geçersiz kılmak için. Değişiklik pencereyi yeniden yüklüyor:
+                  metinler React durumuna bağlı değil. */}
+              <Field
+                hint={t(
+                  "Varsayılan olarak sistem dilinizi izler. Türkçe dışındaki diller İngilizce'ye düşer.",
+                )}
+                label={t("Dil")}
+              >
+                <Select
+                  onValueChange={(value) => {
+                    setLanguageOverride(value === "auto" ? null : (value as Lang));
+                    window.location.reload();
+                  }}
+                  value={languageOverride() ?? "auto"}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">{t("Sistem dili")}</SelectItem>
+                    <SelectItem value="tr">Türkçe</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          )}
+
           {section === "model" && (
             <div className="space-y-5">
               <Field
@@ -266,7 +323,7 @@ export default function SettingsView({ onError }: Props) {
                     {models.map((model) => (
                       <SelectItem key={model.value} value={model.value}>
                         {model.label}
-                        {model.description ? ` — ${model.description}` : ""}
+                        {modelDescription(model) ? ` — ${modelDescription(model)}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -298,32 +355,6 @@ export default function SettingsView({ onError }: Props) {
                 </Select>
               </Field>
 
-              {/* Dil sistemden algılanıyor; bu seçici yalnızca algılamayı
-                  geçersiz kılmak için. Değişiklik pencereyi yeniden yüklüyor:
-                  metinler React durumuna bağlı değil. */}
-              <Field
-                hint={t(
-                  "Varsayılan olarak sistem dilinizi izler. Türkçe dışındaki diller İngilizce'ye düşer.",
-                )}
-                label={t("Dil")}
-              >
-                <Select
-                  onValueChange={(value) => {
-                    setLanguageOverride(value === "auto" ? null : (value as Lang));
-                    window.location.reload();
-                  }}
-                  value={languageOverride() ?? "auto"}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">{t("Sistem dili")}</SelectItem>
-                    <SelectItem value="tr">Türkçe</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
             </div>
           )}
 

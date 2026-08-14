@@ -46,14 +46,12 @@ export const EN: Record<string, string> = {
   Eylemler: "Actions",
 
   // ----------------------------------------------------------- kenar çubuğu
-  "Hesaplar arası oturum devamı": "Resume sessions across accounts",
+  "Aynı sohbet, istediğin hesapla": "One conversation, any account",
   "Henüz hesap yok. Aşağıdan ekleyin.": "No accounts yet. Add one below.",
   "Hesap ekle": "Add account",
   "Hesabı kaldır": "Remove account",
   "etkin hesap": "active account",
   "oturum yok — yeniden giriş gerekiyor": "not signed in — log in again",
-  "Terminaldeki {cmd} de bu hesabı kullanıyor.":
-    "{cmd} in your terminal uses this account too.",
   "Terminaldeki claude de artık bu hesabı kullanıyor.":
     "claude in your terminal now uses this account too.",
   "{name} hesabına geçildi": "Switched to {name}",
@@ -72,6 +70,12 @@ export const EN: Record<string, string> = {
   "En son etkin olduğunda ölçüldü ({when}). Bu hesaba geçince güncellenir.":
     "Measured when this account was last active ({when}). Switching to it refreshes the reading.",
   "{when} ölçüldü": "measured {when}",
+  "{when} yenilenir": "renews {when}",
+  "hafta {when} yenilenir": "week renews {when}",
+  birazdan: "any moment",
+  "{n} dk sonra": "in {n}m",
+  "{n} sa sonra": "in {n}h",
+  "{n} gün sonra": "in {n}d",
 
   // ---------------------------------------------------------- oturum listesi
   "Oturum ara": "Search sessions",
@@ -207,6 +211,9 @@ export const EN: Record<string, string> = {
   "Sohbette /isim ile çağrılır": "Invoked with /name in a chat",
 
   "Varsayılan model": "Default model",
+  "En yetenekli; karmaşık işler için": "Most capable; for demanding work",
+  "Dengeli hız ve yetenek": "Balanced speed and capability",
+  "En hızlı; basit işler için": "Fastest; for simple work",
   "Model seçin": "Choose a model",
   "Yeni oturumlarda kullanılır. Açık bir sohbetin modelini başlıktaki seçiciden anında değiştirebilirsiniz.":
     "Used for new sessions. You can change an open chat's model instantly from the picker in its header.",
@@ -220,6 +227,8 @@ export const EN: Record<string, string> = {
   "Çok yüksek": "Very high",
   "Azami — en yavaş, en derin": "Max — slowest and deepest",
 
+  Genel: "General",
+  "Arayüz dili": "Interface language",
   Dil: "Language",
   "Sistem dili": "System language",
   "Varsayılan olarak sistem dilinizi izler. Türkçe dışındaki diller İngilizce'ye düşer.":

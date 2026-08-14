@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import {
   AlertTriangleIcon,
   MessagesSquareIcon,
@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatWhen, type Account, type Usage } from "@/api";
-import { percent, t } from "@/lib/i18n";
+import { formatUntil, percent, t } from "@/lib/i18n";
+import { parseResetAt, resetWindow } from "@/lib/usage";
 
 interface Props {
   accounts: Account[];
@@ -75,9 +76,12 @@ function windowLabel(label: string): string {
  * En dar pencere (oturum) çubuk olarak, kalanlar yanında yüzde olarak
  * gösteriliyor: karar anında bakılan şey "şimdi ne kadar payım var".
  *
- * Etkin olmayan hesaplarda değer ölçülemiyor — `claude` kimliği paylaşılan
- * dosyadan okuyor ve sorgulamak için o hesaba geçmek gerekirdi. Bu yüzden en
- * son etkin olduğu andaki ölçüm, yaşıyla birlikte gösteriliyor.
+ * Satırın sonunda payın ne zaman geri geleceği yazıyor. Önceden orada ölçümün
+ * yaşı vardı ama o kullanıcının sorusuna cevap vermiyor — "ne zaman yine
+ * yazabilirim" veriyor. Ölçüm zamanı ipucu kartına taşındı.
+ *
+ * Etkin olmayan hesaplarda değer ölçülemiyor: `claude` kimliği paylaşılan
+ * dosyadan okuyor ve sorgulamak için o hesaba geçmek gerekirdi.
  */
 function UsageMeter({ usage, stale }: { usage: Usage | undefined; stale: boolean }) {
   if (!usage || usage.windows.length === 0) return null;
@@ -95,6 +99,22 @@ function UsageMeter({ usage, stale }: { usage: Usage | undefined; stale: boolean
     .filter((w) => w.resets)
     .map((w) => `${windowLabel(w.label)}: ${w.resets}`);
 
+  /**
+   * "3 sa sonra yenilenir". Haftalık pay bittiyse oturumun değil haftanın
+   * sıfırlanması gösteriliyor — asıl engel o.
+   */
+  const renewal = (() => {
+    const window = resetWindow(usage);
+    if (!window?.resets) return null;
+
+    const at = parseResetAt(window.resets);
+    // Biçim beklenmedikse ham metni göster; hiç göstermemekten iyi.
+    const when = at === null ? window.resets : formatUntil(at);
+    return window.label.startsWith("week")
+      ? t("hafta {when} yenilenir", { when })
+      : t("{when} yenilenir", { when });
+  })();
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -109,7 +129,7 @@ function UsageMeter({ usage, stale }: { usage: Usage | undefined; stale: boolean
             {windowLabel(primary.label)} {percent(primary.percent)}
             {rest.length > 0 &&
               ` · ${rest.map((w) => `${windowLabel(w.label)} ${percent(w.percent)}`).join(" · ")}`}
-            {stale && ` · ${formatWhen(usage.measuredAtMs)}`}
+            {renewal && ` · ${renewal}`}
           </p>
         </div>
       </TooltipTrigger>
@@ -168,7 +188,7 @@ export default function AccountSidebar({
             Postillion
           </h1>
           <p className="truncate text-muted-foreground text-xs leading-tight">
-            {t("Hesaplar arası oturum devamı")}
+            {t("Aynı sohbet, istediğin hesapla")}
           </p>
         </div>
       </div>
@@ -277,22 +297,6 @@ export default function AccountSidebar({
                   {t("oturum yok — yeniden giriş gerekiyor")}
                 </p>
               )}
-
-              <AnimatePresence initial={false}>
-                {active && (
-                  <motion.div
-                    animate={{ height: "auto", opacity: 1 }}
-                    className="overflow-hidden"
-                    exit={{ height: 0, opacity: 0 }}
-                    initial={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.16 }}
-                  >
-                    <p className="pt-1.5 pl-[42px] text-[11px] text-muted-foreground leading-snug">
-                      {t("Terminaldeki {cmd} de bu hesabı kullanıyor.", { cmd: "claude" })}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
 
               {!active && (
                 <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">

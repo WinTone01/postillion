@@ -175,21 +175,24 @@ fn settings_json_for(config_dir: Option<&Path>) -> Result<PathBuf> {
 ///
 /// Takma adlar CLI yardımından; ek seçenekler hesabın önbelleğinden geliyor.
 pub fn list_models(config_dir: Option<&Path>) -> Result<Vec<ModelOption>> {
+    // Takma adların açıklaması arayüzde: metin çevrilmesi gereken bir şey ve
+    // çeviri sözlüğü orada. Sunucudan gelen ek modellerin kendi açıklaması
+    // olduğu gibi geçiyor.
     let mut out = vec![
         ModelOption {
             value: "opus".into(),
             label: "Opus".into(),
-            description: Some("En yetenekli; karmaşık işler için".into()),
+            description: None,
         },
         ModelOption {
             value: "sonnet".into(),
             label: "Sonnet".into(),
-            description: Some("Dengeli hız ve yetenek".into()),
+            description: None,
         },
         ModelOption {
             value: "haiku".into(),
             label: "Haiku".into(),
-            description: Some("En hızlı; basit işler için".into()),
+            description: None,
         },
     ];
 
