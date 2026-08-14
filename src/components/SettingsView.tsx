@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import {
+  BellIcon,
   BlocksIcon,
   BrainIcon,
   CheckIcon,
@@ -40,15 +41,23 @@ import {
   type Skill,
 } from "@/api";
 import { log } from "@/lib/log";
+import {
+  ALERT_EVENTS,
+  fireAlert,
+  loadAlertSettings,
+  saveAlertSettings,
+  type AlertSettings,
+} from "@/lib/alerts";
 
 interface Props {
   onError: (message: string) => void;
 }
 
-type Section = "model" | "mcp" | "plugins" | "skills";
+type Section = "model" | "alerts" | "mcp" | "plugins" | "skills";
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode; hint: string }[] = [
   { id: "model", label: "Model & Efor", icon: <BrainIcon className="size-4" />, hint: "Varsayılan model ve düşünme derinliği" },
+  { id: "alerts", label: "Bildirimler", icon: <BellIcon className="size-4" />, hint: "Hangi olayda bildirim ve ses" },
   { id: "mcp", label: "MCP", icon: <PlugIcon className="size-4" />, hint: "Sunucular ve erişim anahtarları" },
   { id: "plugins", label: "Eklentiler", icon: <BlocksIcon className="size-4" />, hint: "Marketplace ve kurulu eklentiler" },
   { id: "skills", label: "Skill'ler", icon: <SparklesIcon className="size-4" />, hint: "Sohbette /isim ile çağrılır" },
@@ -73,6 +82,7 @@ export default function SettingsView({ onError }: Props) {
   const [markets, setMarkets] = useState<Marketplace[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [busy, setBusy] = useState(false);
+  const [alerts, setAlerts] = useState<AlertSettings>(() => loadAlertSettings());
 
   const fail = useCallback(
     (context: string, e: unknown) => {
@@ -249,6 +259,58 @@ export default function SettingsView({ onError }: Props) {
                 </Select>
               </Field>
             </div>
+          )}
+
+          {section === "alerts" && (
+            <SectionCard title="Olay başına uyarılar">
+              <div className="divide-y">
+                {ALERT_EVENTS.map((event) => {
+                  const rule = alerts[event.id];
+                  const update = (patch: Partial<typeof rule>) => {
+                    const next = { ...alerts, [event.id]: { ...rule, ...patch } };
+                    setAlerts(next);
+                    saveAlertSettings(next);
+                  };
+
+                  return (
+                    <div className="flex items-center gap-4 px-4 py-3" key={event.id}>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm">{event.label}</p>
+                        <p className="text-[11.5px] text-muted-foreground">{event.hint}</p>
+                      </div>
+
+                      <label className="flex shrink-0 items-center gap-2 text-xs">
+                        <Switch
+                          checked={rule.notify}
+                          onCheckedChange={(v) => update({ notify: v })}
+                        />
+                        Bildirim
+                      </label>
+                      <label className="flex shrink-0 items-center gap-2 text-xs">
+                        <Switch
+                          checked={rule.sound}
+                          onCheckedChange={(v) => update({ sound: v })}
+                        />
+                        Ses
+                      </label>
+
+                      <Button
+                        onClick={() =>
+                          fireAlert({ ...alerts, [event.id]: { notify: true, sound: true } }, event.id, {
+                            title: "Postillion",
+                            body: `${event.label} örneği`,
+                          })
+                        }
+                        size="sm"
+                        variant="ghost"
+                      >
+                        Dene
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionCard>
           )}
 
           {section === "mcp" && (

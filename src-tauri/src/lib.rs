@@ -410,6 +410,7 @@ fn skill_delete(name: String) -> Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             app.manage(AppState {
                 agent: Arc::new(agent::Manager::default()),

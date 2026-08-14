@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangleIcon,
   CpuIcon,
@@ -68,6 +68,8 @@ import { api, prettyCwd, type ModelOption } from "@/api";
 import { log } from "@/lib/log";
 import { stringify, type SlashCommand, type ToolPart } from "@/lib/claude-stream";
 import { useAgentSession, type AgentSessionOptions } from "@/hooks/useAgentSession";
+import { useTypewriter } from "@/hooks/useTypewriter";
+import { fireAlert, loadAlertSettings, type AlertEvent } from "@/lib/alerts";
 
 interface Props {
   options: AgentSessionOptions;
@@ -316,6 +318,27 @@ function SlashPalette({ commands }: { commands: SlashCommand[] }) {
   );
 }
 
+/**
+ * Akmakta olan cevap.
+ *
+ * Markdown yerine düz metin: yarım kalmış markdown (kapanmamış kod bloğu,
+ * yarım tablo) her karede farklı ayrıştığı için metin zıplıyordu. Biçimlendirme
+ * tam mesaj gelince zaten uygulanıyor.
+ *
+ * İmleç metnin hemen ardında kendi elemanı olarak duruyor; blok sarmalayıcının
+ * `::after`'ı olduğunda bir alt satıra düşüyordu.
+ */
+function StreamingText({ text }: { text: string }) {
+  const shown = useTypewriter(text, true);
+
+  return (
+    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+      {shown}
+      <span className="cs-caret" />
+    </p>
+  );
+}
+
 /** `/effort` bir slash komutu; süren oturumda da çalışıyor (ölçüldü). */
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 
@@ -449,6 +472,37 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
     onStateChange?.(options.id, mascotState);
   }, [onStateChange, options.id, mascotState]);
 
+  // Uyarılar durum GEÇİŞİNDE veriliyor, durumun kendisinde değil: aksi halde
+  // her render'da yeniden çalardı.
+  const previousState = useRef<MascotState | null>(null);
+
+  useEffect(() => {
+    const before = previousState.current;
+    previousState.current = mascotState;
+    if (before === null || before === mascotState) return;
+
+    const pending = state.messages
+      .flatMap((m) => m.parts)
+      .find((p): p is ToolPart => p.kind === "tool" && p.state === "approval-requested");
+
+    let event: AlertEvent | null = null;
+    let body = "";
+
+    if (mascotState === "waiting" && pending) {
+      const asking = pending.name === "AskUserQuestion";
+      event = asking ? "question" : "permission";
+      body = asking ? "Claude size bir soru sordu." : `${pending.name} çalıştırmak için onay bekliyor.`;
+    } else if (mascotState === "idle" && (before === "thinking" || before === "working")) {
+      event = "done";
+      body = "Claude işini bitirdi.";
+    } else if (mascotState === "error") {
+      event = "error";
+      body = state.errors.at(-1) ?? "Oturumda bir hata oluştu.";
+    }
+
+    if (event) fireAlert(loadAlertSettings(), event, { title, body });
+  }, [mascotState, state.messages, state.errors, title]);
+
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text?.trim();
     if (!text) return;
@@ -533,7 +587,7 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
                   }
                   if (part.kind === "thinking") {
                     return (
-                      <Reasoning className="mb-3" key={index}>
+                      <Reasoning className="mb-3" defaultOpen key={index}>
                         <ReasoningTrigger />
                         <ReasoningContent>{part.text}</ReasoningContent>
                       </Reasoning>
@@ -556,9 +610,7 @@ export default function ChatView({ options, title, gitBranch, onStateChange }: P
           {state.streamingText && (
             <Message from="assistant">
               <MessageContent>
-                <div className="cs-caret">
-                  <MessageResponse>{state.streamingText}</MessageResponse>
-                </div>
+                <StreamingText text={state.streamingText} />
               </MessageContent>
             </Message>
           )}
