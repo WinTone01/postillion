@@ -133,6 +133,19 @@ pub fn shared_projects_dir() -> Result<PathBuf> {
     Ok(default_config_dir()?.join("projects"))
 }
 
+/// Bir çalışma dizininin transcript klasörü adı.
+///
+/// Claude yolu düzleştiriyor: `/` ve `.` tire oluyor, yani
+/// `/home/ali/Projects/x` → `-home-ali-Projects-x`. Nokta kuralı gizli
+/// dizinlerde ortaya çıkıyor (`.claude/worktrees` → `-claude-worktrees`) ve
+/// diskteki gerçek klasör adlarıyla doğrulandı.
+pub fn project_slug(cwd: &std::path::Path) -> String {
+    cwd.to_string_lossy()
+        .chars()
+        .map(|c| if c == '/' || c == '.' { '-' } else { c })
+        .collect()
+}
+
 /// Bir config dizini için `.claude.json`'ın gerçek yeri.
 ///
 /// Burada bir asimetri var ve gözden kaçması kolay: default kurulumda
@@ -151,6 +164,23 @@ pub fn config_json(dir: &std::path::Path) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Slug biçimi diskteki gerçek klasör adlarıyla doğrulandı.
+    #[test]
+    fn proje_slug_yolu_duzlestirir() {
+        use std::path::Path;
+
+        assert_eq!(project_slug(Path::new("/home/ali")), "-home-ali");
+        assert_eq!(
+            project_slug(Path::new("/home/ali/Projects/x")),
+            "-home-ali-Projects-x"
+        );
+        // Gizli dizinlerdeki nokta da tireye dönüyor.
+        assert_eq!(
+            project_slug(Path::new("/home/ali/p/.claude/worktrees/a")),
+            "-home-ali-p--claude-worktrees-a"
+        );
+    }
 
     /// Masaüstünden başlatılan uygulama `~/.local/bin` içermeyen bir PATH
     /// devralıyor. Çözümleyici PATH boş olsa bile `claude`'u bulabilmeli.

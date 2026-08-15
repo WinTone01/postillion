@@ -105,6 +105,10 @@ export const EN: Record<string, string> = {
   "/home/kullanici/Projects/proje": "/home/user/Projects/project",
   "Son kullanılanlar": "Recent",
   "MCP sunucuları": "MCP servers",
+  "{n}/{total}": "{n}/{total}",
+  Hepsi: "All",
+  Hiçbiri: "None",
+  "Sohbet başladıktan sonra değiştirilemez.": "This cannot be changed once the chat starts.",
   "Hepsi açık — genel yapılandırma, eklentilerin getirdiği sunucular dahil.":
     "All enabled — your global configuration, including servers from plugins.",
   "Yalnızca seçilenler bu sohbette açık; eklenti sunucuları da kapanır.":
@@ -131,6 +135,9 @@ export const EN: Record<string, string> = {
   Model: "Model",
   Efor: "Effort",
   Mod: "Mode",
+  "{n} MCP": "{n} MCP",
+  "Bu sohbet yalnızca seçilen MCP sunucularını kullanıyor. Değiştirmek için yeni bir sohbet açın.":
+    "This chat runs only the MCP servers picked when it started. Start a new chat to change them.",
   "Görüntü ekle": "Attach an image",
   "Ekran görüntüsü al": "Take a screenshot",
   "Eki kaldır": "Remove attachment",

@@ -71,6 +71,16 @@ twice.
 
 ## Known limits
 
+**Per-chat MCP is decided at launch.** `--mcp-config` is a start-up flag, so a
+chat's server set cannot change once it is running. The header shows what it
+got; changing it means a new chat.
+
+**Local-command transcripts are not sessions.** Every `claude -p` call writes a
+transcript, including the app's own `/usage` poll. Those are deleted after the
+query, and the scanner skips any transcript whose only user records are meta or
+`<command-…>` wrappers — otherwise the session list fills with entries titled
+after a caveat banner.
+
 **Model access is per-account.** If `settings.json` pins `"model": "opus"` and
 the target account lacks Opus access, resuming fails.
 

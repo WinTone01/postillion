@@ -72,6 +72,10 @@ export default function NewSessionDialog({
       .catch((e) => log("warn", "MCP sunucuları okunamadı:", e));
   }, [isOpen, recent]);
 
+  /** Seçim yapılmadıysa hepsi açık demek. */
+  const allEnabled = chosen === null || chosen.size === servers.length;
+  const enabledCount = chosen === null ? servers.length : chosen.size;
+
   /**
    * Bir sunucuyu açıp kapatır.
    *
@@ -173,11 +177,24 @@ export default function NewSessionDialog({
           )}
 
           {servers.length > 0 && (
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1.5 text-xs">
-                <PlugIcon className="size-3.5" />
-                {t("MCP sunucuları")}
-              </Label>
+            <div className="space-y-2 rounded-xl border bg-muted/25 p-3">
+              <div className="flex items-center gap-2">
+                <PlugIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                <Label className="flex-1 text-xs">{t("MCP sunucuları")}</Label>
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  {t("{n}/{total}", { n: enabledCount, total: servers.length })}
+                </span>
+                {/* Hepsini açıp kapatmak: on sunucusu olanın tek tek
+                    tıklaması gerekmesin. */}
+                <button
+                  className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                  onClick={() => setChosen(allEnabled ? new Set() : null)}
+                  type="button"
+                >
+                  {allEnabled ? t("Hiçbiri") : t("Hepsi")}
+                </button>
+              </div>
+
               <div className="flex flex-wrap gap-1.5">
                 {servers.map((server) => {
                   const active = chosen === null || chosen.has(server.name);
@@ -206,14 +223,17 @@ export default function NewSessionDialog({
                   );
                 })}
               </div>
+
               <p className="text-[11px] text-muted-foreground leading-snug">
-                {chosen === null || chosen.size === servers.length
+                {allEnabled
                   ? t(
                       "Hepsi açık — genel yapılandırma, eklentilerin getirdiği sunucular dahil.",
                     )
                   : t(
                       "Yalnızca seçilenler bu sohbette açık; eklenti sunucuları da kapanır.",
                     )}
+                {" "}
+                {t("Sohbet başladıktan sonra değiştirilemez.")}
               </p>
             </div>
           )}

@@ -96,11 +96,39 @@ fn run_usage_command() -> Result<String> {
     let output = child.wait_with_output()?;
     let envelope: Value = serde_json::from_slice(&output.stdout)?;
 
+    // Her `claude -p` çağrısı bir transcript bırakıyor. Yoklama beş dakikada
+    // bir çalıştığı için oturum listesi kısa sürede bu boş kayıtlarla doluyordu
+    // (ölçüldü: bir günde 28 tane). Kendi çöpümüzü topluyoruz.
+    if let Some(id) = envelope.get("session_id").and_then(Value::as_str) {
+        discard_transcript(id);
+    }
+
     envelope
         .get("result")
         .and_then(Value::as_str)
         .map(str::to_owned)
         .ok_or_else(|| Error::Other("kullanım çıktısı beklenen biçimde değil".into()))
+}
+
+/// Yoklamanın açtığı oturumun transcript'ini siler.
+///
+/// Sorgu ev dizininden çalıştırılıyor, yani dosya oraya karşılık gelen proje
+/// klasöründe. Silinemezse sessizce geçiliyor: tarama tarafındaki süzgeç bu
+/// kayıtları zaten listeye almıyor.
+fn discard_transcript(session_id: &str) {
+    // Kimlik `claude`'un ürettiği bir UUID; yine de yol ayracı içermediğini
+    // doğruluyoruz — dosya adı olarak kullanılıyor.
+    if session_id.is_empty() || session_id.contains(['/', '\\', '.']) {
+        return;
+    }
+
+    let Ok(home) = paths::home() else { return };
+    let Ok(projects) = paths::shared_projects_dir() else {
+        return;
+    };
+
+    let slug = paths::project_slug(&home);
+    let _ = std::fs::remove_file(projects.join(slug).join(format!("{session_id}.jsonl")));
 }
 
 /// `/usage` metnindeki limit satırlarını ayıklar.

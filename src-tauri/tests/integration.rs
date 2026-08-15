@@ -217,3 +217,29 @@ fn kullanim_sorgusu_pencere_dondurur() {
     );
     assert!(usage.measured_at_ms > 0);
 }
+
+/// Yerel komut yoklamalarının listeye sızmadığını diskteki gerçek veriyle
+/// doğrular. `claude -p "/usage"` her çağrıda bir transcript bırakıyor.
+#[test]
+#[ignore]
+fn yoklama_oturumlari_listede_yok() {
+    let sessions = postillion_lib::testing::scan_sessions().expect("tarama başarılı olmalı");
+
+    let junk: Vec<_> = sessions
+        .iter()
+        .filter_map(|s| s.title.as_deref())
+        .filter(|t| t.starts_with("<local-command") || t.starts_with("<command-"))
+        .collect();
+
+    assert!(junk.is_empty(), "yerel komut kayıtları listede: {junk:#?}");
+
+    let synthetic: Vec<_> = sessions
+        .iter()
+        .filter(|s| s.model.as_deref() == Some("<synthetic>"))
+        .map(|s| &s.session_id)
+        .collect();
+
+    assert!(synthetic.is_empty(), "sentetik model rozeti: {synthetic:#?}");
+
+    eprintln!("{} oturum, hiçbirinde komut artığı yok", sessions.len());
+}

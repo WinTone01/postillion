@@ -8,6 +8,7 @@ import {
   GitBranchIcon,
   Loader2Icon,
   PaperclipIcon,
+  PlugIcon,
   ShieldIcon,
   SquareIcon,
   TerminalIcon,
@@ -66,6 +67,7 @@ import QuestionCard, { formatAnswers, type Question } from "@/components/Questio
 import type { MascotState } from "@/components/Mascot";
 import { diffFromToolInput } from "@/lib/diff";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -1121,6 +1123,30 @@ export default function ChatView({
                 <GitBranchIcon className="size-3" />
                 {gitBranch}
               </span>
+            )}
+            {/* Sohbete özel MCP seçimi başlangıçta yapılıyor ve sonradan
+                değiştirilemiyor; en azından ne seçildiği görünsün. */}
+            {options.mcpServers !== null && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex cursor-default items-center gap-1 text-primary">
+                    <PlugIcon className="size-3" />
+                    {t("{n} MCP", { n: options.mcpServers.length })}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[260px]" side="bottom">
+                  <p className="font-medium">
+                    {options.mcpServers.length > 0
+                      ? options.mcpServers.join(", ")
+                      : t("Hiçbiri")}
+                  </p>
+                  <p className="mt-1 text-[11px] opacity-70">
+                    {t(
+                      "Bu sohbet yalnızca seçilen MCP sunucularını kullanıyor. Değiştirmek için yeni bir sohbet açın.",
+                    )}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
             )}
             <span className="opacity-40">·</span>
             {state.totalCostUsd !== null && (
