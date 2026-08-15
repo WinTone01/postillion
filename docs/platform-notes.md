@@ -64,6 +64,13 @@ an editable element, so a Ctrl+V keydown outside one reads the clipboard
 directly. The two paths guard against each other so an image is never attached
 twice.
 
+**Flex and grid children need `min-w-0`.** Their default minimum is the
+content's intrinsic width, so one unbreakable string — a long file path in the
+recent list — pushed the dialog's content past the panel it was drawn in. The
+panel stayed 512px, the content spilled out over the page behind it, and the
+close button ended up looking mid-panel. Measured at 255px of overflow before
+the fix.
+
 **shiki is pinned.** `@streamdown/code` wants 3.x while the top level pulled
 4.x; an `overrides` entry in `package.json` resolves it.
 

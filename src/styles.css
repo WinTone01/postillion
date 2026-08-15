@@ -178,6 +178,17 @@ button,
 }
 
 /*
+ * Görüntü önizleme katmanı.
+ *
+ * Diyalogla aynı gerekçe: rengi burada, çünkü `bg-background` gövdeyle aynı
+ * değişkeni kullanıyor ve arkasındaki her şeyi geçiriyordu.
+ */
+.cs-viewer {
+  background: rgb(0 0 0 / 82%);
+  animation: cs-dialog-fade 140ms ease-out;
+}
+
+/*
  * Diyalog yüzeyi ve perdesi.
  *
  * Renkler burada, Tailwind sınıfıyla değil: `bg-background` gövdeyle aynı

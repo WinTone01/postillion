@@ -65,7 +65,12 @@ function DialogContent({
           className={cn(
             // Yüzey açıkça donuk: `bg-background` gövdeyle aynı değişkeni
             // kullandığı için tema değişkeni çözülemediğinde saydam kalıyordu.
-            "cs-dialog-surface relative z-50 my-auto grid w-full max-w-[calc(100%-2rem)] gap-4 rounded-lg border p-6 shadow-2xl outline-none sm:max-w-lg",
+            "cs-dialog-surface relative z-50 my-auto w-full max-w-[calc(100%-2rem)] rounded-lg border p-6 shadow-2xl outline-none sm:max-w-lg",
+            // Izgara sütunu `minmax(0,1fr)`: varsayılan `auto` minimum genişlik,
+            // uzun bir dosya yolu gibi bölünemeyen içerik kutudan taşırıyordu.
+            // Panel 512 pikselde kalıp içerik dışına akıyor, arkası görünüyor
+            // ve kapatma düğmesi ortada kalmış gibi duruyordu.
+            "grid grid-cols-[minmax(0,1fr)] gap-4 overflow-hidden",
             className
           )}
           {...props}

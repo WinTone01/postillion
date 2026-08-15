@@ -118,7 +118,7 @@ export default function NewSessionDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={isOpen}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("Yeni oturum")}</DialogTitle>
           <DialogDescription>
@@ -128,12 +128,12 @@ export default function NewSessionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5">
+        <div className="min-w-0 space-y-5">
+          <div className="min-w-0 space-y-2">
             <Label className="text-xs">{t("Çalışma dizini")}</Label>
-            <div className="flex gap-2">
+            <div className="flex min-w-0 gap-2">
               <Input
-                className="font-mono text-xs"
+                className="min-w-0 flex-1 font-mono text-xs"
                 onChange={(e) => setPath(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") start();
@@ -141,26 +141,34 @@ export default function NewSessionDialog({
                 placeholder={t("/home/kullanici/Projects/proje")}
                 value={path}
               />
-              <Button onClick={() => void browse()} size="icon" variant="secondary">
+              <Button
+                aria-label={t("Çalışma dizini seçin")}
+                onClick={() => void browse()}
+                size="icon"
+                variant="secondary"
+              >
                 <FolderOpenIcon className="size-4" />
               </Button>
             </div>
           </div>
 
           {recent.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-2">
               <Label className="text-xs">{t("Son kullanılanlar")}</Label>
-              <div className="space-y-1">
+              {/* Uzun yollar listeyi taşırıyordu; kaydırılabilir bir kutuda
+                  duruyorlar ve her satır kendi içinde kısaltılıyor. */}
+              <div className="max-h-[168px] min-w-0 space-y-1 overflow-y-auto pr-1">
                 {recent.map((entry) => (
                   <button
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
+                      "flex w-full min-w-0 items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors",
                       path === entry.cwd
                         ? "border-primary bg-primary/10"
                         : "hover:border-foreground/25 hover:bg-accent/40",
                     )}
                     key={entry.cwd}
                     onClick={() => setPath(entry.cwd)}
+                    title={entry.cwd}
                     type="button"
                   >
                     <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -177,17 +185,19 @@ export default function NewSessionDialog({
           )}
 
           {servers.length > 0 && (
-            <div className="space-y-2 rounded-xl border bg-muted/25 p-3">
-              <div className="flex items-center gap-2">
+            <div className="min-w-0 space-y-2 rounded-xl border bg-muted/25 p-3">
+              <div className="flex min-w-0 items-center gap-2">
                 <PlugIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                <Label className="flex-1 text-xs">{t("MCP sunucuları")}</Label>
-                <span className="text-[11px] text-muted-foreground tabular-nums">
+                <Label className="min-w-0 flex-1 truncate text-xs">
+                  {t("MCP sunucuları")}
+                </Label>
+                <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
                   {t("{n}/{total}", { n: enabledCount, total: servers.length })}
                 </span>
                 {/* Hepsini açıp kapatmak: on sunucusu olanın tek tek
                     tıklaması gerekmesin. */}
                 <button
-                  className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                  className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                   onClick={() => setChosen(allEnabled ? new Set() : null)}
                   type="button"
                 >
@@ -201,7 +211,7 @@ export default function NewSessionDialog({
                   return (
                     <button
                       className={cn(
-                        "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors",
+                        "flex max-w-full items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors",
                         active
                           ? "border-primary bg-primary/10"
                           : "text-muted-foreground hover:border-foreground/25",
@@ -218,7 +228,7 @@ export default function NewSessionDialog({
                       >
                         {active && <CheckIcon className="size-2.5 text-primary-foreground" />}
                       </span>
-                      {server.name}
+                      <span className="truncate">{server.name}</span>
                     </button>
                   );
                 })}

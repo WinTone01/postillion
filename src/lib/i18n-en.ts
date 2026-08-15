@@ -141,6 +141,7 @@ export const EN: Record<string, string> = {
   "Görüntü ekle": "Attach an image",
   "Ekran görüntüsü al": "Take a screenshot",
   "Eki kaldır": "Remove attachment",
+  "{n} ek": "{n} attached",
   "İliştirilen görüntü": "Attached image",
   "{n} ek okunamadı ve gönderilmedi.": "{n} attachment(s) could not be read and were not sent.",
 

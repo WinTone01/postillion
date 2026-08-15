@@ -63,6 +63,7 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import DiffView from "@/components/DiffView";
+import ImageViewer from "@/components/ImageViewer";
 import QuestionCard, { formatAnswers, type Question } from "@/components/QuestionCard";
 import type { MascotState } from "@/components/Mascot";
 import { diffFromToolInput } from "@/lib/diff";
@@ -695,32 +696,46 @@ function PendingBar({
 /**
  * Gönderilmeyi bekleyen görüntüler.
  *
- * Küçük önizlemeler: bir ekran görüntüsünün doğru olanı olup olmadığı ancak
- * bakarak anlaşılıyor, dosya adı yetmiyor.
+ * `w-full` şart: `InputGroup` dikey akışta `items-center` uyguluyor, genişlik
+ * verilmezse şerit içeriği kadar daralıp ortaya kaçıyor ve girdi kutusu
+ * gereksiz yere uzuyordu.
  */
-function AttachmentStrip() {
+function AttachmentStrip({ onOpen }: { onOpen: (url: string, name: string) => void }) {
   const attachments = usePromptInputAttachments();
   if (attachments.files.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2 px-3 pt-3">
+    <div className="flex w-full flex-wrap items-center gap-2 border-b px-3 py-2">
       {attachments.files.map((file) => (
         <div className="group relative" key={file.id}>
-          <img
-            alt={file.filename ?? t("ek")}
-            className="size-16 rounded-lg border object-cover"
-            src={file.url}
-          />
+          {/* Tıklayınca büyüyor: 56 pikselde hangi ekran görüntüsü olduğu
+              seçilemiyor. */}
+          <button
+            className="block size-11 overflow-hidden rounded-md border transition-colors hover:border-primary"
+            onClick={() => onOpen(file.url, file.filename ?? t("ek"))}
+            title={file.filename ?? undefined}
+            type="button"
+          >
+            <img
+              alt={file.filename ?? t("ek")}
+              className="size-full object-cover"
+              src={file.url}
+            />
+          </button>
           <button
             aria-label={t("Eki kaldır")}
-            className="-right-1.5 -top-1.5 absolute grid size-5 place-items-center rounded-full border bg-background text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+            className="-right-1 -top-1 absolute grid size-4 place-items-center rounded-full border bg-background text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
             onClick={() => attachments.remove(file.id)}
             type="button"
           >
-            <XIcon className="size-3" />
+            <XIcon className="size-2.5" />
           </button>
         </div>
       ))}
+
+      <span className="ml-1 text-[11px] text-muted-foreground">
+        {t("{n} ek", { n: attachments.files.length })}
+      </span>
     </div>
   );
 }
@@ -1072,6 +1087,9 @@ export default function ChatView({
 
   const procCount = procs.length;
 
+  /** Büyütülmüş görüntü; `null` ise katman kapalı. */
+  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(null);
+
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text?.trim() ?? "";
 
@@ -1238,12 +1256,20 @@ export default function ChatView({
                   }
                   if (part.kind === "image") {
                     return (
-                      <img
-                        alt={t("İliştirilen görüntü")}
-                        className="mb-2 max-h-72 w-auto max-w-full rounded-lg border"
+                      <button
+                        className="mb-2 block overflow-hidden rounded-lg border transition-colors hover:border-primary"
                         key={index}
-                        src={part.url}
-                      />
+                        onClick={() =>
+                          setPreview({ src: part.url, alt: t("İliştirilen görüntü") })
+                        }
+                        type="button"
+                      >
+                        <img
+                          alt={t("İliştirilen görüntü")}
+                          className="max-h-72 w-auto max-w-full"
+                          src={part.url}
+                        />
+                      </button>
                     );
                   }
                   if (part.kind === "thinking") {
@@ -1307,7 +1333,7 @@ export default function ChatView({
             onError={(error) => toast.error(error.message)}
             onSubmit={handleSubmit}
           >
-            <AttachmentStrip />
+            <AttachmentStrip onOpen={(src, alt) => setPreview({ src, alt })} />
             <PromptInputBody>
               <PromptInputTextarea
                 placeholder={
@@ -1359,6 +1385,12 @@ export default function ChatView({
           </PromptInput>
         </PromptInputProvider>
       </div>
+
+      <ImageViewer
+        alt={preview?.alt}
+        onClose={() => setPreview(null)}
+        src={preview?.src ?? null}
+      />
     </div>
   );
 }
