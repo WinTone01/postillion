@@ -103,6 +103,10 @@ export function useAgentSession(options: AgentSessionOptions | null) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
+  // `restart` bağımlılıksız bir callback; güncel durumu buradan okuyor.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   const sessionKey = options?.id ?? null;
 
   useEffect(() => {
@@ -132,6 +136,13 @@ export function useAgentSession(options: AgentSessionOptions | null) {
             flushTimerRef.current = window.setTimeout(flush, STREAM_FLUSH_MS);
           }
           return;
+        }
+
+        // `system/init` canlı bir süreç demek. Yeniden başlatmada eski
+        // sürecin `exit` olayı yenisinin başlamasından sonra gelebiliyor ve
+        // `running`'i yanlışlıkla kapatıyor; burada kendini toparlıyor.
+        if (payload.type === "system" && payload.subtype === "init") {
+          setRunning(true);
         }
 
         // Tamamlanmış mesaj, izin isteği, tur sonu: gecikmesiz uygulanmalı.
@@ -232,6 +243,59 @@ export function useAgentSession(options: AgentSessionOptions | null) {
       unlisteners.forEach((un) => un());
     };
   }, [sessionKey, flush]);
+
+  /**
+   * Oturumu farklı bir MCP kümesiyle yeniden başlatır.
+   *
+   * `--mcp-config` bir başlatma bayrağı ve `/mcp enable|disable` headless
+   * modda çalışmıyor ("MCP controls aren't available right now" — ölçüldü),
+   * dolayısıyla açık bir sohbetin sunucu kümesini değiştirmenin tek yolu
+   * süreci yeniden kurmak. Bağlam kaybolmuyor: `--resume` konuşmayı model
+   * tarafında geri getiriyor ve mesajlar zaten arayüzün elinde.
+   */
+  const restart = useCallback(
+    async (mcpServers: string[] | null) => {
+      const opts = optionsRef.current;
+      if (!opts) return;
+
+      // Süren bir turun ortasında süreci kapatmak cevabı yarıda keser.
+      if (stateRef.current.busy) return;
+
+      const sessionId = stateRef.current.sessionId ?? opts.resume;
+      if (!sessionId) {
+        setState((prev) => ({
+          ...prev,
+          errors: [...prev.errors, "oturum kimliği yok; yeniden başlatılamıyor"],
+        }));
+        return;
+      }
+
+      setRunning(false);
+      try {
+        await api.agentStop(opts.id);
+        // Yeniden başlatmaya izin ver; geçmiş bayrağı KALIYOR, mesajlar
+        // durumda duruyor ve transcript ikinci kez okunmamalı.
+        startedAgents.delete(opts.id);
+
+        await api.agentStart({
+          id: opts.id,
+          cwd: opts.cwd,
+          resume: sessionId,
+          model: opts.model,
+          effort: opts.effort,
+          mcpServers,
+        });
+
+        startedAgents.add(opts.id);
+        setRunning(true);
+        log("info", "ajan yeniden başlatıldı", opts.id);
+      } catch (e) {
+        log("error", "yeniden başlatılamadı:", e);
+        setState((prev) => ({ ...prev, errors: [...prev.errors, errText(e)] }));
+      }
+    },
+    [],
+  );
 
   const send = useCallback(
     async (text: string, images: ImageAttachment[] = []) => {
@@ -375,5 +439,6 @@ export function useAgentSession(options: AgentSessionOptions | null) {
     answerQuestions,
     setPermissionMode,
     interrupt,
+    restart,
   };
 }

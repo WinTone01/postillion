@@ -78,9 +78,16 @@ the fix.
 
 ## Known limits
 
-**Per-chat MCP is decided at launch.** `--mcp-config` is a start-up flag, so a
-chat's server set cannot change once it is running. The header shows what it
-got; changing it means a new chat.
+**Changing MCP means restarting the session.** `--mcp-config` is a start-up
+flag, and `/mcp enable|disable|reconnect` is refused in headless mode — it
+answers *"MCP controls aren't available right now"* because it wants the
+interactive terminal. So the panel stops the process and starts it again with
+`--resume` and the new config. Verified end to end: same session id, MCP
+emptied, and the model still recalled a word from before the restart.
+
+**`system/init` carries live MCP status.** It is re-emitted at the start of
+every turn with each server's name and state (`pending` → `connected`,
+`needs-auth`), which is where the panel's indicators come from — not a guess.
 
 **Local-command transcripts are not sessions.** Every `claude -p` call writes a
 transcript, including the app's own `/usage` poll. Those are deleted after the

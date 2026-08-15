@@ -136,8 +136,21 @@ export const EN: Record<string, string> = {
   Efor: "Effort",
   Mod: "Mode",
   "{n} MCP": "{n} MCP",
-  "Bu sohbet yalnızca seçilen MCP sunucularını kullanıyor. Değiştirmek için yeni bir sohbet açın.":
-    "This chat runs only the MCP servers picked when it started. Start a new chat to change them.",
+  "{n}/{total} MCP": "{n}/{total} MCP",
+  "Yönetmek için tıklayın.": "Click to manage.",
+  "Sunucu kümesi ancak oturum yeniden kurularak değişir. Sohbet kaybolmuyor — aynı transcript kaldığı yerden devam ediyor.":
+    "The server set only changes by restarting the session. The conversation survives — the same transcript picks up where it left off.",
+  "Genel yapılandırma kullanılıyor.": "Using your global configuration.",
+  "{n} sunucu seçili.": "{n} server(s) selected.",
+  "Soluk olanlar eklentilerden geliyor. Tek tek kapatılamıyorlar; bir seçim yaptığınızda hepsi birden kapanır.":
+    "The dimmed ones come from plugins. They cannot be toggled individually — making any selection drops all of them.",
+  Vazgeç: "Cancel",
+  "Uygula ve yeniden başlat": "Apply and restart",
+  "Tur bitmesini bekleyin": "Wait for the turn to finish",
+  bağlı: "connected",
+  bağlanıyor: "connecting",
+  "yetki gerekiyor": "needs auth",
+  bağlanamadı: "failed",
   "Görüntü ekle": "Attach an image",
   "Ekran görüntüsü al": "Take a screenshot",
   "Eki kaldır": "Remove attachment",

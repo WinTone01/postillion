@@ -64,6 +64,7 @@ import {
 } from "@/components/ai-elements/tool";
 import DiffView from "@/components/DiffView";
 import ImageViewer from "@/components/ImageViewer";
+import McpPanel from "@/components/McpPanel";
 import QuestionCard, { formatAnswers, type Question } from "@/components/QuestionCard";
 import type { MascotState } from "@/components/Mascot";
 import { diffFromToolInput } from "@/lib/diff";
@@ -870,7 +871,17 @@ export default function ChatView({
     answerQuestions,
     setPermissionMode,
     interrupt,
+    restart,
   } = useAgentSession(options);
+
+  /**
+   * Bu sohbetin MCP kümesi.
+   *
+   * Seçenekten başlıyor ama yeniden başlatma ile değişebiliyor, o yüzden
+   * `options` yerine burada tutuluyor.
+   */
+  const [mcpSelection, setMcpSelection] = useState<string[] | null>(options.mcpServers);
+  const [mcpOpen, setMcpOpen] = useState(false);
 
   // Mod başlatırken `manual`; süren oturumda set_permission_mode ile değişiyor.
   const [mode, setMode] = useState("manual");
@@ -1090,6 +1101,11 @@ export default function ChatView({
   /** Büyütülmüş görüntü; `null` ise katman kapalı. */
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(null);
 
+  /** Bağlanamamış sunucu sayısı; başlıkta bir uyarı noktası çıkarıyor. */
+  const mcpTrouble = state.mcpServers.filter(
+    (s) => s.status !== "connected" && s.status !== "pending" && s.status !== "connecting",
+  ).length;
+
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text?.trim() ?? "";
 
@@ -1142,30 +1158,37 @@ export default function ChatView({
                 {gitBranch}
               </span>
             )}
-            {/* Sohbete özel MCP seçimi başlangıçta yapılıyor ve sonradan
-                değiştirilemiyor; en azından ne seçildiği görünsün. */}
-            {options.mcpServers !== null && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex cursor-default items-center gap-1 text-primary">
-                    <PlugIcon className="size-3" />
-                    {t("{n} MCP", { n: options.mcpServers.length })}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[260px]" side="bottom">
-                  <p className="font-medium">
-                    {options.mcpServers.length > 0
-                      ? options.mcpServers.join(", ")
-                      : t("Hiçbiri")}
-                  </p>
-                  <p className="mt-1 text-[11px] opacity-70">
-                    {t(
-                      "Bu sohbet yalnızca seçilen MCP sunucularını kullanıyor. Değiştirmek için yeni bir sohbet açın.",
-                    )}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            )}
+            {/* MCP kümesi burada hem görünüyor hem değiştirilebiliyor. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-accent/60 hover:text-foreground"
+                  onClick={() => setMcpOpen(true)}
+                  type="button"
+                >
+                  <PlugIcon className="size-3" />
+                  {mcpSelection === null
+                    ? t("{n} MCP", { n: state.mcpServers.length })
+                    : t("{n}/{total} MCP", {
+                        n: mcpSelection.length,
+                        total: state.mcpServers.length || mcpSelection.length,
+                      })}
+                  {mcpTrouble > 0 && (
+                    <span className="size-1.5 rounded-full bg-warning" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[260px]" side="bottom">
+                <p className="font-medium">
+                  {state.mcpServers.length > 0
+                    ? state.mcpServers.map((s) => s.name).join(", ")
+                    : t("Hiçbiri")}
+                </p>
+                <p className="mt-1 text-[11px] opacity-70">
+                  {t("Yönetmek için tıklayın.")}
+                </p>
+              </TooltipContent>
+            </Tooltip>
             <span className="opacity-40">·</span>
             {state.totalCostUsd !== null && (
               <>
@@ -1390,6 +1413,18 @@ export default function ChatView({
         alt={preview?.alt}
         onClose={() => setPreview(null)}
         src={preview?.src ?? null}
+      />
+
+      <McpPanel
+        busy={state.busy}
+        live={state.mcpServers}
+        onApply={(next) => {
+          setMcpSelection(next);
+          void restart(next);
+        }}
+        onOpenChange={setMcpOpen}
+        open={mcpOpen}
+        selected={mcpSelection}
       />
     </div>
   );

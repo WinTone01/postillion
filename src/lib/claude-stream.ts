@@ -89,6 +89,19 @@ export interface SlashCommand {
   description: string;
 }
 
+/**
+ * `system/init` içindeki MCP sunucusu.
+ *
+ * Durum canlı: her turun başında yeniden geliyor, yani bağlanma ilerledikçe
+ * `pending` → `connected` diye değişiyor (ölçüldü). Görülen değerler
+ * `pending`, `connected`, `needs-auth`; liste kapalı değil, bilinmeyen bir
+ * durum olduğu gibi gösteriliyor.
+ */
+export interface McpStatus {
+  name: string;
+  status: string;
+}
+
 /** `initialize` handshake'inden gelen model seçeneği. */
 export interface ModelInfo {
   value: string;
@@ -124,6 +137,8 @@ export interface SessionState {
   commands: SlashCommand[];
   /** Modeller; katalogdaki elle listeden daha doğru. */
   models: ModelInfo[];
+  /** Bu oturumda ayakta olan MCP sunucuları ve durumları. */
+  mcpServers: McpStatus[];
 }
 
 export const initialState: SessionState = {
@@ -138,6 +153,7 @@ export const initialState: SessionState = {
   totalCostUsd: null,
   commands: [],
   models: [],
+  mcpServers: [],
 };
 
 type Json = Record<string, unknown>;
@@ -280,11 +296,21 @@ export function reduce(state: SessionState, event: Json): SessionState {
       }
 
       if (event.subtype === "init") {
+        // `mcp_servers` her turda yeniden geliyor; bağlantı ilerledikçe
+        // durumlar değişiyor, o yüzden her seferinde tazeleniyor.
+        const servers = asArray(event.mcp_servers)
+          .map((item) => ({
+            name: String(item.name ?? ""),
+            status: String(item.status ?? "unknown"),
+          }))
+          .filter((s) => s.name.length > 0);
+
         return {
           ...state,
           sessionId: (event.session_id as string) ?? state.sessionId,
           model: (event.model as string) ?? state.model,
           cwd: (event.cwd as string) ?? state.cwd,
+          mcpServers: servers.length > 0 ? servers : state.mcpServers,
           busy: true,
         };
       }

@@ -191,6 +191,30 @@ because the question usually refers to the image.
   {"type":"text","text":"what is this?"}]}}
 ```
 
+### MCP at runtime
+
+`/mcp` reports status in headless mode but every subcommand is refused:
+
+```
+> /mcp disable plugin:context7:context7
+MCP controls aren't available right now — the terminal is still starting up
+or is showing another view.
+```
+
+So a chat's server set is changed by restarting the process with a new
+`--mcp-config` and `--resume`. Measured: the session id stays the same, the
+server list goes empty, and the model still answers a question that depends on
+what was said before the restart.
+
+The live status comes from `system/init`, which is re-emitted every turn:
+
+```jsonc
+"mcp_servers": [
+  {"name": "plugin:context7:context7", "status": "connected"},
+  {"name": "claude.ai Gmail", "status": "needs-auth"}
+]
+```
+
 ### Loading history
 
 `claude --resume` restores a session **model-side only**; it does not replay
