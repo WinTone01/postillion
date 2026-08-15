@@ -190,7 +190,18 @@ mod tests {
             .expect("alt süreç açılmalı");
 
         let me = std::process::id();
-        let found = descendants(me);
+
+        // `spawn` döndüğünde çocuk /proc'ta görünmüş olmalı ama testler
+        // paralel koşarken bu birkaç milisaniye gecikebiliyor; tek atışlık
+        // kontrol ara sıra boşa düşüyordu.
+        let mut found = Vec::new();
+        for _ in 0..50 {
+            found = descendants(me);
+            if found.iter().any(|p| p.pid == child.id()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
 
         let entry = found.iter().find(|p| p.pid == child.id());
         assert!(

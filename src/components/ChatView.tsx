@@ -1061,8 +1061,13 @@ export default function ChatView({
   const [showProcesses, setShowProcesses] = useState(false);
   const [procs, setProcs] = useState<Proc[]>([]);
 
+  // Panel kapalıyken ve tur sürmezken yoklamıyoruz. Her yoklama `/proc`'un
+  // tamamını okuyor (ölçüldü: ~8 ms) ve boşta bir sohbette karşılığı yok;
+  // rozetteki sayaç zaten yalnızca bir şey çalışırken anlamlı.
+  const watchProcs = running && (showProcesses || state.busy);
+
   useEffect(() => {
-    if (!running) {
+    if (!watchProcs) {
       setProcs([]);
       return;
     }
@@ -1081,7 +1086,7 @@ export default function ChatView({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [options.id, running]);
+  }, [options.id, watchProcs]);
 
   const killProcess = useCallback(
     async (pid: number, force: boolean) => {

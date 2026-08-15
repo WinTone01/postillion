@@ -243,3 +243,29 @@ fn yoklama_oturumlari_listede_yok() {
 
     eprintln!("{} oturum, hiçbirinde komut artığı yok", sessions.len());
 }
+
+/// `/proc` taramasının maliyeti. Süreç paneli bunu iki saniyede bir çağırıyor,
+/// yani ucuz olmak zorunda.
+#[test]
+#[ignore]
+fn surec_taramasi_ucuz() {
+    let me = std::process::id();
+
+    let start = std::time::Instant::now();
+    for _ in 0..20 {
+        let _ = postillion_lib::testing::descendants(me);
+    }
+    let each = start.elapsed() / 20;
+
+    eprintln!("descendants(): {each:?} / çağrı");
+    assert!(each.as_millis() < 50, "çok yavaş: {each:?}");
+}
+
+/// Kalıcı önbellek gerçekten okumayı atlıyor mu.
+#[test]
+#[ignore]
+fn onbellek_taramayi_hizlandirir() {
+    let (cold, warm, count) = postillion_lib::testing::scan_cold_then_warm();
+    eprintln!("{count} oturum — soğuk {cold}ms, ısıtılmış {warm}ms");
+    assert!(warm * 4 < cold.max(1), "önbellek işe yaramıyor: {cold}ms → {warm}ms");
+}

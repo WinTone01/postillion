@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::Result;
@@ -28,7 +28,7 @@ const HEAD_BYTES: u64 = 128 << 10;
 /// Büyük dosyalarda sondan okunan miktar (güncel başlık ve zaman burada).
 const TAIL_BYTES: u64 = 256 << 10;
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Session {
     pub session_id: String,
@@ -45,16 +45,80 @@ pub struct Session {
     /// Yalnızca yerel komut kaydı taşıyan transcript'ler var: `claude -p
     /// "/usage"` gibi her çağrı bir tane bırakıyor. Bunlar oturum değil,
     /// listede yer kaplamamalılar.
-    #[serde(skip)]
+    #[serde(default)]
     pub has_conversation: bool,
     pub size_bytes: u64,
     /// Dosyanın mtime'ı (unix ms) — sıralama buna göre.
     pub modified_ms: u64,
 }
 
+/// Disk önbelleğindeki tek kayıt.
+#[derive(Serialize, Deserialize, Clone)]
+struct Entry {
+    mtime_ms: u64,
+    size_bytes: u64,
+    session: Session,
+}
+
 #[derive(Default)]
 pub struct Cache {
-    inner: Mutex<HashMap<PathBuf, (u64, u64, Session)>>,
+    inner: Mutex<HashMap<PathBuf, Entry>>,
+    /// Bu taramada tek bir dosya bile yeniden ayrıştırıldı mı.
+    dirty: std::sync::atomic::AtomicBool,
+}
+
+fn cache_file() -> Result<PathBuf> {
+    Ok(paths::accounts_root()?.join("session-cache.json"))
+}
+
+impl Cache {
+    /// Önbelleği diskten yükler.
+    ///
+    /// Neden kalıcı: tarama 412 MB transcript okuyor ve süreç her açılışta
+    /// sıfırdan başlıyordu. Dosyalar append-only olduğu için (yol, mtime,
+    /// boyut) üçlüsü değişmediyse içerik de değişmemiştir — yani ikinci
+    /// açılıştan itibaren yalnızca dokunulmuş dosyalar okunuyor.
+    pub fn warm(&self) {
+        if let Ok(path) = cache_file() {
+            self.warm_from(&path);
+        }
+    }
+
+    fn warm_from(&self, path: &Path) {
+        let Ok(bytes) = fs::read(path) else { return };
+        let Ok(entries) = serde_json::from_slice::<HashMap<PathBuf, Entry>>(&bytes) else {
+            return;
+        };
+
+        if let Ok(mut inner) = self.inner.lock() {
+            *inner = entries;
+        }
+    }
+
+    /// Değişiklik varsa önbelleği diske yazar.
+    fn persist(&self) {
+        use std::sync::atomic::Ordering;
+        if !self.dirty.swap(false, Ordering::Relaxed) {
+            return;
+        }
+
+        let Ok(path) = cache_file() else { return };
+        self.persist_to(&path);
+    }
+
+    fn persist_to(&self, path: &Path) {
+        let Ok(inner) = self.inner.lock() else { return };
+        let Ok(bytes) = serde_json::to_vec(&*inner) else { return };
+
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        // Yazma yarıda kalırsa bir sonraki açılış bozuk JSON okumasın.
+        let temp = path.with_extension("json.tmp");
+        if fs::write(&temp, bytes).is_ok() {
+            let _ = fs::rename(&temp, path);
+        }
+    }
 }
 
 impl Cache {
@@ -107,6 +171,18 @@ impl Cache {
         }
 
         out.sort_by(|a, b| b.modified_ms.cmp(&a.modified_ms));
+
+        // Silinen oturumlar önbellekte kalmasın; dosya büyümesin.
+        if let Ok(mut inner) = self.inner.lock() {
+            let live: std::collections::HashSet<_> = out.iter().map(|s| s.path.clone()).collect();
+            let before = inner.len();
+            inner.retain(|path, _| live.contains(path));
+            if inner.len() != before {
+                self.dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+
+        self.persist();
         Ok(out)
     }
 
@@ -121,18 +197,27 @@ impl Cache {
             .unwrap_or(0);
 
         if let Ok(cache) = self.inner.lock() {
-            if let Some((c_mtime, c_len, session)) = cache.get(path) {
+            if let Some(entry) = cache.get(path) {
                 // Append-only dosyalar; mtime+boyut aynıysa içerik de aynıdır.
-                if *c_mtime == mtime && *c_len == len {
-                    return Ok(session.clone());
+                if entry.mtime_ms == mtime && entry.size_bytes == len {
+                    return Ok(entry.session.clone());
                 }
             }
         }
 
+        self.dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+
         let session = parse(path, len, mtime)?;
 
         if let Ok(mut cache) = self.inner.lock() {
-            cache.insert(path.to_path_buf(), (mtime, len, session.clone()));
+            cache.insert(
+                path.to_path_buf(),
+                Entry {
+                    mtime_ms: mtime,
+                    size_bytes: len,
+                    session: session.clone(),
+                },
+            );
         }
         Ok(session)
     }
@@ -456,6 +541,43 @@ mod tests {
 
         let s = parse(&path, 300, 0).unwrap();
         assert_eq!(s.model.as_deref(), Some("claude-opus-5"));
+    }
+
+    /// Önbellek diske yazılıp geri okunabilmeli — yoksa her açılış 412 MB'ı
+    /// yeniden ayrıştırıyor. `has_conversation` özellikle kontrol ediliyor:
+    /// serileştirmeden düşerse önbellekten gelen her oturum "konuşma yok"
+    /// sayılıp listeden siliniyordu.
+    #[test]
+    fn onbellek_diske_yazilip_geri_okunur() {
+        let dir = std::env::temp_dir().join(format!("po-cache-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("session-cache.json");
+
+        let transcript = tmp_jsonl(
+            "onbellek.jsonl",
+            "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"merhaba\"}}\n",
+        );
+
+        let first = Cache::default();
+        let session = first.load(&transcript).unwrap();
+        assert!(session.has_conversation);
+        first.dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+        first.persist_to(&file);
+
+        let second = Cache::default();
+        second.warm_from(&file);
+
+        // İkinci örnek dosyayı hiç açmadan aynı sonucu vermeli.
+        let cached = second.inner.lock().unwrap().get(&transcript).cloned();
+        let cached = cached.expect("önbellekte olmalı");
+        assert_eq!(cached.session.session_id, session.session_id);
+        assert_eq!(cached.session.title, session.title);
+        assert!(
+            cached.session.has_conversation,
+            "konuşma bayrağı diskten kayboldu"
+        );
+
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

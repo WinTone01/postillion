@@ -34,11 +34,19 @@ const COMMIT_MS = 33;
  */
 export function useTypewriter(target: string, enabled: boolean): string {
   const [shown, setShown] = useState(target);
+  // Hedefe ulaşıldığında döngü duruyor; `target` değişince yeniden kuruluyor.
+  // Önceden rAF sonsuza kadar dönüyordu: yazacak bir şey olmasa bile her kare
+  // uyanıyor, bileşik yöneticiyi boşta bırakmıyordu.
+  const caughtUp = shown === target;
 
   // Hedef bir ref'te tutuluyor; her değişimde rAF döngüsünü yeniden kurmak
   // animasyonu sıfırlar ve titremeye yol açardı.
   const targetRef = useRef(target);
   targetRef.current = target;
+
+  // Döngü, React durumunu okumadan nerede kaldığını bilmeli.
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
 
   useEffect(() => {
     if (!enabled) {
@@ -55,6 +63,9 @@ export function useTypewriter(target: string, enabled: boolean): string {
     let carry = 0;
 
     function step(now: number) {
+      // Yetişildi: bir sonraki hedefe kadar kare istemiyoruz.
+      if (targetRef.current === shownRef.current) return;
+
       // Sekme arka plandayken rAF durur; dönünce dev bir `dt` gelmesin.
       if (now - lastCommit < COMMIT_MS) {
         if (!cancelled) frame = requestAnimationFrame(step);
@@ -67,6 +78,7 @@ export function useTypewriter(target: string, enabled: boolean): string {
 
       setShown((prev) => {
         const goal = targetRef.current;
+        shownRef.current = prev;
 
         // Yeni bir tur başladı: gösterilen metin artık hedefin öneki değil.
         // Hedefe atlamak yerine sıfırdan yazıyoruz — ilk karede tamamına
@@ -102,9 +114,10 @@ export function useTypewriter(target: string, enabled: boolean): string {
       cancelled = true;
       cancelAnimationFrame(frame);
     };
-    // `target` kasıtlı olarak bağımlılık değil; ref üzerinden okunuyor.
+    // `target` bir bağımlılık DEĞİL — döngü onu ref'ten okuyor. `caughtUp`
+    // ise bağımlılık: yalnızca durup yeniden başlamayı tetikliyor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, caughtUp]);
 
   // Akış kapalıyken hedefi doğrudan göster.
   return enabled ? shown : target;

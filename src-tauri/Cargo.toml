@@ -32,5 +32,7 @@ serde_json = "1"
 [profile.release]
 codegen-units = 1
 lto = true
-opt-level = "s"
+# Boyut değil hız: bu ikili 400 MB transcript ayrıştırıyor ve `/proc` tarıyor.
+# `opt-level = "s"` ile tarama ölçülebilir biçimde yavaştı.
+opt-level = 3
 strip = true

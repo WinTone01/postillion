@@ -47,6 +47,9 @@ const USAGE_POLL_MS = 5 * 60_000;
 /** İki ölçüm arasındaki en kısa süre; her tur sonunda süreç açmamak için. */
 const USAGE_MIN_GAP_MS = 60_000;
 
+/** Açılışta ilk ölçümün beklemesi; pencere önce otursun. */
+const USAGE_FIRST_DELAY_MS = 2_500;
+
 export default function App() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -181,9 +184,16 @@ export default function App() {
 
   useEffect(() => {
     if (!activeSlug) return;
-    void refreshUsage(true);
+
+    // İlk ölçüm geciktiriliyor: sorgu bir `claude` süreci açıyor (~3 sn) ve
+    // açılışta oturum taramasıyla yarışınca pencere geç oturuyordu. Gösterge
+    // ikincil, ilk boyamadan sonra gelmesi yeterli.
+    const first = window.setTimeout(() => void refreshUsage(true), USAGE_FIRST_DELAY_MS);
     const timer = window.setInterval(() => void refreshUsage(), USAGE_POLL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
   }, [activeSlug, refreshUsage]);
 
   // Bir tur bittiğinde pay değişmiş oluyor; en anlamlı yenileme anı bu.

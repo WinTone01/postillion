@@ -23,6 +23,20 @@ Screenshot tools are resolved the same way.
 with `Error 71 (Protocol error)`. `main.rs` sets
 `WEBKIT_DISABLE_DMABUF_RENDERER=1` before GTK initialises.
 
+That workaround has a price: compositing falls back to the CPU, so *any*
+continuous animation is expensive. A permanently looping mascot and a
+never-cancelled requestAnimationFrame were holding an idle window at 21–28% of
+a core — most of it in the main process, doing the compositing. With idle
+motion handed to a single CSS keyframe and the frame loop stopping when it has
+nothing to type, the same idle window sits at 3–5%.
+
+**`cargo build --release` does not produce a working app.** Asset embedding is
+behind the `custom-protocol` feature, which only `tauri build` turns on; a plain
+cargo release build silently falls back to `devUrl` and renders a blank window
+against a dev server that is not running. It looks like a working binary — it
+starts, opens a window, and uses no CPU, which is exactly what a broken one
+looks like too.
+
 **Screenshots shell out.** WebKitGTK has no `getDisplayMedia`, so the desktop's
 own region picker is used instead:
 
@@ -88,6 +102,12 @@ emptied, and the model still recalled a word from before the restart.
 **`system/init` carries live MCP status.** It is re-emitted at the start of
 every turn with each server's name and state (`pending` → `connected`,
 `needs-auth`), which is where the panel's indicators come from — not a guess.
+
+**The session cache is on disk.** Transcripts are append-only, so an unchanged
+`(path, mtime, size)` means unchanged content. Persisting the parsed result
+turns a 401 ms rescan at every launch into 5 ms. The flag marking whether a
+transcript holds a real conversation has to be persisted with it — leave it out
+and every cached session comes back looking empty and vanishes from the list.
 
 **Local-command transcripts are not sessions.** Every `claude -p` call writes a
 transcript, including the app's own `/usage` poll. Those are deleted after the

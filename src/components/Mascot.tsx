@@ -20,11 +20,11 @@ interface Props {
 
 /** Gövdenin bütünü: nefes alma, öne eğilme, çökme. */
 const bodyVariants: Variants = {
-  idle: {
-    y: [0, -1.4, 0],
-    rotate: 0,
-    transition: { duration: 2.4, repeat: Infinity, ease: "easeInOut" },
-  },
+  // Boşta hareket YOK. Ölçüldü: sürekli dönen animasyonlar uygulamayı boşta
+  // bir çekirdeğin ~%70'inde tutuyordu, çünkü NVIDIA + Wayland'de DMABUF
+  // renderer kapalı ve her kare işlemcide birleştiriliyor. Boştaki kıpırtı
+  // bilgi taşımıyordu; hareket artık yalnızca bir şey olduğunda var.
+  idle: { y: 0, rotate: 0, transition: { duration: 0.4 } },
   thinking: {
     // Sallanma: "düşünüyor" hissini veren şey ritmin yavaşlaması.
     y: [0, -1, 0],
@@ -73,11 +73,9 @@ const armVariants: Variants = {
  * kırpma, mekanik görünmesini engelliyor.
  */
 const eyeVariants: Variants = {
-  idle: {
-    scaleY: [1, 1, 0.1, 1, 1, 0.1, 1],
-    y: 0,
-    transition: { duration: 5.5, repeat: Infinity, times: [0, 0.45, 0.47, 0.5, 0.85, 0.87, 1] },
-  },
+  // Kırpma boştayken CSS'e devrediliyor: tek bir bileşik animasyon, kare
+  // başına JS yok. Karakter canlı kalıyor, döngü sürmüyor.
+  idle: { scaleY: 1, y: 0, transition: { duration: 0.3 } },
   thinking: {
     // Yukarı bakış: düşünmenin evrensel görsel kısaltması.
     scaleY: [1, 0.7, 1],
@@ -121,8 +119,13 @@ export default function Mascot({ state = "idle", className, label }: Props) {
         {/* Baş */}
         <rect fill="var(--mascot-ink)" height="6.6" rx="0.6" width="9" x="5.5" y="5.2" />
 
-        {/* Gözler; ayrı grup, çünkü kırpma yalnızca onları etkiliyor. */}
-        <motion.g animate={state} variants={eyeVariants}>
+        {/* Gözler; ayrı grup, çünkü kırpma yalnızca onları etkiliyor.
+            Boştaki kırpma CSS'te: kare başına JS çalıştırmadan canlı kalıyor. */}
+        <motion.g
+          animate={state}
+          className={state === "idle" ? "cs-mascot-blink" : undefined}
+          variants={eyeVariants}
+        >
           <rect
             fill="var(--mascot-cutout)"
             height="2.4"

@@ -377,6 +377,23 @@ pub mod testing {
         sessions::Cache::default().scan(None)
     }
 
+    /// Soğuk ve ısıtılmış tarama süreleri (ms). Kalıcı önbelleğin ölçümü.
+    pub fn scan_cold_then_warm() -> (u128, u128, usize) {
+        let cold_cache = sessions::Cache::default();
+        let start = std::time::Instant::now();
+        let cold = cold_cache.scan(None).unwrap_or_default();
+        let cold_ms = start.elapsed().as_millis();
+
+        let warm_cache = sessions::Cache::default();
+        warm_cache.warm();
+        let start = std::time::Instant::now();
+        let warm = warm_cache.scan(None).unwrap_or_default();
+        let warm_ms = start.elapsed().as_millis();
+
+        assert_eq!(cold.len(), warm.len(), "ısıtılmış tarama farklı sonuç verdi");
+        (cold_ms, warm_ms, warm.len())
+    }
+
     pub fn read_transcript(
         path: &std::path::Path,
         max_records: usize,
@@ -385,6 +402,10 @@ pub mod testing {
     }
 
     pub use usage::Usage;
+
+    pub fn descendants(root: u32) -> Vec<crate::processes::Proc> {
+        processes::descendants(root)
+    }
 
     pub fn query_usage() -> Result<Usage> {
         usage::query()
@@ -532,10 +553,15 @@ pub fn run() {
         // protokolü öyle sayılmıyor, çağrı sessizce düşüyordu.
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
+            // Önbellek diskten ısıtılıyor: ilk taramanın 412 MB'ı yeniden
+            // okuması gerekmiyor, yalnızca dokunulmuş dosyalar ayrıştırılıyor.
+            let sessions = Arc::new(sessions::Cache::default());
+            sessions.warm();
+
             app.manage(AppState {
                 agent: Arc::new(agent::Manager::default()),
                 auth: Arc::new(auth::Manager::default()),
-                sessions: Arc::new(sessions::Cache::default()),
+                sessions,
             });
 
             // Webview hatalarını görmenin tek pratik yolu; sürüm derlemede yok.
@@ -545,6 +571,16 @@ pub fn run() {
             }
 
             Ok(())
+        })
+        // Kapanışta `claude` çocukları öldürülüyor. Önceden hiçbir temizlik
+        // yoktu: pencere kapanınca süreçler init'e evlat ediniliyor ve
+        // arkada çalışmaya devam ediyordu.
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(state) = window.app_handle().try_state::<AppState>() {
+                    state.agent.stop_all();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             list_accounts,

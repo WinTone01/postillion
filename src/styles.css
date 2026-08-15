@@ -178,6 +178,42 @@ button,
 }
 
 /*
+ * Maskotun boştaki kırpması.
+ *
+ * Boşta motion'ın sonsuz döngüleri kapalı: ölçüldü, sürekli animasyon boşta
+ * bir çekirdeğin ~%70'ini yiyordu (NVIDIA + Wayland'de DMABUF renderer kapalı
+ * olduğu için her kare işlemcide birleştiriliyor). Karakterin canlı kalması
+ * için tek bir CSS animasyonu yetiyor: kare başına JS yok, uzun aralıklarla
+ * iki kısa kırpma.
+ */
+@keyframes cs-mascot-blink {
+  0%,
+  44% {
+    transform: scaleY(1);
+  }
+  46% {
+    transform: scaleY(0.1);
+  }
+  48%,
+  84% {
+    transform: scaleY(1);
+  }
+  86% {
+    transform: scaleY(0.1);
+  }
+  88%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+.cs-mascot-blink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cs-mascot-blink 6s ease-in-out infinite;
+}
+
+/*
  * Görüntü önizleme katmanı.
  *
  * Diyalogla aynı gerekçe: rengi burada, çünkü `bg-background` gövdeyle aynı

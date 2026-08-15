@@ -449,6 +449,21 @@ impl Manager {
         self.sessions.lock().unwrap().get(id).map(|h| h.child.id())
     }
 
+    /// Kapanışta çağrılıyor: açık her oturumun sürecini kapatır.
+    ///
+    /// Beklemiyoruz — `wait()` bir çocuğun düzgün çıkmasını beklerken kapanışı
+    /// saniyelerce uzatabilir. Sinyal gönderilmiş olması yeterli; init geri
+    /// kalanını topluyor.
+    pub fn stop_all(&self) {
+        let mut sessions = self.sessions.lock().unwrap();
+        for (_, mut handle) in sessions.drain() {
+            let _ = handle.child.kill();
+            if let Some(path) = handle.mcp_config.take() {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+
     pub fn active_ids(&self) -> Vec<String> {
         self.sessions.lock().unwrap().keys().cloned().collect()
     }
