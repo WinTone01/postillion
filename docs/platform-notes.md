@@ -52,6 +52,18 @@ protocol does not qualify, so code-block copy buttons did nothing. The API is
 bridged to the Tauri clipboard plugin at startup rather than patching each
 component.
 
+**Pasted images are not always files.** WebKitGTK does not reliably mark a
+pasted image as `kind: "file"` on the clipboard item, so filtering on that —
+which is what the stock prompt component does — drops it. Extraction keys off
+the MIME type instead and reads both `files` and `items`. When the paste event
+carries nothing usable, the system clipboard is read directly through the Tauri
+plugin and converted from RGBA to PNG.
+
+**Paste works anywhere in a chat.** A `paste` event only fires when focus is in
+an editable element, so a Ctrl+V keydown outside one reads the clipboard
+directly. The two paths guard against each other so an image is never attached
+twice.
+
 **shiki is pinned.** `@streamdown/code` wants 3.x while the top level pulled
 4.x; an `overrides` entry in `package.json` resolves it.
 

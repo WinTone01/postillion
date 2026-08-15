@@ -46,6 +46,7 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
   usePromptInputController,
+  useProviderAttachments,
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
 import {
@@ -74,6 +75,7 @@ import {
 } from "@/components/ui/select";
 import { api, errText, prettyCwd, type ModelOption, type Proc } from "@/api";
 import { attachmentToFile, urlToAttachment } from "@/lib/images";
+import { imagesFromClipboard, looksLikeText, readClipboardImage } from "@/lib/clipboard";
 import { log } from "@/lib/log";
 import { t } from "@/lib/i18n";
 import {
@@ -94,6 +96,13 @@ interface Props {
   onStateChange?: (id: string, state: MascotState) => void;
   /** İlk mesajdan türetilen başlık; yeni sohbetlerde sekme adını düzeltiyor. */
   onTitleChange?: (id: string, title: string) => void;
+  /**
+   * Görünen sekme bu mu.
+   *
+   * Sekmeler gizlenirken de mount kalıyor; belge geneline bağlanan yapıştırma
+   * dinleyicisi olmasaydı görüntü açık olmayan sekmelere de eklenirdi.
+   */
+  active: boolean;
 }
 
 /**
@@ -560,6 +569,80 @@ function ProcessPanel({
 }
 
 /**
+ * Sohbetin herhangi bir yerinde Ctrl+V ile görüntü yapıştırma.
+ *
+ * Önceden yalnızca metin alanının kendi `onPaste`'i vardı, yani imleç girdiye
+ * odaklı değilse hiçbir şey olmuyordu — Claude Desktop'ta sohbetin üzerinde
+ * her yerde çalışıyor. Üstelik WebKitGTK panodaki görüntüyü yapıştırma
+ * olayında her zaman dosya olarak sunmuyor, o yüzden iki kademe var:
+ *
+ *  1. Olayın kendisinden çıkarmayı dene (girdiye odaklıysa zaten oradaki
+ *     dinleyici halleder ve `defaultPrevented` ile bunu bize bildirir).
+ *  2. Olay boşsa sistem panosunu doğrudan oku.
+ *
+ * Odak düzenlenebilir bir alanda değilken tarayıcı `paste` olayı üretmiyor;
+ * o durumu klavye kısayolu yakalıyor.
+ */
+function ChatPaste({ active }: { active: boolean }) {
+  const attachments = useProviderAttachments();
+
+  useEffect(() => {
+    if (!active) return;
+
+    /** İki yolun aynı görüntüyü iki kez eklemesini engelliyor. */
+    let lastAt = 0;
+    const recently = () => {
+      const now = Date.now();
+      if (now - lastAt < 400) return true;
+      lastAt = now;
+      return false;
+    };
+
+    async function fromSystemClipboard() {
+      if (recently()) return;
+      const file = await readClipboardImage();
+      if (file) attachments.add([file]);
+    }
+
+    async function onPaste(event: ClipboardEvent) {
+      // Metin alanının dinleyicisi zaten ekledi.
+      if (event.defaultPrevented) return;
+
+      const files = imagesFromClipboard(event.clipboardData);
+      if (files.length > 0) {
+        event.preventDefault();
+        if (!recently()) attachments.add(files);
+        return;
+      }
+
+      // Düz metin yapıştırıldıysa panoyu yoklamanın anlamı yok.
+      if (looksLikeText(event.clipboardData)) return;
+      await fromSystemClipboard();
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "v" || !(event.ctrlKey || event.metaKey)) return;
+
+      // Düzenlenebilir bir alandaysak normal `paste` olayı gelecek.
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
+
+      void fromSystemClipboard();
+    }
+
+    document.addEventListener("paste", onPaste);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("paste", onPaste);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [active, attachments]);
+
+  return null;
+}
+
+/**
  * Bekleyen izinler için girdinin hemen üstünde duran çubuk.
  *
  * İstekler sohbetin içinde, bazen ekranın çok yukarısında çiziliyor; birden
@@ -759,6 +842,7 @@ export default function ChatView({
   gitBranch,
   onStateChange,
   onTitleChange,
+  active,
 }: Props) {
   const {
     state,
@@ -1182,6 +1266,7 @@ export default function ChatView({
 
       <div className="border-t p-3">
         <PromptInputProvider>
+          <ChatPaste active={active} />
           <SlashPalette commands={state.commands} />
           {/* `accept` yalnızca Claude'un okuyabildiği biçimleri geçiriyor;
               başka bir dosya yapıştırıldığında sessizce yok sayılmak yerine

@@ -378,6 +378,7 @@ export default function App() {
                 }}
               >
                 <ChatView
+                  active={view.kind === "chat" && view.id === tab.options.id}
                   gitBranch={tab.gitBranch}
                   onStateChange={reportTabState}
                   onTitleChange={reportTabTitle}

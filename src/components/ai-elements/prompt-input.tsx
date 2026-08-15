@@ -40,6 +40,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { imagesFromClipboard } from "@/lib/clipboard";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
 import {
   CornerDownLeftIcon,
@@ -1013,22 +1014,11 @@ export const PromptInputTextarea = ({
 
   const handlePaste: ClipboardEventHandler<HTMLTextAreaElement> = useCallback(
     (event) => {
-      const items = event.clipboardData?.items;
-
-      if (!items) {
-        return;
-      }
-
-      const files: File[] = [];
-
-      for (const item of items) {
-        if (item.kind === "file") {
-          const file = item.getAsFile();
-          if (file) {
-            files.push(file);
-          }
-        }
-      }
+      // LOCAL CHANGE: extraction moved to lib/clipboard so the chat-level
+      // handler and this one agree. The original only accepted items with
+      // kind === "file", which WebKitGTK does not always set for a pasted
+      // image, and iterated DataTransferItemList with for...of.
+      const files = imagesFromClipboard(event.clipboardData);
 
       if (files.length > 0) {
         event.preventDefault();
