@@ -321,6 +321,14 @@ export const EN: Record<string, string> = {
   "skill oluşturulamadı": "could not create the skill",
   "skill silinemedi": "could not delete the skill",
 
+  // ------------------------------------------------------------------- bağlam
+  "{n}k bağlam": "{n}k context",
+  "sıkıştırılıyor…": "compacting…",
+  "Her tur bu bağlamın tamamını yeniden okuyor.":
+    "Every turn re-reads all of this context.",
+  "{n}k aşılınca kendiliğinden sıkışıyor. Şimdi sıkıştırmak için tıklayın.":
+    "Compacts on its own past {n}k. Click to compact now.",
+
   // -------------------------------------------------------------- göreli zaman
   "az önce": "just now",
   "{n} dk önce": "{n}m ago",

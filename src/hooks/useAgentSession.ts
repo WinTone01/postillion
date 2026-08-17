@@ -68,6 +68,21 @@ const loadedHistories = new Set<string>();
  */
 const STREAM_FLUSH_MS = 45;
 
+/**
+ * Bağlam bu eşiği aşınca `/compact` gönderiliyor.
+ *
+ * Otomatik sıkıştırma interaktif CLI'ın özelliği; headless modda çalışmıyor ve
+ * uygulama bunu kendisi yapmazsa bağlam sınırsız büyüyor. Ölçüldü: yalnızca bu
+ * uygulamadan sürülen oturumlar hiç sıkışmadan 788k token'a çıkmış, tur başına
+ * maliyetleri terminaldeki sıkışan oturumların ~2,5 katıydı — her tur bağlamın
+ * tamamını yeniden okuduğu için.
+ *
+ * 200k, pencere sınırından değil maliyetten seçildi: sınıra kadar beklemek
+ * aradaki her turu pahalı yapıyor. `/compact`'in kendi bedeli var (bağlamı bir
+ * kez okuyup özet yazıyor), o yüzden eşik daha da düşürülmemeli.
+ */
+export const AUTO_COMPACT_TOKENS = 200_000;
+
 /** Sekme kapanınca çağrılır; aynı kimlik yeniden kullanılabilsin diye. */
 export function releaseAgentSession(id: string) {
   startedAgents.delete(id);
@@ -297,6 +312,43 @@ export function useAgentSession(options: AgentSessionOptions | null) {
     [],
   );
 
+  /**
+   * Konuşmayı özetleyip bağlamı küçültür.
+   *
+   * `/compact` headless modda çalışıyor (ölçüldü): `system/status` ile önce
+   * `compacting`, sonra sonucu taşıyan bir olay geliyor.
+   */
+  const compact = useCallback(async () => {
+    const opts = optionsRef.current;
+    if (!opts || stateRef.current.busy || stateRef.current.compacting) return;
+    try {
+      await api.agentSend(opts.id, "/compact", []);
+    } catch (e) {
+      log("error", "sıkıştırılamadı:", e);
+    }
+  }, []);
+
+  // Eşik aşıldığında bir kez tetiklenmesi için: bağlam ölçüsü sıkıştırma
+  // bitene kadar yüksek kalıyor, bayrak olmadan her render yeniden gönderirdi.
+  const compactRequestedRef = useRef(false);
+
+  useEffect(() => {
+    const context = state.contextTokens;
+
+    // Bağlam eşiğin altına döndü (sıkıştırma tuttu ya da yeni oturum):
+    // bir sonraki aşım yeniden tetiklenebilmeli.
+    if (context === null || context < AUTO_COMPACT_TOKENS) {
+      compactRequestedRef.current = false;
+      return;
+    }
+
+    if (!running || state.busy || state.compacting || compactRequestedRef.current) return;
+
+    compactRequestedRef.current = true;
+    log("info", `bağlam ${context} token — otomatik sıkıştırma`);
+    void compact();
+  }, [running, state.busy, state.compacting, state.contextTokens, compact]);
+
   const send = useCallback(
     async (text: string, images: ImageAttachment[] = []) => {
       // Yalnızca görüntüden oluşan bir mesaj da geçerli.
@@ -440,5 +492,6 @@ export function useAgentSession(options: AgentSessionOptions | null) {
     setPermissionMode,
     interrupt,
     restart,
+    compact,
   };
 }
