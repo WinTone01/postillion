@@ -12,6 +12,13 @@ import type { Usage, UsageWindow } from "@/api";
  * geçmişte kalır ve yanlış olurdu.
  */
 export function parseResetAt(resets: string, now = Date.now()): number | null {
+  // Yerel önbellekten gelen değer ISO-8601: tam ve kesin, tahmin gerekmiyor.
+  // Komuttan gelen metinde ise yıl yok, aşağıdaki yol onun için.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(resets)) {
+    const parsed = Date.parse(resets);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
   // Saat dilimi adını at; `Date.parse` "(Europe/Istanbul)" ile baş edemiyor.
   const cleaned = resets.replace(/\s*\([^)]*\)\s*$/, "").trim();
 
