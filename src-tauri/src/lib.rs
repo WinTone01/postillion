@@ -435,6 +435,11 @@ pub mod testing {
     pub fn query_usage() -> Result<Usage> {
         usage::query()
     }
+
+    /// Yalnızca yerel önbellek yolu; komuta düşmüyor.
+    pub fn local_usage() -> Option<Usage> {
+        usage::read_local()
+    }
 }
 
 // ---------------------------------------------------------------- katalog

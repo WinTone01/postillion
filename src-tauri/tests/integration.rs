@@ -269,3 +269,52 @@ fn onbellek_taramayi_hizlandirir() {
     eprintln!("{count} oturum — soğuk {cold}ms, ısıtılmış {warm}ms");
     assert!(warm * 4 < cold.max(1), "önbellek işe yaramıyor: {cold}ms → {warm}ms");
 }
+
+/// Yerel önbellekten okunan değerin `/usage` komutunun söylediğiyle aynı
+/// olduğunu gerçek dosyayla doğrular.
+///
+/// Komut süreç başlattığı ve makinenin gerçek durumuna bağlı olduğu için
+/// yoksayılı; elle çalıştırılıyor.
+#[test]
+#[ignore]
+fn yerel_deger_komutla_ayni() {
+    let local = postillion_lib::testing::local_usage()
+        .expect("~/.claude.json içinde kullanılabilir bir değer bekleniyordu");
+
+    // Komutu doğrudan çağıramıyoruz (query artık yerele bakıyor), o yüzden
+    // karşılaştırma için komut çıktısı ayrıca alınıyor.
+    let out = std::process::Command::new("claude")
+        .args(["-p", "/usage", "--output-format", "text"])
+        .output()
+        .expect("claude çalıştırılabilmeli");
+    let text = String::from_utf8_lossy(&out.stdout);
+
+    eprintln!("yerel: {:#?}", local.windows);
+    eprintln!("komut:\n{text}");
+
+    // Birebir eşitlik beklenemez: yerel değer bir anlık görüntü, komut ise o
+    // anki gerçek. Ölçüldü, yoğun kullanımda dakikalar içinde birkaç puan
+    // kayabiliyor. Doğrulanan şey eşleme: etiketler tutuyor mu ve yüzde
+    // tazelik bütçesinin izin verdiği aralıkta mı.
+    for window in &local.windows {
+        let prefix = format!("Current {}: ", window.label);
+        let line = text
+            .lines()
+            .find(|l| l.trim_start().starts_with(&prefix))
+            .unwrap_or_else(|| panic!("komut çıktısında '{}' penceresi yok", window.label));
+
+        let actual: i32 = line
+            .split_once(&prefix)
+            .and_then(|(_, rest)| rest.split_once('%'))
+            .and_then(|(n, _)| n.trim().parse().ok())
+            .expect("yüzde ayrıştırılabilmeli");
+
+        let drift = (actual - i32::from(window.percent)).abs();
+        assert!(
+            drift <= 10,
+            "{} penceresi çok sapmış: yerel %{}, komut %{actual}",
+            window.label,
+            window.percent
+        );
+    }
+}
