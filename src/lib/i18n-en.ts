@@ -328,6 +328,10 @@ export const EN: Record<string, string> = {
     "Every turn re-reads all of this context.",
   "{n}k aşılınca kendiliğinden sıkışıyor. Şimdi sıkıştırmak için tıklayın.":
     "Compacts on its own past {n}k. Click to compact now.",
+  "Sıkıştırılıyor — birkaç dakika sürebilir…": "Compacting — this can take a few minutes…",
+  "Bağlam sıkıştırılıyor — bu birkaç dakika sürebilir ve bir kerelik bir maliyeti var.":
+    "Compacting the context — this can take a few minutes and has a one-time cost.",
+  "Sıkıştırma tamamlandı.": "Compaction finished.",
 
   // -------------------------------------------------------------- göreli zaman
   "az önce": "just now",

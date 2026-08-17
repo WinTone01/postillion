@@ -353,6 +353,11 @@ export function useAgentSession(options: AgentSessionOptions | null) {
     async (text: string, images: ImageAttachment[] = []) => {
       // Yalnızca görüntüden oluşan bir mesaj da geçerli.
       if (!options || (!text.trim() && images.length === 0)) return;
+      // Sıkıştırma sürerken gönderilen bir mesaj sunucu tarafında sıraya
+      // giriyor ama arayüz bunu bilmiyor; kullanıcı "gönderdim" sanıp
+      // beklerken iki isteğin nasıl iç içe geçtiğini göremiyor. `/compact`
+      // kendisi de `send` üzerinden gittiği için burada muaf tutuluyor.
+      if (stateRef.current.compacting && text.trim() !== "/compact") return;
       setState((prev) => appendUserMessage(prev, text, images));
       try {
         await api.agentSend(options.id, text, images);

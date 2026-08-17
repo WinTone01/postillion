@@ -954,6 +954,26 @@ export default function ChatView({
   } = useAgentSession(options);
 
   /**
+   * Sıkıştırma başladığında/bittiğinde bir kere bildirir.
+   *
+   * Sessizce olunca kullanıcı gördüğü kilitlenmeyi ve ardından gelen tek
+   * seferlik token sıçramasını bir hata sanıyor — özellikle sohbet açılır
+   * açılmaz tetiklenen, eski büyük bir bağlamı ilk kez toplayan sıkıştırmada:
+   * o durumda birkaç dakika sürebiliyor ve bağlamın tamamını bir kez daha
+   * okuduğu için gerçek bir maliyeti var. Bildirmek onu beklenmedik değil,
+   * anlaşılır kılıyor.
+   */
+  const wasCompacting = useRef(false);
+  useEffect(() => {
+    if (state.compacting && !wasCompacting.current) {
+      toast.info(t("Bağlam sıkıştırılıyor — bu birkaç dakika sürebilir ve bir kerelik bir maliyeti var."));
+    } else if (!state.compacting && wasCompacting.current) {
+      toast.success(t("Sıkıştırma tamamlandı."));
+    }
+    wasCompacting.current = state.compacting;
+  }, [state.compacting]);
+
+  /**
    * Bu sohbetin MCP kümesi.
    *
    * Seçenekten başlıyor ama yeniden başlatma ile değişebiliyor, o yüzden
@@ -1470,23 +1490,26 @@ export default function ChatView({
             <PromptInputBody>
               <PromptInputTextarea
                 placeholder={
-                  running
-                    ? t("Claude'a yazın — komutlar için / yazın")
-                    : t("Oturum başlatılıyor…")
+                  state.compacting
+                    ? t("Sıkıştırılıyor — birkaç dakika sürebilir…")
+                    : running
+                      ? t("Claude'a yazın — komutlar için / yazın")
+                      : t("Oturum başlatılıyor…")
                 }
-                disabled={!running}
+                disabled={!running || state.compacting}
               />
             </PromptInputBody>
             <PromptInputFooter>
               {/* Model, efor ve mod girdinin yanında — Claude Desktop'taki gibi
                   konuşurken erişilebilir olmalı, başlıkta değil. */}
               <PromptInputTools className="gap-1.5">
-                <AttachmentButtons disabled={!running} />
+                <AttachmentButtons disabled={!running || state.compacting} />
                 {/* Süren bir turun ortasında model değiştirmek `set_model`'i
                     yarım kalmış bir istekle çakıştırıyor; tur bitene kadar
-                    kapalı — eforda da aynı kural. */}
+                    kapalı — eforda da aynı kural. Sıkıştırma da bir tur: aynı
+                    çakışma onda da geçerli. */}
                 <BottomSelect
-                  disabled={!running || state.busy}
+                  disabled={!running || state.busy || state.compacting}
                   icon={<CpuIcon className="size-3.5" />}
                   onChange={changeModel}
                   options={models.map((m) => ({ value: m.value, label: m.label }))}
@@ -1494,7 +1517,7 @@ export default function ChatView({
                   value={picked}
                 />
                 <BottomSelect
-                  disabled={!running || state.busy}
+                  disabled={!running || state.busy || state.compacting}
                   icon={<GaugeIcon className="size-3.5" />}
                   onChange={(v) => void changeEffort(v)}
                   options={EFFORT_LEVELS.map((l) => ({ value: l, label: l }))}
@@ -1502,7 +1525,7 @@ export default function ChatView({
                   value={effort}
                 />
                 <BottomSelect
-                  disabled={!running}
+                  disabled={!running || state.compacting}
                   icon={<ShieldIcon className="size-3.5" />}
                   onChange={(v) => void changeMode(v)}
                   options={PERMISSION_MODES}
@@ -1511,7 +1534,7 @@ export default function ChatView({
                 />
               </PromptInputTools>
               <PromptInputSubmit
-                status={state.busy ? "streaming" : "ready"}
+                status={state.compacting || state.busy ? "streaming" : "ready"}
                 onStop={() => void interrupt()}
               />
             </PromptInputFooter>
