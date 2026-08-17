@@ -139,6 +139,16 @@ export interface SessionState {
   models: ModelInfo[];
   /** Bu oturumda ayakta olan MCP sunucuları ve durumları. */
   mcpServers: McpStatus[];
+  /**
+   * Son turda modele giden toplam bağlam.
+   *
+   * Maliyetin asıl sürücüsü bu: her tur bağlamın tamamını yeniden okuyor.
+   * Ölçüldü — sıkışmayan oturumlar 788k'ya kadar çıkıp tur başına 100k'nın
+   * üzerinde ağırlık üretiyordu. Bilinmiyorsa `null` (henüz tur olmadı).
+   */
+  contextTokens: number | null;
+  /** `/compact` sürüyor; arayüz bunu göstermeli, tur gibi görünmüyor. */
+  compacting: boolean;
 }
 
 export const initialState: SessionState = {
@@ -154,9 +164,34 @@ export const initialState: SessionState = {
   commands: [],
   models: [],
   mcpServers: [],
+  contextTokens: null,
+  compacting: false,
 };
 
 type Json = Record<string, unknown>;
+
+/**
+ * Bir turda modele giden toplam bağlam.
+ *
+ * `usage` üç ayrı kalem veriyor ve bağlam bunların toplamı: önbelleğe yazılan,
+ * önbellekten okunan ve hiç önbelleklenmeyen. Yalnızca `input_tokens`'a bakmak
+ * yanıltıcı — o değer neredeyse hep sıfır, çünkü bağlamın tamamı önbellekten
+ * geliyor.
+ *
+ * Ölçüm yoksa `null`.
+ */
+function readContextTokens(usage: unknown): number | null {
+  if (!usage || typeof usage !== "object") return null;
+  const u = usage as Record<string, unknown>;
+
+  const field = (key: string) => (typeof u[key] === "number" ? (u[key] as number) : 0);
+  const total =
+    field("input_tokens") +
+    field("cache_creation_input_tokens") +
+    field("cache_read_input_tokens");
+
+  return total > 0 ? total : null;
+}
 
 function asArray(value: unknown): Json[] {
   return Array.isArray(value) ? (value as Json[]) : [];
@@ -295,6 +330,28 @@ export function reduce(state: SessionState, event: Json): SessionState {
         return { ...state, commands: parseCommands(event.commands) };
       }
 
+      // `/compact` ilerlemesi. Önce `status: "compacting"`, sonra sonucu
+      // taşıyan ikinci bir olay geliyor (ölçüldü).
+      if (event.subtype === "status") {
+        if (event.status === "compacting") {
+          return { ...state, compacting: true };
+        }
+        if (event.compact_result !== undefined) {
+          const failed = event.compact_result === "failed";
+          return {
+            ...state,
+            compacting: false,
+            // Başarılıysa bağlam sıfırlandı; yeni değeri ilk tur getirecek.
+            contextTokens: failed ? state.contextTokens : null,
+            errors:
+              failed && typeof event.compact_error === "string"
+                ? [...state.errors, `compact: ${event.compact_error}`]
+                : state.errors,
+          };
+        }
+        return state;
+      }
+
       if (event.subtype === "init") {
         // `mcp_servers` her turda yeniden geliyor; bağlantı ilerledikçe
         // durumlar değişiyor, o yüzden her seferinde tazeleniyor.
@@ -344,6 +401,9 @@ export function reduce(state: SessionState, event: Json): SessionState {
       const message = event.message as Json | undefined;
       const content = asArray(message?.content);
 
+      // Bağlam ölçüsü her asistan mesajında taşınıyor; en taze kaynak bu.
+      const contextTokens = readContextTokens(message?.usage) ?? state.contextTokens;
+
       const parts: Part[] = [];
       for (const block of content) {
         if (block.type === "text" && typeof block.text === "string") {
@@ -363,7 +423,7 @@ export function reduce(state: SessionState, event: Json): SessionState {
       }
 
       if (parts.length === 0) {
-        return { ...state, streamingText: "", streamingThinking: "" };
+        return { ...state, streamingText: "", streamingThinking: "", contextTokens };
       }
 
       const id = String(message?.id ?? nextId("msg"));
@@ -376,6 +436,7 @@ export function reduce(state: SessionState, event: Json): SessionState {
       if (last && last.role === "assistant" && last.id === id) {
         return {
           ...state,
+          contextTokens,
           streamingText: "",
           streamingThinking: "",
           messages: [
@@ -387,6 +448,7 @@ export function reduce(state: SessionState, event: Json): SessionState {
 
       return {
         ...state,
+        contextTokens,
         streamingText: "",
         streamingThinking: "",
         messages: [...state.messages, { id, role: "assistant", parts }],

@@ -81,13 +81,18 @@ import { attachmentToFile, urlToAttachment } from "@/lib/images";
 import { imagesFromClipboard, readClipboardImage } from "@/lib/clipboard";
 import { log } from "@/lib/log";
 import { t } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import {
   stringify,
   type SessionState,
   type SlashCommand,
   type ToolPart,
 } from "@/lib/claude-stream";
-import { useAgentSession, type AgentSessionOptions } from "@/hooks/useAgentSession";
+import {
+  AUTO_COMPACT_TOKENS,
+  useAgentSession,
+  type AgentSessionOptions,
+} from "@/hooks/useAgentSession";
 import { useTypewriter } from "@/hooks/useTypewriter";
 import { fireAlert, loadAlertSettings } from "@/lib/alerts";
 
@@ -828,6 +833,61 @@ const PERMISSION_MODES = [
 ];
 
 /** Alt bardaki kompakt seçici; üçü de aynı görünsün diye ortak. */
+/**
+ * Turun modele giden bağlam ölçüsü.
+ *
+ * Görünür olması gerekiyor çünkü maliyetin asıl sürücüsü bu: her tur bağlamın
+ * tamamını yeniden okuyor, yani 600k'lık bir sohbette yazılan her mesaj 600k
+ * token'lık bir okuma demek. Sayı görünmeden kullanıcı buraya sessizce
+ * tırmanıyor.
+ */
+function ContextMeter({
+  tokens,
+  compacting,
+  busy,
+  onCompact,
+}: {
+  tokens: number | null;
+  compacting: boolean;
+  busy: boolean;
+  onCompact: () => void;
+}) {
+  if (compacting) {
+    return <span className="text-warning">{t("sıkıştırılıyor…")}</span>;
+  }
+
+  // Henüz tur olmadı; gösterilecek ölçüm yok.
+  if (tokens === null) return null;
+
+  const ratio = tokens / AUTO_COMPACT_TOKENS;
+  const tone = ratio >= 1 ? "text-destructive" : ratio >= 0.75 ? "text-warning" : undefined;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className={cn("tabular-nums hover:underline", tone)}
+          disabled={busy}
+          onClick={onCompact}
+          type="button"
+        >
+          {t("{n}k bağlam", { n: Math.round(tokens / 1000) })}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[280px]" side="bottom">
+        <p className="font-medium">
+          {t("Her tur bu bağlamın tamamını yeniden okuyor.")}
+        </p>
+        <p className="mt-1 text-[11px] opacity-70">
+          {t("{n}k aşılınca kendiliğinden sıkışıyor. Şimdi sıkıştırmak için tıklayın.", {
+            n: Math.round(AUTO_COMPACT_TOKENS / 1000),
+          })}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function BottomSelect({
   value,
   onChange,
@@ -890,6 +950,7 @@ export default function ChatView({
     setPermissionMode,
     interrupt,
     restart,
+    compact,
   } = useAgentSession(options);
 
   /**
@@ -1239,6 +1300,12 @@ export default function ChatView({
               </TooltipContent>
             </Tooltip>
             <span className="opacity-40">·</span>
+            <ContextMeter
+              busy={state.busy}
+              compacting={state.compacting}
+              onCompact={() => void compact()}
+              tokens={state.contextTokens}
+            />
             {state.totalCostUsd !== null && (
               <>
                 <span className="opacity-40">·</span>
