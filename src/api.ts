@@ -35,6 +35,12 @@ export interface Usage {
   detail: string;
 }
 
+/** Oturum başına kalıcı tercihler; `sessionId` ile anahtarlanıyor. */
+export interface SessionPrefs {
+  /** Seçilen MCP sunucuları; alan yoksa genel yapılandırma. */
+  mcpServers?: string[];
+}
+
 /** Rust tarafındaki `accounts::Account` ile birebir. */
 export interface Account {
   /** Dizin adı; komutlarda kimlik olarak bu kullanılıyor. */
@@ -131,6 +137,16 @@ export const api = {
    * Yakalama sırasında uygulama penceresi gizleniyor.
    */
   captureScreenshot: () => invoke<ImageAttachment | null>("capture_screenshot"),
+
+  /** Panodaki görüntü; yoksa `null`. Okuma ve PNG'ye çevirme Rust tarafında. */
+  clipboardImage: () => invoke<ImageAttachment | null>("clipboard_image"),
+
+  /** Oturum kimliği → kalıcı tercihler. */
+  sessionPrefs: () => invoke<Record<string, SessionPrefs>>("session_prefs"),
+
+  /** Bir sohbetin MCP seçimini kalıcı yapar; `null` genel yapılandırma. */
+  setSessionMcp: (sessionId: string, servers: string[] | null) =>
+    invoke<void>("set_session_mcp", { sessionId, servers }),
 
   /** Diskteki son ölçümler: hesap kısa adı → kullanım. */
   usageCache: () => invoke<Record<string, Usage>>("usage_cache"),

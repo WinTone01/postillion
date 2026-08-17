@@ -12,7 +12,6 @@
     "core:webview:default",
     "dialog:allow-open",
     "notification:default",
-    "clipboard-manager:allow-write-text",
-    "clipboard-manager:allow-read-image"
+    "clipboard-manager:allow-write-text"
   ]
 }

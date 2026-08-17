@@ -18,6 +18,7 @@ import {
   type Account,
   type Preferences,
   type Session,
+  type SessionPrefs,
   type Usage,
 } from "@/api";
 import { releaseAgentSession, type AgentSessionOptions } from "@/hooks/useAgentSession";
@@ -68,6 +69,8 @@ export default function App() {
   const [prefs, setPrefs] = useState<Preferences>({});
   // Hesap kısa adı → son kullanım ölçümü.
   const [usage, setUsage] = useState<Record<string, Usage>>({});
+  // Oturum kimliği → kalıcı tercihler; MCP seçimi buradan geri geliyor.
+  const [prefsBySession, setPrefsBySession] = useState<Record<string, SessionPrefs>>({});
   // Sekme başına maskot durumu; kenar çubuğu en dikkat çekeni gösteriyor.
   const [tabStates, setTabStates] = useState<Record<string, MascotState>>({});
 
@@ -155,6 +158,13 @@ export default function App() {
     api.readPreferences().then(setPrefs).catch(() => setPrefs({}));
   }, []);
 
+  useEffect(() => {
+    api
+      .sessionPrefs()
+      .then(setPrefsBySession)
+      .catch((e) => log("warn", "oturum tercihleri okunamadı:", e));
+  }, []);
+
   // Diskteki son ölçümler; etkin olmayan hesaplar için tek kaynak.
   useEffect(() => {
     api.usageCache().then(setUsage).catch((e) => log("warn", "kullanım okunamadı:", e));
@@ -236,9 +246,10 @@ export default function App() {
         transcriptPath: session.path,
         model: prefs.model ?? null,
         effort: prefs.effortLevel ?? null,
-        // Devam ettirilen oturumda genel yapılandırma: kaldığı yerdeki
-        // araçların kaybolmaması gerekiyor.
-        mcpServers: null,
+        // Sohbetin kendi MCP seçimi diskte tutuluyor; yoksa genel
+        // yapılandırma. Önceden hep `null` geçiliyordu, yani seçim uygulama
+        // kapanınca ya da oturum yeniden açılınca unutuluyordu.
+        mcpServers: prefsBySession[session.sessionId]?.mcpServers ?? null,
       },
       title: session.title ?? session.sessionId,
       titleFromSession: session.title !== null,

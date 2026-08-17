@@ -1,6 +1,7 @@
-import { readImage, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
-import { isSupportedImage } from "@/lib/images";
+import { api } from "@/api";
+import { attachmentToFile, isSupportedImage } from "@/lib/images";
 import { log } from "@/lib/log";
 
 /**
@@ -87,44 +88,22 @@ export function imagesFromClipboard(data: DataTransfer | null): File[] {
   return found;
 }
 
-/** Yapıştırılan şey düz metin mi — öyleyse panoyu ayrıca yoklamaya gerek yok. */
-export function looksLikeText(data: DataTransfer | null): boolean {
-  const types = data?.types;
-  if (!types || types.length === 0) return false;
-  return [...types].some((type) => type === "text/plain") &&
-    ![...types].some((type) => type.startsWith("image/"));
-}
-
 /**
- * Sistem panosundaki görüntüyü PNG dosyası olarak okur.
+ * Sistem panosundaki görüntüyü dosya olarak okur.
  *
- * Yapıştırma olayı boş geldiğinde son çare. Tauri eklentisi ham RGBA veriyor,
- * PNG'ye çevirmek için canvas gerekiyor.
+ * Yapıştırma olayı boş geldiğinde son çare — ve WebKitGTK'da bu sık oluyor.
+ * İş Rust tarafında yapılıyor: önceki sürüm eklentiden ham RGBA alıp
+ * `ImageData` ve canvas üzerinden PNG üretiyordu ve o zincirin dört ayrı
+ * yerinde sessizce düşme ihtimali vardı. Artık tek bir çağrı, ve altındaki
+ * okuma gerçek panoya karşı ölçülerek doğrulandı.
  */
 export async function readClipboardImage(): Promise<File | null> {
   try {
-    const image = await readImage();
-    const { width, height } = await image.size();
-    if (width === 0 || height === 0) return null;
-
-    const rgba = await image.rgba();
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-    context.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
-
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/png"),
-    );
-    if (!blob) return null;
-
-    return new File([blob], `pano-${Date.now()}.png`, { type: "image/png" });
+    const image = await api.clipboardImage();
+    if (!image) return null;
+    return attachmentToFile(image, `pano-${Date.now()}.png`);
   } catch (e) {
-    // Panoda görüntü yoksa eklenti hata veriyor; bu beklenen bir durum.
-    log("info", "panoda görüntü yok:", e);
+    log("warn", "pano görüntüsü okunamadı:", e);
     return null;
   }
 }

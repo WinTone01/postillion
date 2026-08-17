@@ -10,7 +10,6 @@ import {
   PaperclipIcon,
   PlugIcon,
   ShieldIcon,
-  SquareIcon,
   TerminalIcon,
   XIcon,
 } from "lucide-react";
@@ -79,7 +78,7 @@ import {
 } from "@/components/ui/select";
 import { api, errText, prettyCwd, type ModelOption, type Proc } from "@/api";
 import { attachmentToFile, urlToAttachment } from "@/lib/images";
-import { imagesFromClipboard, looksLikeText, readClipboardImage } from "@/lib/clipboard";
+import { imagesFromClipboard, readClipboardImage } from "@/lib/clipboard";
 import { log } from "@/lib/log";
 import { t } from "@/lib/i18n";
 import {
@@ -164,6 +163,14 @@ function useWriteBaseline(part: ToolPart) {
 function anchorFor(sessionId: string, toolCallId: string): string {
   return `perm-${sessionId}-${toolCallId}`;
 }
+
+/**
+ * Ctrl+V'den sonra sisteme sormadan önce beklenen süre.
+ *
+ * Yapıştırma olayı bu pencerede gelirse iş zaten bitmiş oluyor; gelmezse
+ * panoyu doğrudan okuyoruz.
+ */
+const CLIPBOARD_FALLBACK_MS = 150;
 
 /** Kullanıcının bir izin isteğine verdiği cevabı yukarı taşır. */
 type RespondFn = ReturnType<typeof useAgentSession>["respondPermission"];
@@ -593,46 +600,57 @@ function ChatPaste({ active }: { active: boolean }) {
   useEffect(() => {
     if (!active) return;
 
-    /** İki yolun aynı görüntüyü iki kez eklemesini engelliyor. */
-    let lastAt = 0;
-    const recently = () => {
-      const now = Date.now();
-      if (now - lastAt < 400) return true;
-      lastAt = now;
-      return false;
-    };
+    /**
+     * En son ne zaman ek eklendi.
+     *
+     * İki yol var ve hangisinin çalışacağı motora bağlı; bu damga ikisinin
+     * aynı görüntüyü iki kez eklemesini engelliyor.
+     */
+    let attachedAt = 0;
 
-    async function fromSystemClipboard() {
-      if (recently()) return;
-      const file = await readClipboardImage();
-      if (file) attachments.add([file]);
+    function attach(files: File[]) {
+      if (files.length === 0) return;
+      attachedAt = Date.now();
+      attachments.add(files);
     }
 
-    async function onPaste(event: ClipboardEvent) {
-      // Metin alanının dinleyicisi zaten ekledi.
-      if (event.defaultPrevented) return;
+    async function fromSystemClipboard(since: number) {
+      // Yapıştırma olayı bu arada halletmişse dokunma.
+      if (attachedAt > since) return;
+
+      const file = await readClipboardImage();
+      if (!file || attachedAt > since) return;
+      attach([file]);
+    }
+
+    function onPaste(event: ClipboardEvent) {
+      // Metin alanının kendi dinleyicisi zaten ekledi.
+      if (event.defaultPrevented) {
+        attachedAt = Date.now();
+        return;
+      }
 
       const files = imagesFromClipboard(event.clipboardData);
       if (files.length > 0) {
         event.preventDefault();
-        if (!recently()) attachments.add(files);
-        return;
+        attach(files);
       }
-
-      // Düz metin yapıştırıldıysa panoyu yoklamanın anlamı yok.
-      if (looksLikeText(event.clipboardData)) return;
-      await fromSystemClipboard();
     }
 
+    /**
+     * Ctrl+V, odak nerede olursa olsun.
+     *
+     * Metin alanına odaklıyken erken çıkıp `paste` olayına güvenmek yetmiyordu:
+     * WebKitGTK panodaki görüntü için o olayı ya hiç üretmiyor ya da içi boş
+     * gönderiyor, dolayısıyla hiçbir yol çalışmıyordu. Artık her iki durumda da
+     * kısa bir gecikmeyle sisteme soruluyor — olay işini yaptıysa damga bunu
+     * söylüyor ve sorgu atlanıyor.
+     */
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "v" || !(event.ctrlKey || event.metaKey)) return;
 
-      // Düzenlenebilir bir alandaysak normal `paste` olayı gelecek.
-      const target = event.target as HTMLElement | null;
-      if (target?.isContentEditable) return;
-      if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
-
-      void fromSystemClipboard();
+      const since = attachedAt;
+      window.setTimeout(() => void fromSystemClipboard(since), CLIPBOARD_FALLBACK_MS);
     }
 
     document.addEventListener("paste", onPaste);
@@ -882,6 +900,32 @@ export default function ChatView({
    */
   const [mcpSelection, setMcpSelection] = useState<string[] | null>(options.mcpServers);
   const [mcpOpen, setMcpOpen] = useState(false);
+
+  /**
+   * Seçimi oturum kimliğine bağlı olarak diske yazar.
+   *
+   * Kimlik ancak `system/init` geldiğinde biliniyor, o yüzden yeni sohbetlerde
+   * kayıt biraz gecikiyor. Önceden hiç yazılmıyordu ve seçim uygulama kapanınca
+   * kayboluyordu.
+   */
+  const persistMcp = useCallback(
+    (sessionId: string | null, servers: string[] | null) => {
+      if (!sessionId) return;
+      api.setSessionMcp(sessionId, servers).catch((e) =>
+        log("warn", "MCP seçimi kaydedilemedi:", e),
+      );
+    },
+    [],
+  );
+
+  // Yeni bir sohbette kimlik sonradan geliyor; seçim varsa o an kaydediliyor.
+  const savedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const id = state.sessionId;
+    if (!id || savedFor.current === id) return;
+    savedFor.current = id;
+    if (mcpSelection !== null) persistMcp(id, mcpSelection);
+  }, [state.sessionId, mcpSelection, persistMcp]);
 
   // Mod başlatırken `manual`; süren oturumda set_permission_mode ile değişiyor.
   const [mode, setMode] = useState("manual");
@@ -1221,12 +1265,6 @@ export default function ChatView({
           )}
         </Button>
 
-        {state.busy && (
-          <Button size="sm" variant="ghost" onClick={() => void interrupt()}>
-            <SquareIcon className="size-3" />
-            {t("Durdur")}
-          </Button>
-        )}
       </header>
 
       {showProcesses && (
@@ -1425,6 +1463,7 @@ export default function ChatView({
         live={state.mcpServers}
         onApply={(next) => {
           setMcpSelection(next);
+          persistMcp(state.sessionId, next);
           void restart(next);
         }}
         onOpenChange={setMcpOpen}

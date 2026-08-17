@@ -6,6 +6,7 @@ mod error;
 mod paths;
 mod processes;
 mod screenshot;
+mod session_prefs;
 mod sessions;
 mod usage;
 
@@ -282,6 +283,12 @@ async fn capture_screenshot(window: tauri::Window) -> Result<Option<screenshot::
     result
 }
 
+/// Panodaki görüntü; yoksa `null`.
+#[tauri::command]
+fn clipboard_image() -> Option<screenshot::Shot> {
+    screenshot::clipboard_image()
+}
+
 #[tauri::command]
 fn agent_respond_permission(
     state: State<'_, AppState>,
@@ -314,6 +321,20 @@ fn agent_stop(state: State<'_, AppState>, id: String) -> Result<()> {
 #[tauri::command]
 fn agent_active(state: State<'_, AppState>) -> Vec<String> {
     state.agent.active_ids()
+}
+
+// ------------------------------------------------ oturum tercihleri
+
+/// Oturum kimliği → kalıcı tercihler (şimdilik MCP seçimi).
+#[tauri::command]
+fn session_prefs() -> session_prefs::Store {
+    session_prefs::read()
+}
+
+/// Bir sohbetin MCP seçimini kalıcı yapar; `null` genel yapılandırmaya döner.
+#[tauri::command]
+fn set_session_mcp(session_id: String, servers: Option<Vec<String>>) -> Result<()> {
+    session_prefs::set_mcp(&session_id, servers)
 }
 
 // ------------------------------------------------------------- kullanım
@@ -405,6 +426,10 @@ pub mod testing {
 
     pub fn descendants(root: u32) -> Vec<crate::processes::Proc> {
         processes::descendants(root)
+    }
+
+    pub fn clipboard_image() -> Option<crate::screenshot::Shot> {
+        screenshot::clipboard_image()
     }
 
     pub fn query_usage() -> Result<Usage> {
@@ -598,6 +623,9 @@ pub fn run() {
             agent_set_model,
             agent_send,
             capture_screenshot,
+            clipboard_image,
+            session_prefs,
+            set_session_mcp,
             usage_cache,
             refresh_usage,
             list_models,

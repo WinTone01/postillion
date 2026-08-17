@@ -66,17 +66,20 @@ protocol does not qualify, so code-block copy buttons did nothing. The API is
 bridged to the Tauri clipboard plugin at startup rather than patching each
 component.
 
-**Pasted images are not always files.** WebKitGTK does not reliably mark a
-pasted image as `kind: "file"` on the clipboard item, so filtering on that —
-which is what the stock prompt component does — drops it. Extraction keys off
-the MIME type instead and reads both `files` and `items`. When the paste event
-carries nothing usable, the system clipboard is read directly through the Tauri
-plugin and converted from RGBA to PNG.
+**Pasted images are not always files, and sometimes there is no paste event at
+all.** WebKitGTK does not reliably mark a pasted image as `kind: "file"`, so
+extraction keys off the MIME type and reads both `files` and `items`. But the
+event itself can also simply not arrive for image content — which is why every
+Ctrl+V now schedules a check 150 ms later and asks the system clipboard if
+nothing was attached in the meantime. Trusting the paste event whenever focus
+was in the textarea left the common case with no working path at all.
 
-**Paste works anywhere in a chat.** A `paste` event only fires when focus is in
-an editable element, so a Ctrl+V keydown outside one reads the clipboard
-directly. The two paths guard against each other so an image is never attached
-twice.
+**Reading the clipboard image happens in Rust.** The JS route went plugin →
+raw RGBA → `ImageData` → canvas → blob, four places to fail silently. One
+command does it now: `arboard` reads the image and the `png` crate encodes it.
+Verified against a real Wayland clipboard — `wl-copy` an image, then
+`cargo test --test clipboard_probe -- --ignored`, which asserts the returned
+bytes carry a PNG signature.
 
 **Flex and grid children need `min-w-0`.** Their default minimum is the
 content's intrinsic width, so one unbreakable string — a long file path in the
@@ -91,6 +94,11 @@ the fix.
 ---
 
 ## Known limits
+
+**A chat's MCP choice is persisted.** `~/.claude-accounts/session-prefs.json`
+maps session id to the selected servers, so the choice survives closing the app
+and reopening the conversation from the list. Without it the selection lived
+only in the tab and every restart silently fell back to the global config.
 
 **Changing MCP means restarting the session.** `--mcp-config` is a start-up
 flag, and `/mcp enable|disable|reconnect` is refused in headless mode — it

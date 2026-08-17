@@ -135,6 +135,37 @@ fn run_tool(target: &Path) -> Result<bool> {
     ))
 }
 
+/// Panodaki görüntüyü PNG olarak okur; görüntü yoksa `None`.
+///
+/// Neden Rust tarafında: JS yolu eklentiden ham RGBA alıp `ImageData` ve
+/// canvas üzerinden PNG üretiyordu — dört ayrı yerde sessizce düşebilen bir
+/// zincir. Burada tek adım var ve `arboard`'ın Wayland yolu ölçülerek
+/// doğrulandı.
+pub fn clipboard_image() -> Option<Shot> {
+    let mut clipboard = arboard::Clipboard::new().ok()?;
+    let image = clipboard.get_image().ok()?;
+
+    let width = u32::try_from(image.width).ok()?;
+    let height = u32::try_from(image.height).ok()?;
+    if width == 0 || height == 0 {
+        return None;
+    }
+
+    let mut png = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut png, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().ok()?;
+        writer.write_image_data(&image.bytes).ok()?;
+    }
+
+    Some(Shot {
+        media_type: "image/png".into(),
+        data: encode_base64(&png),
+    })
+}
+
 /// Base64 kodlar.
 ///
 /// Tek kullanım için bir bağımlılık eklemeye değmiyor; alfabe standart.
