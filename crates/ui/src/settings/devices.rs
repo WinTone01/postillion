@@ -347,7 +347,7 @@ impl Render for DevicesPage {
                                 .text_size(px(10.5))
                                 .text_color(theme.text_muted)
                                 .child(if workspace_scope == Some(WorkspaceScope::Local) {
-                                    "Local only"
+                                    crate::i18n::t("Local only")
                                 } else {
                                     "This device"
                                 }),

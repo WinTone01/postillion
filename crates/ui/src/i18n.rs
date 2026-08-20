@@ -24,6 +24,18 @@ pub enum Language {
 /// `LC_ALL` > `LC_MESSAGES` > `LANG` — POSIX önceliği. `tr_TR.UTF-8`, `tr` ve
 /// `tr_CY` hepsi Türkçe; tanınmayan her şey İngilizce'ye düşüyor.
 fn detect() -> Language {
+    // Açık tercih her şeyin önünde. Karışık yerel kurulumlar yaygın: KDE'de
+    // arayüz dilini İngilizce bırakıp bölgeyi Türkiye yapmak `LANG=en_US` ama
+    // `LC_TIME=tr_TR` üretiyor. POSIX'e göre mesaj dili İngilizce'dir ve
+    // otomatik algılama bunu doğru yapar — ama kullanıcı yalnızca BU
+    // uygulamayı Türkçe isteyebilir ve bunun için sistem yerelini
+    // değiştirmek zorunda kalmamalı.
+    if let Ok(explicit) = std::env::var("ZERON_LANG")
+        && !explicit.is_empty()
+    {
+        return from_locale(&explicit);
+    }
+
     for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
         let Ok(value) = std::env::var(key) else {
             continue;
@@ -92,6 +104,13 @@ fn turkish(source: &str) -> Option<&'static str> {
         "No project selected" => "Proje seçilmedi",
         "No repository selected" => "Depo seçilmedi",
         "Create your workspace" => "Çalışma alanınızı oluşturun",
+        "Add a project" => "Proje ekle",
+        "A project is a folder on one of your devices." => {
+            "Proje, cihazlarınızdan birindeki bir klasördür."
+        }
+        "Local only" => "Yalnızca yerel",
+        "Sync ready after restart" => "Eşitleme yeniden başlatınca hazır",
+        "Stored on this device" => "Bu cihazda saklanıyor",
         "Home" => "Ana dizin",
         "Locations" => "Konumlar",
 
