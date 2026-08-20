@@ -1,6 +1,6 @@
 # Kendi sunucunuza kurulum
 
-Bu dizin `postillion-server`'ı bir VPS'e kurmak için gereken parçaları
+Bu dizin `postillion-server`'ı kendi sunucunuza kurmak için gereken parçaları
 içeriyor. Sunucunun tek işi sohbet satırlarını saklamak ve bağlı cihazlara
 duyurmak — Cloudflare Durable Object'in yaptığı iş.
 
@@ -9,79 +9,157 @@ açmıyor, oldukları gibi saklayıp iletiyor. Uçtan uca şifreleme henüz
 DEVREDE DEĞİL ama mimari buna hazır: şifreleme eklendiğinde sunucu tarafında
 değişmesi gereken bir şey yok.
 
-## 1. Postgres
+İki yol var: **Coolify** (önerilen — VPS'inizde zaten kurulu) ya da
+**systemd** ile doğrudan kurulum.
 
-```sh
+---
+
+## A. Coolify ile
+
+### 1. Kaynağı oluşturun
+
+Coolify panelinde: **Yeni Kaynak → Docker Compose**, bu depoyu seçin ve
+compose dosyası olarak şunu verin:
+
+```
+deploy/docker-compose.yaml
+```
+
+Derleme bağlamı depo kökü (`context: ..`), çünkü sunucu birkaç crate'i
+birden derliyor.
+
+### 2. Değişkenler
+
+`docker-compose.yaml` içindeki `SERVICE_PASSWORD_*` değişkenlerini Coolify
+kendisi üretiyor:
+
+| Değişken | İş |
+| --- | --- |
+| `SERVICE_PASSWORD_POSTGRES` | Veritabanı parolası |
+| `SERVICE_PASSWORD_POSTILLIONTOKEN` | Cihazlarınızın kullanacağı jeton |
+| `SERVICE_FQDN_SERVER_8787` | Coolify'ın atadığı alan adı |
+
+Dağıtımdan sonra **Environment Variables** sekmesinden
+`SERVICE_PASSWORD_POSTILLIONTOKEN` değerini okuyup istemcilere girin. Bu
+değeri kimseyle paylaşmayın.
+
+Coolify sürümünüz bu değişkenleri kendiliğinden üretmezse panelden elle
+girin; üretmek için:
+
+```bash
+openssl rand -base64 48
+```
+
+### 3. Dağıtın ve doğrulayın
+
+```bash
+curl https://ATANAN-ALAN-ADI/health
+```
+
+`ok` dönmeli.
+
+TLS'i, alan adını ve WebSocket yükseltmesini Coolify'ın vekili yönetiyor —
+bu yüzden compose dosyasında nginx yok. Veritabanı `ports` yayınlamıyor,
+yalnızca compose ağından erişilebiliyor.
+
+### Derleme neden hızlı
+
+Çalışma alanı imaj içinde kırpılıyor. `apps/postillion` ve `crates/ui`
+gpui'ye bağlı, gpui de bir git bağımlılığı (zed çatalı, ~460 MB). Cargo
+derlemeye başlamadan önce çalışma alanının tamamını çözdüğü için, kırpmasak
+sunucunun hiç kullanmadığı yarım gigabaytlık bir depo her derlemede
+inecekti. Kırpma yalnızca üye listesinden geçiyor; sürümler kök
+`Cargo.toml`'da tek yerde kalıyor.
+
+---
+
+## B. systemd ile (Coolify olmadan)
+
+### 1. Postgres
+
+```bash
 sudo -u postgres createuser postillion --pwprompt
+```
+
+```bash
 sudo -u postgres createdb postillion --owner=postillion
 ```
 
 Şema sunucu ilk açılışta kendini kuruyor; ayrı bir göç adımı yok.
 
-## 2. İkiliyi derleyin ve kopyalayın
+### 2. İkiliyi derleyin ve kopyalayın
 
-Sunucuda derlemek yerine kendi makinenizde derleyip kopyalamak daha hızlı
-(VPS'lerin çoğunda Rust derlemesi için yeterli bellek yok):
+Sunucuda derlemek yerine kendi makinenizde derleyip kopyalamak daha hızlı:
 
-```sh
+```bash
 cargo build --release -p postillion-server
+```
+
+```bash
 scp target/release/postillion-server sunucu:/tmp/
 ```
 
 Sunucuda:
 
-```sh
+```bash
 sudo install -m 755 /tmp/postillion-server /usr/local/bin/
+```
+
+```bash
 sudo useradd --system --no-create-home postillion
 ```
 
-## 3. Yapılandırma
+### 3. Yapılandırma
 
-```sh
+```bash
 sudo mkdir -p /etc/postillion
-sudo tee /etc/postillion/server.env >/dev/null <<'ENV'
+```
+
+Ardından `/etc/postillion/server.env` dosyasını oluşturun:
+
+```
 DATABASE_URL=postgres://postillion:PAROLA@127.0.0.1/postillion
 POSTILLION_SERVER_TOKEN=BURAYA_UZUN_RASTGELE_BIR_DEGER
-ENV
+```
+
+```bash
 sudo chmod 600 /etc/postillion/server.env
 ```
 
-Jetonu üretmek için:
+Jeton üretmek için:
 
-```sh
+```bash
 openssl rand -base64 48
 ```
 
-Bu jeton şu an **tek kullanıcılık**: onu bilen herkes bütün sohbetlere
-erişiyor. Kimseyle paylaşmayın; kayıt açılmadan önce (Aşama 3) yerini
-gerçek oturumlar alacak.
+### 4. Servis ve ters vekil
 
-## 4. Servis ve ters vekil
-
-```sh
+```bash
 sudo cp deploy/postillion-server.service /etc/systemd/system/
+```
+
+```bash
 sudo systemctl daemon-reload
+```
+
+```bash
 sudo systemctl enable --now postillion-server
 ```
 
 Sunucu yalnızca `127.0.0.1:8787` dinliyor; TLS'i nginx sonlandırıyor:
 
-```sh
+```bash
 sudo cp deploy/nginx.conf /etc/nginx/sites-available/postillion
-sudo ln -s /etc/nginx/sites-available/postillion /etc/nginx/sites-enabled/
+```
+
+```bash
 sudo certbot --nginx -d sunucu.alanadiniz.com
 ```
 
 `nginx.conf`'taki `Upgrade`/`Connection` başlıkları şart: onlarsız WebSocket
 kurulmuyor ve eşitleme hiç başlamıyor.
 
-## 5. Doğrulama
-
-```sh
-curl https://sunucu.alanadiniz.com/health
-```
-
-`ok` dönmeli.
+---
 
 ## Uçlar
 
@@ -98,18 +176,26 @@ curl https://sunucu.alanadiniz.com/health
 - **Anlık görüntü yok.** Odalar hiç budanmıyor: her yeni cihaz sohbetin tüm
   geçmişini indiriyor. Uzun sohbetlerde katılma süresi büyüyor.
 - **Tek kullanıcı.** Yetkilendirme tek paylaşılan jeton; kullanıcı ayrımı ve
-  kota yok.
+  kota yok. Jetonu bilen herkes bütün sohbetlere erişiyor.
 - **Uçtan uca şifreleme yok.** Sunucuya erişen biri satırların içeriğini
   okuyabilir. Kayıt açılmadan ÖNCE eklenmesi gerekiyor.
+
+## Yedekleme
+
+Bütün durum Postgres'te. Coolify kurulumunda:
+
+```bash
+docker exec -t $(docker ps -qf name=db) pg_dump -U postillion postillion | gzip > yedek.sql.gz
+```
 
 ## Testler
 
 Postgres testleri veritabanı olmadan atlanıyor:
 
-```sh
-docker run -d --rm --name pg -e POSTGRES_PASSWORD=test \
-  -e POSTGRES_DB=postillion -p 55432:5432 postgres:17-alpine
+```bash
+docker run -d --rm --name pg -e POSTGRES_PASSWORD=test -e POSTGRES_DB=postillion -p 55432:5432 postgres:17-alpine
+```
 
-POSTILLION_TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postillion \
-  cargo test -p postillion-server
+```bash
+POSTILLION_TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postillion cargo test -p postillion-server
 ```

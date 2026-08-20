@@ -12,6 +12,7 @@
 
 pub mod auth;
 pub mod db;
+pub mod health;
 pub mod http;
 pub mod hub;
 pub mod rooms;

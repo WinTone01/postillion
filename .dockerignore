@@ -1,0 +1,29 @@
+# Derleme bağlamını küçük tutuyor. `target/` tek başına gigabaytlarca ve
+# bağlamın tamamı her derlemede daemon'a aktarılıyor.
+target/
+**/target/
+
+.git/
+ignore/
+node_modules/
+edge/dist/
+dist/
+build/
+
+# Sırlar bağlama HİÇ girmesin: derleme bağlamına giren bir dosya, imaja
+# kopyalanmasa bile katman geçmişinde iz bırakabiliyor.
+.env
+.env.*
+*.pem
+*.key
+
+# Sunucunun ihtiyacı olmayan taraflar.
+apps/ios/
+apps/landing/
+apps/postillion/
+crates/ui/
+crates/engine/
+crates/harness/
+crates/rpc/
+crates/update/
+crates/syntax/
