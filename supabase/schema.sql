@@ -131,3 +131,106 @@ as $$
   )
   select count(*) from gone;
 $$;
+
+-- ── PostgREST arayüzü ───────────────────────────────────────────────────────
+--
+-- Okuma ve yazma tabloya doğrudan değil, fonksiyonlar üzerinden yapılıyor.
+-- İki sebep:
+--
+-- 1. `payload` bir `bytea` ve JSON ikili veri taşıyamıyor. Fonksiyonlar
+--    base64 `text` alıp veriyor; kodlama böylece sözleşmenin görünür parçası
+--    oluyor, PostgREST'in `\x…` biçimine bağlı kalmıyoruz.
+-- 2. Tekilleştirme ATOMİK olmak zorunda. İstemci bağlantı koptuğunda aynı
+--    gönderimi tekrarlıyor; "önce var mı diye bak, sonra yaz" iki cihaz aynı
+--    anda denediğinde ikisini de yazardı.
+
+-- Aynı gönderim iki kez yazılamaz.
+create unique index if not exists chat_rows_batch on chat_rows (chat_id, batch_id);
+
+create or replace function chat_append(
+  p_chat_id  text,
+  p_device   text,
+  p_batch_id text,
+  p_payload  text
+)
+returns table (seq bigint, dup boolean)
+language plpgsql
+volatile
+security invoker
+as $$
+declare
+  v_seq bigint;
+begin
+  insert into chat_rows (chat_id, device, batch_id, payload)
+  values (p_chat_id, p_device, p_batch_id, decode(p_payload, 'base64'))
+  on conflict (chat_id, batch_id) do nothing
+  returning chat_rows.seq into v_seq;
+
+  if v_seq is not null then
+    return query select v_seq, false;
+    return;
+  end if;
+
+  -- Çakışma: satır zaten vardı. İstemcinin beklediği şey aynı sırayı geri
+  -- almak — yeni bir sıra vermek onu ileri kaydırıp aradaki satırları
+  -- atlatırdı.
+  select r.seq into v_seq
+    from chat_rows r
+   where r.chat_id = p_chat_id and r.batch_id = p_batch_id;
+
+  return query select v_seq, true;
+end;
+$$;
+
+create or replace function chat_rows_after(
+  p_chat_id text,
+  p_after   bigint,
+  -- Boş bırakılırsa süzme yok. İstemci kendi satırlarını geri almak
+  -- istemediğinde kendi cihaz kimliğini veriyor.
+  p_exclude_device text default null
+)
+returns table (seq bigint, device text, batch_id text, payload text)
+language sql
+stable
+security invoker
+as $$
+  select r.seq, r.device, r.batch_id, encode(r.payload, 'base64')
+    from chat_rows r
+   where r.chat_id = p_chat_id
+     and r.seq > p_after
+     and (p_exclude_device is null or r.device <> p_exclude_device)
+   order by r.seq;
+$$;
+
+-- Anlık görüntü okuma/yazma; aynı base64 gerekçesi.
+create or replace function chat_checkpoint_put(
+  p_chat_id text,
+  p_seq     bigint,
+  p_payload text
+)
+returns void
+language sql
+volatile
+security invoker
+as $$
+  insert into chat_checkpoints (chat_id, seq, payload, updated_at)
+  values (p_chat_id, p_seq, decode(p_payload, 'base64'), now())
+  on conflict (chat_id) do update
+    set seq = excluded.seq,
+        payload = excluded.payload,
+        updated_at = now()
+    -- Eski bir anlık görüntü yenisini ezmemeli: iki cihaz aynı anda
+    -- sıkıştırırsa geride kalan yazı kaybettirirdi.
+    where excluded.seq >= chat_checkpoints.seq;
+$$;
+
+create or replace function chat_checkpoint_get(p_chat_id text)
+returns table (seq bigint, payload text)
+language sql
+stable
+security invoker
+as $$
+  select c.seq, encode(c.payload, 'base64')
+    from chat_checkpoints c
+   where c.chat_id = p_chat_id;
+$$;

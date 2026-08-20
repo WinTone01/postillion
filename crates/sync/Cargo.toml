@@ -18,6 +18,9 @@ rusqlite.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+# Supabase taşıması: PostgREST çağrıları ve `bytea` için base64.
+reqwest.workspace = true
+base64 = "0.22"
 
 # NWPathMonitor bridge (net_path.rs) — the update handler is an ObjC block.
 [target.'cfg(target_os = "macos")'.dependencies]

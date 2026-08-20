@@ -15,6 +15,8 @@
 //! [`rest`] nasıl yapılacağını (ince HTTP). Protokol mantığı depo trait'i
 //! üzerinden yazıldığı için gerçek bir Supabase olmadan sınanabiliyor.
 
+pub mod rest;
+
 use futures::future::BoxFuture;
 
 use crate::chat_frames as wire;
