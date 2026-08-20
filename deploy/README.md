@@ -39,6 +39,8 @@ kendisi üretiyor:
 | `SERVICE_PASSWORD_POSTILLIONTOKEN` | Cihazlarınızın kullanacağı jeton |
 | `SERVICE_FQDN_SERVER_8787` | Coolify'ın atadığı alan adı |
 
+Değişkenlerin tam listesi ve açıklamaları için [`.env.example`](.env.example).
+
 Dağıtımdan sonra **Environment Variables** sekmesinden
 `SERVICE_PASSWORD_POSTILLIONTOKEN` değerini okuyup istemcilere girin. Bu
 değeri kimseyle paylaşmayın.
@@ -115,7 +117,8 @@ sudo useradd --system --no-create-home postillion
 sudo mkdir -p /etc/postillion
 ```
 
-Ardından `/etc/postillion/server.env` dosyasını oluşturun:
+Ardından `/etc/postillion/server.env` dosyasını oluşturun — alanlar
+[`.env.example`](.env.example) içinde açıklanıyor:
 
 ```
 DATABASE_URL=postgres://postillion:PAROLA@127.0.0.1/postillion
