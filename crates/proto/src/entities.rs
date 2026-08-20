@@ -81,6 +81,13 @@ pub struct ChatConfig {
     #[serde(default)]
     pub model_options: serde_json::Map<String, serde_json::Value>,
     pub sandbox: SandboxLevel,
+    /// Bu sohbetin kullandığı MCP sunucuları.
+    ///
+    /// `None` genel yapılandırma (varsayılan). Liste verildiğinde yalnızca o
+    /// sunucular açılıyor; boş liste "hiçbiri" demek ve `None`'dan farklı.
+    /// Sohbetle birlikte yaşıyor — seçim uygulama kapanınca unutulmuyor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -760,6 +767,7 @@ mod context_window_tests {
                 .map(|(k, v)| ((*k).to_string(), serde_json::Value::String((*v).to_string())))
                 .collect(),
             sandbox: SandboxLevel::ReadOnly,
+            mcp_servers: None,
         }
     }
 

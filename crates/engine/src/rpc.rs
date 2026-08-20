@@ -908,6 +908,8 @@ fn forwardable(method: &str) -> bool {
             | methods::FETCH_ALL
             | methods::SWITCH_REF
             | methods::LIST_FOLDERS
+            // MCP tanımları host cihazın `~/.claude.json`'ında yaşıyor.
+            | methods::LIST_MCP_SERVERS
             | methods::LIST_DRIVES
             | methods::SEARCH_FILES
             | methods::CREATE_WORKTREE
@@ -1620,6 +1622,18 @@ impl RpcService for EngineRpc {
                     .await
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
                 RpcReply::value(&branches)
+            }
+            methods::LIST_MCP_SERVERS => {
+                // Tanımlar API anahtarı taşıyabiliyor; yalnızca İSİMLER
+                // dönüyor. Arayüzün seçim yapmak için fazlasına ihtiyacı yok
+                // ve gizli değerlerin cihazdan çıkması için sebep yok.
+                let names: Vec<String> =
+                    zeron_harness::claude::mcp::default_config_path()
+                        .map(|path| zeron_harness::claude::mcp::definitions(&path))
+                        .unwrap_or_default()
+                        .into_keys()
+                        .collect();
+                RpcReply::value(&names)
             }
             methods::LIST_REFS => {
                 let p: RepoPathParams = parse_params(params)?;

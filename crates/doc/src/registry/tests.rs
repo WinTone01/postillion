@@ -263,6 +263,7 @@ fn chat(id: &str, device_id: &str) -> Chat {
             reasoning: None,
             model_options: Default::default(),
             sandbox: SandboxLevel::WorkspaceWrite,
+            mcp_servers: None,
         }),
         last_message_preview: None,
         last_message_at: None,

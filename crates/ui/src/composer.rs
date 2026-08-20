@@ -4957,6 +4957,7 @@ impl Composer {
                             sandbox: SandboxLevel::WorkspaceWrite,
                             auto_approve: false,
                             resume: None,
+                            mcp_servers: None,
                             attachments: attachment_paths,
                             worktree: run_worktree,
                         },

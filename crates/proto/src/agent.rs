@@ -105,6 +105,16 @@ pub struct RunRequest {
     pub auto_approve: bool,
     /// Harness-native session id to resume, if any.
     pub resume: Option<String>,
+    /// Bu koşunun kullanacağı MCP sunucuları (isim listesi).
+    ///
+    /// `None` "kullanıcının genel yapılandırması" demek ve varsayılan. Liste
+    /// verildiğinde harness yalnızca o sunucuları içeren geçici bir
+    /// `--mcp-config` yazıyor ve `--strict-mcp-config` ile diğer kaynakları
+    /// kapatıyor — boş liste "hiçbiri" anlamına geliyor, `None`'dan farklı.
+    ///
+    /// Additive + serde-defaulted for wire compat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<Vec<String>>,
     /// Absolute paths of image attachments already staged on the run device
     /// (composer uploads: UploadChunk/UploadCommit → durable path). The same
     /// paths also ride the prompt text as `Attached images (local files …)`

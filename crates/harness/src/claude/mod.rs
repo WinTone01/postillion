@@ -31,6 +31,7 @@
 //! - Interrupt: cancelling [`RunControls::interrupt`] sends the protocol-level
 //!   interrupt control request, then escalates to SIGTERM and SIGKILL.
 
+pub mod mcp;
 pub mod catalog;
 mod normalize;
 mod wire;
@@ -234,6 +235,27 @@ impl ClaudeHarness {
         if !settings.is_empty() {
             cmd.arg("--settings");
             cmd.arg(Value::Object(settings).to_string());
+        }
+        // Sohbete özel MCP seçimi. Her bağlı sunucunun araç tanımları HER
+        // turda bağlamda taşınıyor, yani kullanılmayan bir sunucu her mesajın
+        // bedelini artırıyor. Seçim yalnızca burada uygulanabiliyor:
+        // `/mcp enable|disable` headless modda reddediliyor.
+        if let Some(selected) = &request.mcp_servers {
+            let defined = mcp::default_config_path()
+                .map(|path| mcp::definitions(&path))
+                .unwrap_or_default();
+            match mcp::write_config(&request.cwd, selected, &defined) {
+                Ok(path) => {
+                    cmd.arg("--mcp-config").arg(path);
+                    // Seçim mutlak: eklentilerin ve proje dosyalarının
+                    // getirdiği sunucular da kapanıyor, yoksa "yalnızca
+                    // şunlar" sözü tutulmazdı.
+                    cmd.arg("--strict-mcp-config");
+                }
+                Err(err) => {
+                    tracing::warn!(error = %err, "MCP yapılandırması yazılamadı; genel yapılandırma kullanılıyor");
+                }
+            }
         }
         if !request.cwd.is_empty() {
             cmd.current_dir(&request.cwd);
