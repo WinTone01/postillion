@@ -24,6 +24,7 @@ pub mod context_meter;
 pub mod edge_fade;
 pub mod frost;
 pub mod history;
+pub mod i18n;
 pub mod icons;
 pub mod loaders;
 pub mod markdown;

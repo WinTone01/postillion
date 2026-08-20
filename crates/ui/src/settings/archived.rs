@@ -258,7 +258,7 @@ impl Render for ArchivedPage {
                     div()
                         .mt(px(12.0))
                         .text_size(px(14.0))
-                        .child(SharedString::from("Nothing archived")),
+                        .child(SharedString::from(crate::i18n::t("Nothing archived"))),
                 )
                 .child(
                     div()

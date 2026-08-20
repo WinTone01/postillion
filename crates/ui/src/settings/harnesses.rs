@@ -208,7 +208,7 @@ impl HarnessesPage {
         let trigger_label: SharedString = selected
             .as_ref()
             .map(|d| d.name.clone().into())
-            .unwrap_or_else(|| SharedString::from("This device"));
+            .unwrap_or_else(|| SharedString::from(crate::i18n::t("This device")));
         let emerald = theme.success;
         let open = self.device_menu_open;
 
@@ -310,7 +310,7 @@ impl HarnessesPage {
                                     .flex_none()
                                     .text_size(px(10.5))
                                     .text_color(theme.text_muted.opacity(0.35))
-                                    .child(SharedString::from("You")),
+                                    .child(SharedString::from(crate::i18n::t("You"))),
                             )
                         })
                         .child(
@@ -439,7 +439,7 @@ impl Render for HarnessesPage {
                                 page.load(cx);
                                 cx.notify();
                             }))
-                            .child(SharedString::from("Retry")),
+                            .child(SharedString::from(crate::i18n::t("Retry"))),
                     )
                     .into_any_element()
             }

@@ -373,7 +373,7 @@ impl Render for DevicesPage {
                                     .size(px(14.0))
                                     .text_color(theme.text_muted),
                             )
-                            .child(SharedString::from("Rename")),
+                            .child(SharedString::from(crate::i18n::t("Rename"))),
                     )
                     .into_any_element()
             })
@@ -388,7 +388,7 @@ impl Render for DevicesPage {
                     .text_center()
                     .text_size(px(14.0))
                     .text_color(theme.text_muted.opacity(0.6))
-                    .child(SharedString::from("No devices registered")),
+                    .child(SharedString::from(crate::i18n::t("No devices registered"))),
             )
         } else {
             card.children(rows)

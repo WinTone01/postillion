@@ -192,7 +192,7 @@ impl Render for ShortcutsPage {
                                 this.recording = None;
                                 this.commit(cx);
                             }))
-                            .child(SharedString::from("Reset")),
+                            .child(SharedString::from(crate::i18n::t("Reset"))),
                     )
                 })
                 .child(
@@ -304,7 +304,7 @@ impl Render for ShortcutsPage {
                                             .size(px(14.0))
                                             .text_color(theme.text_muted),
                                     )
-                                    .child(SharedString::from("Restore defaults"))
+                                    .child(SharedString::from(crate::i18n::t("Restore defaults")))
                             }),
                     )
                     .child(widgets::section_card(&theme).mt(px(32.0)).children(rows))

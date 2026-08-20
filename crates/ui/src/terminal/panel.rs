@@ -1374,7 +1374,7 @@ impl Render for TerminalPanel {
                 .justify_center()
                 .text_size(px(12.0))
                 .text_color(theme.text_faint)
-                .child(SharedString::from("Select a chat to open a terminal"))
+                .child(SharedString::from(crate::i18n::t("Select a chat to open a terminal")))
                 .into_any_element();
         };
         let focused = self.focus_handle.is_focused(window);

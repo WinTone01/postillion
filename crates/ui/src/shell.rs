@@ -3321,7 +3321,7 @@ impl Shell {
                             .text_size(px(11.0))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(theme.text_muted.opacity(0.6))
-                            .child(SharedString::from("Settings")),
+                            .child(SharedString::from(crate::i18n::t("Settings"))),
                     )
                     .child(div().flex().flex_col().gap(px(2.0)).children(
                         SettingsSection::ALL.into_iter().map(|item| {
@@ -3385,7 +3385,7 @@ impl Shell {
                                 .size(px(16.0))
                                 .text_color(theme.text_muted),
                         )
-                        .child(SharedString::from("Back")),
+                        .child(SharedString::from(crate::i18n::t("Back"))),
                 ),
             )
             .into_any_element()
@@ -3863,7 +3863,7 @@ impl Shell {
                 let line: SharedString = user
                     .as_ref()
                     .map(|u| u.name.clone().unwrap_or_else(|| u.email.clone()).into())
-                    .unwrap_or_else(|| SharedString::from("Not signed in"));
+                    .unwrap_or_else(|| SharedString::from(crate::i18n::t("Not signed in")));
                 let email = user
                     .as_ref()
                     .map(|u| SharedString::from(u.email.clone()))
@@ -3926,7 +3926,7 @@ impl Shell {
                                     .pb(px(Theme::SPACE_SM))
                                     .text_size(px(12.0))
                                     .text_color(theme.text_faint)
-                                    .child(SharedString::from("No sessions yet"))
+                                    .child(SharedString::from(crate::i18n::t("No sessions yet")))
                                     .into_any_element()
                             })
                             .children(archived_section),
@@ -4251,7 +4251,7 @@ impl Shell {
                                         .size(px(16.0))
                                         .text_color(theme.text_muted),
                                 )
-                                .child(SharedString::from("Enable sync"))
+                                .child(SharedString::from(crate::i18n::t("Enable sync")))
                                 .into_any_element()
                         }
                         AccountMenuAction::SyncInProgress => {
@@ -4263,7 +4263,7 @@ impl Shell {
                                         .size(px(16.0))
                                         .text_color(theme.text_muted),
                                 )
-                                .child(SharedString::from("Sync setup in progress"))
+                                .child(SharedString::from(crate::i18n::t("Sync setup in progress")))
                                 .into_any_element()
                         }
                         AccountMenuAction::RestartPending => {
@@ -4275,7 +4275,7 @@ impl Shell {
                                         .size(px(16.0))
                                         .text_color(theme.text_muted),
                                 )
-                                .child(SharedString::from("Finish sync setup"))
+                                .child(SharedString::from(crate::i18n::t("Finish sync setup")))
                                 .into_any_element()
                         }
                         AccountMenuAction::SignOut => {
@@ -4287,7 +4287,7 @@ impl Shell {
                                         .size(px(16.0))
                                         .text_color(theme.text_muted),
                                 )
-                                .child(SharedString::from("Sign out"))
+                                .child(SharedString::from(crate::i18n::t("Sign out")))
                                 .into_any_element()
                         }
                     };
@@ -4304,7 +4304,7 @@ impl Shell {
                                 .size(px(16.0))
                                 .text_color(theme.text_muted),
                         )
-                        .child(SharedString::from("Settings")),
+                        .child(SharedString::from(crate::i18n::t("Settings"))),
                 )
                 .into_any_element();
             trigger = trigger.child(popover::anchored_menu_above(
@@ -4724,7 +4724,7 @@ impl Shell {
                             this.open_rename_chat(rename_id.clone(), cx)
                         }))
                         .child(icon(icons::PEN).size(px(16.0)).text_color(theme.text_muted))
-                        .child(SharedString::from("Rename…")),
+                        .child(SharedString::from(crate::i18n::t("Rename…"))),
                 )
                 .child(
                     popover::menu_row(&theme, false, format!("chat-menu-archive-{chat_id}"))
@@ -4737,7 +4737,7 @@ impl Shell {
                                 .size(px(16.0))
                                 .text_color(theme.text_muted),
                         )
-                        .child(SharedString::from("Archive")),
+                        .child(SharedString::from(crate::i18n::t("Archive"))),
                 )
                 .child(popover::menu_separator())
                 .child(
@@ -4754,7 +4754,7 @@ impl Shell {
                                 .size(px(16.0))
                                 .text_color(theme.danger),
                         )
-                        .child(SharedString::from("Delete…")),
+                        .child(SharedString::from(crate::i18n::t("Delete…"))),
                 )
                 .into_any_element();
             overlays.push(popover::menu_at(
@@ -4967,7 +4967,7 @@ impl Shell {
                                 .text_size(px(16.0))
                                 .font_weight(gpui::FontWeight::MEDIUM)
                                 .text_color(theme.text)
-                                .child(SharedString::from("Add a project to get started")),
+                                .child(SharedString::from(crate::i18n::t("Add a project to get started"))),
                         )
                         .child(
                             div()
@@ -5247,7 +5247,7 @@ impl Shell {
                         div()
                             .text_size(px(13.0))
                             .text_color(theme.text)
-                            .child(SharedString::from("Scroll to bottom")),
+                            .child(SharedString::from(crate::i18n::t("Scroll to bottom"))),
                     ),
             );
         // Frost OUTSIDE the entry animation (the composer pill's exact
@@ -5387,7 +5387,7 @@ impl Shell {
             Indicator::AwaitingInput => strip.into_any_element(),
             Indicator::Errored => strip
                 .text_color(theme.danger)
-                .child(SharedString::from("Run failed"))
+                .child(SharedString::from(crate::i18n::t("Run failed")))
                 .into_any_element(),
             Indicator::None if sending => strip
                 .child(loaders::gradient_spinner(
@@ -5401,7 +5401,7 @@ impl Shell {
                     div()
                         .text_size(px(12.0))
                         .text_color(theme.text_muted)
-                        .child(SharedString::from("Sending…")),
+                        .child(SharedString::from(crate::i18n::t("Sending…"))),
                 )
                 .into_any_element(),
             Indicator::None => strip.into_any_element(),
@@ -5600,7 +5600,7 @@ impl Shell {
                             .text_size(px(13.0))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(text)
-                            .child(SharedString::from("Open a surface")),
+                            .child(SharedString::from(crate::i18n::t("Open a surface"))),
                     )
                     .child(
                         div()
@@ -5674,7 +5674,7 @@ impl Shell {
                     .text_size(px(18.0))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .text_color(theme.text)
-                    .child(SharedString::from("Signed out")),
+                    .child(SharedString::from(crate::i18n::t("Signed out"))),
             )
             .child(
                 div()
@@ -6042,7 +6042,7 @@ impl Shell {
                                         .size(px(13.0))
                                         .text_color(theme.text_muted),
                                 )
-                                .child(SharedString::from("Terminal")),
+                                .child(SharedString::from(crate::i18n::t("Terminal"))),
                         )
                         .child(
                             popover::menu_row(&theme, false, "right-plus-diff")
@@ -6059,7 +6059,7 @@ impl Shell {
                                 // "Git", not "Git diff" — the surface hosts
                                 // history and per-commit views too (user
                                 // request; matches the picker card).
-                                .child(SharedString::from("Git")),
+                                .child(SharedString::from(crate::i18n::t("Git"))),
                         ),
                 )
                 .into_any_element();
@@ -6163,7 +6163,7 @@ impl Shell {
                         .cursor_pointer()
                         .hover(|s| s.bg(theme.glass_hover()))
                         .on_click(cx.listener(|this, _, _, cx| this.retry_engine(cx)))
-                        .child(SharedString::from("Retry")),
+                        .child(SharedString::from(crate::i18n::t("Retry"))),
                 )
                 .into_any_element(),
             // Login card (zeron App.tsx Gate): centered card on the grid —
@@ -6193,7 +6193,7 @@ impl Shell {
                         .text_size(px(18.0))
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .text_color(theme.text)
-                        .child(SharedString::from("Log in to Zeron")),
+                        .child(SharedString::from(crate::i18n::t("Log in to Zeron"))),
                 )
                 .child(
                     div()
@@ -6222,7 +6222,7 @@ impl Shell {
                         .cursor_pointer()
                         .hover(|s| s.opacity(0.9))
                         .on_click(cx.listener(|this, _, _, cx| this.start_sign_in(cx)))
-                        .child(SharedString::from("Log in")),
+                        .child(SharedString::from(crate::i18n::t("Log in"))),
                 )
                 .into_any_element(),
         };
@@ -6299,7 +6299,7 @@ impl Shell {
                                 .cursor_pointer()
                                 .hover(|s| s.bg(theme.glass_hover()))
                                 .on_click(cx.listener(|this, _, _, cx| this.load_orgs(cx)))
-                                .child(SharedString::from("Retry")),
+                                .child(SharedString::from(crate::i18n::t("Retry"))),
                         ),
                     )
                     .into_any_element(),
@@ -6379,7 +6379,7 @@ impl Shell {
                     .text_size(px(18.0))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .text_color(theme.text)
-                    .child(SharedString::from("Create your workspace")),
+                    .child(SharedString::from(crate::i18n::t("Create your workspace"))),
             )
             .child(
                 div()

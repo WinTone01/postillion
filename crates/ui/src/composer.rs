@@ -5400,7 +5400,7 @@ impl Composer {
                                 .mt(px(4.0))
                                 .text_size(px(12.0))
                                 .text_color(theme.text_muted.opacity(0.65))
-                                .child(SharedString::from("Select one or more options.")),
+                                .child(SharedString::from(crate::i18n::t("Select one or more options."))),
                         )
                     })
                     .child(
