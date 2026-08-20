@@ -199,9 +199,14 @@ async fn happy_path_normalizes_events_and_tags_subagents() {
     // Informational rate-limit frames stay quiet.
     assert!(!events.iter().any(|e| matches!(e, AgentEvent::Error { .. })));
 
+    // Baglam, uc kalemin toplami: 10 girdi + 30 onbellege yazilan + 600
+    // onbellekten okunan. Yalnizca `input_tokens`'a bakmak 10 derdi, yani
+    // gercek baglamin %1,5'i — gosterge ve otomatik sikistirma esigi bu yuzden
+    // toplami kullaniyor.
     assert!(events.contains(&AgentEvent::Usage {
         input_tokens: 10,
-        output_tokens: 20
+        output_tokens: 20,
+        context_tokens: 640,
     }));
     assert_eq!(
         events.last(),

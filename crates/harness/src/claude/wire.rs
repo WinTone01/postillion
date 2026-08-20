@@ -159,6 +159,24 @@ pub(crate) struct UsageBody {
     pub input_tokens: u64,
     #[serde(default)]
     pub output_tokens: u64,
+    /// Bu turda önbelleğe yazılan bağlam.
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    /// Bu turda önbellekten okunan bağlam.
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
+}
+
+impl UsageBody {
+    /// Turda modele giden toplam bağlam.
+    ///
+    /// Üç kalemin toplamı, çünkü tek başına `input_tokens` yanıltıcı: bağlamın
+    /// neredeyse tamamı önbellekten geliyor ve o alan hemen her turda sıfıra
+    /// yakın kalıyor. Ölçüldü — 656k token'lık bir konuşmada `input_tokens` 2
+    /// iken `cache_read_input_tokens` 656.190'dı.
+    pub fn context_tokens(&self) -> u64 {
+        self.input_tokens + self.cache_creation_input_tokens + self.cache_read_input_tokens
+    }
 }
 
 /// A CLI→client control request (`can_use_tool` is the one we act on).

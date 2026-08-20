@@ -851,6 +851,8 @@ fn map_shim_frame(frame: &Value, interrupted: bool) -> Vec<AgentEvent> {
         "usage" => vec![AgentEvent::Usage {
             input_tokens: frame.get("input").and_then(Value::as_u64).unwrap_or(0),
             output_tokens: frame.get("output").and_then(Value::as_u64).unwrap_or(0),
+            // Cursor önbellek kalemlerini bildirmiyor; sıfır "bilinmiyor".
+            context_tokens: 0,
         }],
         "turn" => {
             let status = frame.get("status").and_then(Value::as_str).unwrap_or("");

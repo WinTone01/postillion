@@ -310,6 +310,14 @@ pub enum AgentEvent {
     Usage {
         input_tokens: u64,
         output_tokens: u64,
+        /// Turda modele giden toplam bağlam (girdi + önbelleğe yazılan +
+        /// önbellekten okunan).
+        ///
+        /// Maliyetin asıl sürücüsü bu: her tur bağlamın tamamını yeniden
+        /// okuyor. Bağlam göstergesi ve otomatik sıkıştırma eşiği bunu
+        /// kullanıyor. Alanı taşımayan eski kayıtlarda sıfır.
+        #[serde(default)]
+        context_tokens: u64,
     },
     /// The agent advertised (or changed) its slash-command set — ACP
     /// `available_commands_update`. The engine caches the latest list per
