@@ -52,7 +52,7 @@ use tokio::io::AsyncBufReadExt;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 
-use zeron_proto::{
+use postillion_proto::{
     AgentEvent, DoneStatus, HarnessId, Model, ReasoningLevel, RunRequest, SlashCommand,
     SteeringMode, UserInputAnswer, UserInputQuestion,
 };
@@ -327,7 +327,7 @@ impl Harness for CodexHarness {
         // sidesteps codex ≤0.144.x's workspace-write bug where a linked
         // worktree on a slash-named branch derives a malformed mount that
         // kills every command.
-        request.sandbox = zeron_proto::SandboxLevel::DangerFullAccess;
+        request.sandbox = postillion_proto::SandboxLevel::DangerFullAccess;
         let mut cmd = Command::new(&exe);
         cmd.arg("app-server");
         crate::compose_child_path(&mut cmd, &exe);
@@ -360,7 +360,7 @@ impl Harness for CodexHarness {
             tokio::spawn(async move {
                 let mut lines = tokio::io::BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    tracing::debug!(target: "zeron_harness::codex", "stderr: {line}");
+                    tracing::debug!(target: "postillion_harness::codex", "stderr: {line}");
                     tail.push(&line);
                 }
             });
@@ -557,7 +557,7 @@ async fn run_session(session: Session) {
                 // A missing/foreign rollout falls back to a fresh thread.
                 Err(e) => {
                     tracing::debug!(
-                        target: "zeron_harness::codex",
+                        target: "postillion_harness::codex",
                         "thread/resume failed (starting fresh): {e}"
                     );
                     client
@@ -1139,7 +1139,7 @@ async fn run_session(session: Session) {
                             // fallback for older Codex without steering).
                             Err(e) => {
                                 tracing::debug!(
-                                    target: "zeron_harness::codex",
+                                    target: "postillion_harness::codex",
                                     "turn/steer rejected (queued as next turn): {e}"
                                 );
                                 if router.active.as_deref() == Some(expected.as_str())
@@ -1196,7 +1196,7 @@ async fn run_session(session: Session) {
                             .await
                         {
                             tracing::debug!(
-                                target: "zeron_harness::codex",
+                                target: "postillion_harness::codex",
                                 "turn/interrupt failed (escalation will reap): {e}"
                             );
                         }
@@ -1354,7 +1354,7 @@ fn handle_server_request(
     );
     if !is_approval {
         tracing::debug!(
-            target: "zeron_harness::codex",
+            target: "postillion_harness::codex",
             "unhandled server request: {method}"
         );
         client.respond_error(&id, -32601, &format!("unsupported method: {method}"));

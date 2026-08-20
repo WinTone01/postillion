@@ -24,12 +24,12 @@ use gpui::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-use zeron_doc::{MessagePart, MessageRole, SessionCommandPayload, SessionMessageEntry};
-use zeron_proto::{
+use postillion_doc::{MessagePart, MessageRole, SessionCommandPayload, SessionMessageEntry};
+use postillion_proto::{
     FileSearchMatch, HarnessId, RunRequest, SandboxLevel, SlashCommand, UserInputAnswer,
     UserInputQuestion,
 };
-use zeron_rpc::{RpcError, methods};
+use postillion_rpc::{RpcError, methods};
 
 use crate::attachments::{self, StagedAttachment};
 use crate::motion;
@@ -3293,8 +3293,8 @@ fn mention_error_message(err: &RpcError) -> SharedString {
         RpcError::UnknownMethod(_) => {
             "The session's device runs an older zeron — update it to search its files".into()
         }
-        RpcError::Transport(_) | RpcError::Closed => "The session's device is unreachable".into(),
-        RpcError::BadParams(_) | RpcError::Failed(_) => "File search failed".into(),
+        RpcError::Transport(_) | RpcError::Closed => crate::i18n::t("The session's device is unreachable").into(),
+        RpcError::BadParams(_) | RpcError::Failed(_) => crate::i18n::t("File search failed").into(),
     }
 }
 
@@ -3304,9 +3304,9 @@ fn slash_error_message(err: &RpcError) -> SharedString {
         RpcError::UnknownMethod(_) => {
             "The session's device runs an older zeron — update it to list commands".into()
         }
-        RpcError::Transport(_) | RpcError::Closed => "The session's device is unreachable".into(),
+        RpcError::Transport(_) | RpcError::Closed => crate::i18n::t("The session's device is unreachable").into(),
         RpcError::BadParams(_) | RpcError::Failed(_) => {
-            "Couldn't load this agent's commands".into()
+            crate::i18n::t("Couldn't load this agent's commands").into()
         }
     }
 }
@@ -3329,7 +3329,7 @@ pub struct Composer {
     /// gets focus back on close.
     preview_focus: FocusHandle,
     /// Focus grab deferred to the next render (open sites don't all have a
-    /// `Window` — the `ZERON_ATTACH_PREVIEW` boot knob opens in `new`).
+    /// `Window` — the `POSTILLION_ATTACH_PREVIEW` boot knob opens in `new`).
     preview_focus_pending: bool,
     /// In-flight file-picker prompt (paperclip).
     picker_task: Option<Task<()>>,
@@ -3404,7 +3404,7 @@ impl Composer {
 
     pub fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
         let input = cx.new(|cx| {
-            let mut input = ComposerInput::new("Do anything…", cx);
+            let mut input = ComposerInput::new(crate::i18n::t("Do anything…"), cx);
             input.enable_mentions();
             input
         });
@@ -3495,9 +3495,9 @@ impl Composer {
             _input_events: input_events,
         };
         // Dev knob: pre-stage attachments (drop/paste can't be synthesized on
-        // a rig) — `ZERON_ATTACH=/path/a.png[,/path/b.png]`, and
-        // `ZERON_ATTACH_PREVIEW=1` boots with the first one's lightbox open.
-        if let Ok(spec) = std::env::var("ZERON_ATTACH") {
+        // a rig) — `POSTILLION_ATTACH=/path/a.png[,/path/b.png]`, and
+        // `POSTILLION_ATTACH_PREVIEW=1` boots with the first one's lightbox open.
+        if let Ok(spec) = std::env::var("POSTILLION_ATTACH") {
             let staged: Vec<StagedAttachment> = spec
                 .split(',')
                 .filter(|s| !s.trim().is_empty())
@@ -3505,13 +3505,13 @@ impl Composer {
                     match attachments::stage_file(std::path::Path::new(path.trim())) {
                         Ok(att) => Some(att),
                         Err(err) => {
-                            tracing::warn!(%path, error = %err, "ZERON_ATTACH stage failed");
+                            tracing::warn!(%path, error = %err, "POSTILLION_ATTACH stage failed");
                             None
                         }
                     }
                 })
                 .collect();
-            if std::env::var("ZERON_ATTACH_PREVIEW").is_ok_and(|v| v == "1")
+            if std::env::var("POSTILLION_ATTACH_PREVIEW").is_ok_and(|v| v == "1")
                 && let Some(first) = staged.first()
             {
                 composer.preview = Some(attachments::PreviewImage {
@@ -3531,7 +3531,7 @@ impl Composer {
         composer
     }
 
-    /// Capture-knob passthrough (`ZERON_OPEN_DIALOG=model`): open the
+    /// Capture-knob passthrough (`POSTILLION_OPEN_DIALOG=model`): open the
     /// combined harness/model menu.
     pub fn debug_open_model_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.pickers
@@ -3738,7 +3738,7 @@ impl Composer {
             files: true,
             directories: false,
             multiple: true,
-            prompt: Some("Attach".into()),
+            prompt: Some(crate::i18n::t("Attach").into()),
         });
         self.picker_task = Some(cx.spawn(async move |this, cx| {
             if let Ok(Ok(Some(paths))) = rx.await {
@@ -3988,9 +3988,9 @@ impl Composer {
                     .text_size(px(12.0))
                     .text_color(theme.text_muted)
                     .child(if token.query.is_empty() {
-                        "No files available"
+                        crate::i18n::t("No files available")
                     } else {
-                        "No matching files"
+                        crate::i18n::t("No matching files")
                     }),
             );
         } else {
@@ -4273,9 +4273,9 @@ impl Composer {
                     .text_size(px(12.0))
                     .text_color(theme.text_muted)
                     .child(if commands.is_empty() {
-                        "This agent has no slash commands"
+                        crate::i18n::t("This agent has no slash commands")
                     } else {
-                        "No matching commands"
+                        crate::i18n::t("No matching commands")
                     }),
             );
         } else {
@@ -4399,7 +4399,7 @@ impl Composer {
                     self.advance_task = None;
                     // The shared input becomes the panel's free-text override.
                     self.input.update(cx, |input, cx| {
-                        input.set_placeholder("Type your own answer, or pick an option above", cx)
+                        input.set_placeholder(crate::i18n::t("Type your own answer, or pick an option above"), cx)
                     });
                 }
             }
@@ -4422,7 +4422,7 @@ impl Composer {
                         self.wizard = None;
                         self.advance_task = None;
                         self.input
-                            .update(cx, |input, cx| input.set_placeholder("Do anything…", cx));
+                            .update(cx, |input, cx| input.set_placeholder(crate::i18n::t("Do anything…"), cx));
                     }
                 }
             }
@@ -4487,7 +4487,7 @@ impl Composer {
     /// reasoning / options on the Run request itself (§1.7).
     fn send(&mut self, text: String, steer: bool, cx: &mut Context<Self>) {
         let Some(engine) = self.state.read(cx).engine().cloned() else {
-            self.failure = Some("Engine not connected".into());
+            self.failure = Some(crate::i18n::t("Engine not connected").into());
             self.failure_key = None; // global — meaningful on every chat
             cx.notify();
             return;
@@ -4655,7 +4655,7 @@ impl Composer {
         // so the doc frame dedups it away).
         let echo = SessionMessageEntry {
             id: message_id.clone(),
-            role: zeron_doc::MessageRole::User,
+            role: postillion_doc::MessageRole::User,
             parts: vec![MessagePart::Text {
                 id: "t0".into(),
                 text: echo_text.clone(),
@@ -4738,7 +4738,7 @@ impl Composer {
                         .await
                         {
                             tracing::warn!(name = %att.name, error = %err, "local attachment stage failed");
-                            return Err("Couldn't stage the attachment locally.".to_string());
+                            return Err(crate::i18n::t("Couldn't stage the attachment locally.").to_string());
                         }
                         transfers.push(serde_json::json!({
                             "uploadId": upload_id,
@@ -4776,7 +4776,7 @@ impl Composer {
                             Err(err) => {
                                 tracing::warn!(name = %att.name, error = %err, "attachment upload failed");
                                 return Err(
-                                    "Couldn't upload the attachment — the device may be offline."
+                                    crate::i18n::t("Couldn't upload the attachment — the device may be offline.")
                                         .to_string(),
                                 );
                             }
@@ -4798,7 +4798,7 @@ impl Composer {
                     // without flickering).
                     let refreshed = SessionMessageEntry {
                         id: message_id.clone(),
-                        role: zeron_doc::MessageRole::User,
+                        role: postillion_doc::MessageRole::User,
                         parts: vec![MessagePart::Text {
                             id: "t0".into(),
                             text: content.clone(),
@@ -4840,7 +4840,7 @@ impl Composer {
                 // a blocking CreateWorktree relay RPC here: the RPC had no
                 // timeout, so a lost relay frame wedged the send on "Sending…"
                 // forever while the session ran remotely anyway (2026-08-18).
-                let mut run_worktree: Option<zeron_proto::WorktreeSpec> = None;
+                let mut run_worktree: Option<postillion_proto::WorktreeSpec> = None;
                 // The picked ref rides createChat so the session footer names
                 // it from the first frame (it read "Select ref" until the
                 // host's diff reconciler got around to stamping the branch).
@@ -4873,7 +4873,7 @@ impl Composer {
                                 // current checkout state.
                                 let base =
                                     base.clone().unwrap_or_else(|| "HEAD".to_string());
-                                run_worktree = Some(zeron_proto::WorktreeSpec {
+                                run_worktree = Some(postillion_proto::WorktreeSpec {
                                     repo_path: repo_path.clone(),
                                     base,
                                 });
@@ -5109,7 +5109,7 @@ impl Composer {
                 if has_pick {
                     "Type your own answer, or leave this blank to use the selected option"
                 } else {
-                    "Type your own answer, or pick an option above"
+                    crate::i18n::t("Type your own answer, or pick an option above")
                 },
                 cx,
             )
@@ -5163,7 +5163,7 @@ impl Composer {
         self.input.update(cx, |input, cx| {
             input.set_text("", cx);
             // The panel borrowed the composer input; hand back its identity.
-            input.set_placeholder("Do anything…", cx);
+            input.set_placeholder(crate::i18n::t("Do anything…"), cx);
         });
         let Some(engine) = self.state.read(cx).engine().cloned() else {
             return;
@@ -5434,7 +5434,7 @@ impl Composer {
                     .pb(px(16.0))
                     .pt(px(4.0))
                     .child(if page > 0 {
-                        crate::popover::btn_ghost(&theme, "Back", "wizard-back")
+                        crate::popover::btn_ghost(&theme, crate::i18n::t("Back"), "wizard-back")
                             .id("wizard-back")
                             .on_click(cx.listener(|this, _, _, cx| this.wizard_back(cx)))
                             .into_any_element()
@@ -5442,7 +5442,7 @@ impl Composer {
                         gpui::Empty.into_any_element()
                     })
                     .child(
-                        crate::popover::btn_primary(&theme, if last { "Submit" } else { "Next" })
+                        crate::popover::btn_primary(&theme, if last { crate::i18n::t("Submit") } else { crate::i18n::t("Next") })
                             .id("wizard-submit")
                             .px(px(16.0))
                             .when(!can_advance, |el| el.opacity(0.4))
@@ -5639,7 +5639,7 @@ impl Render for Composer {
         // UP FRONT that a send will queue (a durable local write delivered on
         // reconnect) instead of letting the button imply instant delivery.
         let queue_notice: Option<(SharedString, bool)> = {
-            use zeron_proto::ConnectivityState as S;
+            use postillion_proto::ConnectivityState as S;
             let state = self.state.read(cx);
             let degraded = match state.selected_chat.as_deref() {
                 Some(id) => state.chat_delivery_degraded(id),
@@ -5658,9 +5658,9 @@ impl Render for Composer {
             let offline = state.connectivity.state == S::Offline;
             degraded.then(|| {
                 let text: SharedString = if offline {
-                    "Offline — messages will send when you're back online.".into()
+                    crate::i18n::t("Offline — messages will send when you're back online.").into()
                 } else {
-                    "Messages will send once the connection recovers.".into()
+                    crate::i18n::t("Messages will send once the connection recovers.").into()
                 };
                 (text, offline)
             })
@@ -5682,7 +5682,11 @@ impl Render for Composer {
                 // DangerTriangle — a subtle tinted wash, not a bare red
                 // stroke. Amber for the offline-ish case (engine not
                 // connected), red for send/run failures. Click dismisses.
-                let offline = message.as_ref() == "Engine not connected";
+                // Her iki taraf da `t()`'ten geçmeli: değer çevrilmiş olarak saklanıyor
+                // ve ham İngilizce ile karşılaştırmak Türkçe yerelde bu dalı
+                // sessizce ıskalayıp çevrimdışı uyarısını hata gibi (kehribar
+                // yerine kırmızı) boyuyordu.
+                let offline = message.as_ref() == crate::i18n::t("Engine not connected");
                 let (border_c, wash, text_c) = if offline {
                     let amber = theme.warning; // amber-400
                     let amber_200 = theme.warning_muted;
@@ -5766,7 +5770,7 @@ impl Render for Composer {
         // grok already finished").
         let steer_queues = mode == SendButtonMode::Steer
             && self.pickers.read(cx).resolved_steering_mode(cx)
-                == Some(zeron_proto::SteeringMode::TurnBoundary);
+                == Some(postillion_proto::SteeringMode::TurnBoundary);
         let container = container.when(steer_queues, |el| {
             el.child(
                 div()
@@ -6720,7 +6724,7 @@ mod tests {
 
     #[test]
     fn pending_input_detection() {
-        use zeron_doc::MessageStatus;
+        use postillion_doc::MessageStatus;
         let input_part = MessagePart::Input {
             id: "in-r1".into(),
             request_id: "r1".into(),

@@ -9,18 +9,18 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 
-use zeron_doc::{
+use postillion_doc::{
     MessagePart, MessageRole, MessageStatus, SegmentWriter, SessionCommandEntry,
     SessionCommandPayload, SessionCommandStatus, SessionDoc, SessionMessageEntry,
 };
-use zeron_engine::{EngineCore, HarnessRegistry, RunJournal};
-use zeron_harness::mock::MockHarness;
-use zeron_harness::{Harness, HarnessError, RunControls};
-use zeron_proto::{
+use postillion_engine::{EngineCore, HarnessRegistry, RunJournal};
+use postillion_harness::mock::MockHarness;
+use postillion_harness::{Harness, HarnessError, RunControls};
+use postillion_proto::{
     AgentEvent, DoneStatus, HarnessId, Model, ReasoningLevel, RunRequest, SandboxLevel,
     SessionStatus, SteeringMode, ToolCall,
 };
-use zeron_sync::DocsStore;
+use postillion_sync::DocsStore;
 
 const CHAT: &str = "chat-e2e";
 const VIEWER: &str = "viewer-device";
@@ -156,7 +156,7 @@ fn queue_as_viewer(doc: &SessionDoc, id: &str, payload: SessionCommandPayload) {
         doc.read_entries()
             .expect("read entries")
             .last()
-            .map(|m| zeron_doc::CommandBasedOn {
+            .map(|m| postillion_doc::CommandBasedOn {
                 turn_id: Some(m.id.clone()),
                 frontier: None,
             });
@@ -582,9 +582,9 @@ async fn processed_commands_are_skipped_on_redelivery() {
     let entry = commands.iter().find(|c| c.id == "cmd-crashed").unwrap();
     let is_processed = |id: &str| store.is_processed(id).unwrap_or(false);
     let never_past = |_: &str| false;
-    let verdict = zeron_doc::evaluate_command(
+    let verdict = postillion_doc::evaluate_command(
         entry,
-        &zeron_doc::EvaluationContext {
+        &postillion_doc::EvaluationContext {
             is_processed: &is_processed,
             now_ms: chrono::Utc::now().timestamp_millis(),
             entries: &commands,
@@ -592,7 +592,7 @@ async fn processed_commands_are_skipped_on_redelivery() {
             turn_is_past: &never_past,
         },
     );
-    assert_eq!(verdict, zeron_doc::CommandDisposition::Skip);
+    assert_eq!(verdict, postillion_doc::CommandDisposition::Skip);
 }
 
 /// The v0.2.12 field report: a send whose command was consumed by the ledger
@@ -768,17 +768,17 @@ async fn rpc_surface_over_in_memory_transport() {
             script: mock_script(),
         }),
     );
-    let client = zeron_rpc::memory_client(core.rpc_service());
+    let client = postillion_rpc::memory_client(core.rpc_service());
 
     // ListHarnesses + ListModels.
     let harnesses = client
-        .call(zeron_rpc::methods::LIST_HARNESSES, serde_json::Value::Null)
+        .call(postillion_rpc::methods::LIST_HARNESSES, serde_json::Value::Null)
         .await
         .unwrap();
     assert_eq!(harnesses[0]["id"], "mock");
     let models = client
         .call(
-            zeron_rpc::methods::LIST_MODELS,
+            postillion_rpc::methods::LIST_MODELS,
             serde_json::json!({"harness": "mock"}),
         )
         .await
@@ -787,7 +787,7 @@ async fn rpc_surface_over_in_memory_transport() {
 
     // WatchSessions + WatchDocMessages streams.
     let mut sessions_stream = client
-        .subscribe(zeron_rpc::methods::WATCH_SESSIONS, serde_json::Value::Null)
+        .subscribe(postillion_rpc::methods::WATCH_SESSIONS, serde_json::Value::Null)
         .await
         .unwrap();
     let first_sessions = tokio::time::timeout(Duration::from_secs(5), sessions_stream.recv())
@@ -798,7 +798,7 @@ async fn rpc_surface_over_in_memory_transport() {
 
     let mut messages_stream = client
         .subscribe(
-            zeron_rpc::methods::WATCH_DOC_MESSAGES,
+            postillion_rpc::methods::WATCH_DOC_MESSAGES,
             serde_json::json!({"chatId": CHAT}),
         )
         .await
@@ -818,7 +818,7 @@ async fn rpc_surface_over_in_memory_transport() {
     .unwrap();
     let queued = client
         .call(
-            zeron_rpc::methods::QUEUE_COMMAND,
+            postillion_rpc::methods::QUEUE_COMMAND,
             serde_json::json!({"chatId": CHAT, "command": command}),
         )
         .await
@@ -835,8 +835,8 @@ async fn rpc_surface_over_in_memory_transport() {
             .await
             .expect("doc messages before timeout")
             .expect("stream alive");
-        let frame: zeron_doc::TranscriptFrame = serde_json::from_value(item).unwrap();
-        zeron_doc::apply_transcript_frame(&mut materialized, frame).unwrap();
+        let frame: postillion_doc::TranscriptFrame = serde_json::from_value(item).unwrap();
+        postillion_doc::apply_transcript_frame(&mut materialized, frame).unwrap();
         if materialized.len() == 2 && materialized[1].status == Some(MessageStatus::Complete) {
             break materialized;
         }
@@ -893,7 +893,7 @@ async fn respond_input_resolves_pending_question() {
         ) -> Result<BoxStream<'static, Result<AgentEvent, HarnessError>>, HarnessError> {
             let (tx, rx) = tokio::sync::mpsc::channel::<Result<AgentEvent, HarnessError>>(16);
             tokio::spawn(async move {
-                let answers = (controls.request_input)(vec![zeron_proto::UserInputQuestion {
+                let answers = (controls.request_input)(vec![postillion_proto::UserInputQuestion {
                     id: "q1".into(),
                     header: "Pick".into(),
                     question: "Which one?".into(),
@@ -974,7 +974,7 @@ async fn respond_input_resolves_pending_question() {
         "cmd-answer-1",
         SessionCommandPayload::RespondInput {
             request_id,
-            answers: vec![zeron_proto::UserInputAnswer {
+            answers: vec![postillion_proto::UserInputAnswer {
                 question_id: "q1".into(),
                 labels: vec!["b".into()],
             }],
@@ -1046,7 +1046,7 @@ async fn wrong_id_respond_is_rejected_and_correct_answer_still_resumes() {
         ) -> Result<BoxStream<'static, Result<AgentEvent, HarnessError>>, HarnessError> {
             let (tx, rx) = tokio::sync::mpsc::channel::<Result<AgentEvent, HarnessError>>(16);
             tokio::spawn(async move {
-                let answers = (controls.request_input)(vec![zeron_proto::UserInputQuestion {
+                let answers = (controls.request_input)(vec![postillion_proto::UserInputQuestion {
                     id: "q1".into(),
                     header: "Pick".into(),
                     question: "Which one?".into(),
@@ -1116,7 +1116,7 @@ async fn wrong_id_respond_is_rejected_and_correct_answer_still_resumes() {
         "cmd-answer-bogus",
         SessionCommandPayload::RespondInput {
             request_id: "bogus-id".into(),
-            answers: vec![zeron_proto::UserInputAnswer {
+            answers: vec![postillion_proto::UserInputAnswer {
                 question_id: "q1".into(),
                 labels: vec!["a".into()],
             }],
@@ -1163,7 +1163,7 @@ async fn wrong_id_respond_is_rejected_and_correct_answer_still_resumes() {
         "cmd-answer-right",
         SessionCommandPayload::RespondInput {
             request_id,
-            answers: vec![zeron_proto::UserInputAnswer {
+            answers: vec![postillion_proto::UserInputAnswer {
                 question_id: "q1".into(),
                 labels: vec!["b".into()],
             }],
@@ -1237,7 +1237,7 @@ async fn interrupt_unblocks_a_run_awaiting_input() {
                     // Blocks on the question; an interrupt fails the resolver
                     // (empty answers) and cancels the token — like a real CLI
                     // being torn down, the stream then ends WITHOUT a Done.
-                    let _ = (controls.request_input)(vec![zeron_proto::UserInputQuestion {
+                    let _ = (controls.request_input)(vec![postillion_proto::UserInputQuestion {
                         id: "q1".into(),
                         header: "Pick".into(),
                         question: "Which one?".into(),
@@ -1384,7 +1384,7 @@ async fn harness_emitted_input_twin_is_dropped_and_answer_resumes() {
         ) -> Result<BoxStream<'static, Result<AgentEvent, HarnessError>>, HarnessError> {
             let (tx, rx) = tokio::sync::mpsc::channel::<Result<AgentEvent, HarnessError>>(16);
             tokio::spawn(async move {
-                let question = zeron_proto::UserInputQuestion {
+                let question = postillion_proto::UserInputQuestion {
                     id: "q1".into(),
                     header: "Pick".into(),
                     question: "Which one?".into(),
@@ -1491,7 +1491,7 @@ async fn harness_emitted_input_twin_is_dropped_and_answer_resumes() {
         "cmd-answer-twin",
         SessionCommandPayload::RespondInput {
             request_id,
-            answers: vec![zeron_proto::UserInputAnswer {
+            answers: vec![postillion_proto::UserInputAnswer {
                 question_id: "q1".into(),
                 labels: vec!["a".into()],
             }],
@@ -1589,7 +1589,7 @@ async fn attachment_upload_then_run_threads_refs_and_paths() {
             seen: seen.clone(),
         }),
     );
-    let client = zeron_rpc::memory_client(core.rpc_service());
+    let client = postillion_rpc::memory_client(core.rpc_service());
 
     // Chunked upload exactly as the composer sends it: base64 split across
     // positional UploadChunk slots, then UploadCommit → the durable path.
@@ -1599,7 +1599,7 @@ async fn attachment_upload_then_run_threads_refs_and_paths() {
     for (seq, data) in [(0, first), (1, second)] {
         client
             .call(
-                zeron_rpc::methods::UPLOAD_CHUNK,
+                postillion_rpc::methods::UPLOAD_CHUNK,
                 serde_json::json!({ "uploadId": "e2e-att", "seq": seq, "data": data }),
             )
             .await
@@ -1607,7 +1607,7 @@ async fn attachment_upload_then_run_threads_refs_and_paths() {
     }
     let committed = client
         .call(
-            zeron_rpc::methods::UPLOAD_COMMIT,
+            postillion_rpc::methods::UPLOAD_COMMIT,
             serde_json::json!({ "uploadId": "e2e-att", "fileName": "red.png" }),
         )
         .await
@@ -1672,7 +1672,7 @@ async fn attachment_upload_then_run_threads_refs_and_paths() {
     // Read-back over the same RPC surface the transcript uses.
     let chunk = client
         .call(
-            zeron_rpc::methods::READ_ATTACHMENT_CHUNK,
+            postillion_rpc::methods::READ_ATTACHMENT_CHUNK,
             serde_json::json!({ "path": path, "offset": 0 }),
         )
         .await
@@ -1687,7 +1687,7 @@ async fn attachment_upload_then_run_threads_refs_and_paths() {
 /// color — it can only know it by SEEING the inline image block (the sandbox
 /// prompt forbids opening the file). Ignored by default: needs an installed,
 /// authenticated `claude` CLI and spends real tokens.
-/// Run with: `cargo test -p zeron-engine --test e2e -- --ignored`
+/// Run with: `cargo test -p postillion-engine --test e2e -- --ignored`
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires installed+authenticated claude CLI; spends tokens"]
 async fn real_claude_sees_uploaded_image_inline() {
@@ -1700,7 +1700,7 @@ async fn real_claude_sees_uploaded_image_inline() {
 
     let core = EngineCore::assemble(
         &dir,
-        Arc::new(zeron_engine::default_registry()),
+        Arc::new(postillion_engine::default_registry()),
         HarnessId::ClaudeCode,
         None,
     )
@@ -1715,17 +1715,17 @@ async fn real_claude_sees_uploaded_image_inline() {
 
     // 8×8 solid-red PNG, uploaded exactly as the composer does.
     const RED_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CAB+GTG2wAAJP0GeGuMDBnAAAAAElFTkSuQmCC";
-    let client = zeron_rpc::memory_client(core.rpc_service());
+    let client = postillion_rpc::memory_client(core.rpc_service());
     client
         .call(
-            zeron_rpc::methods::UPLOAD_CHUNK,
+            postillion_rpc::methods::UPLOAD_CHUNK,
             serde_json::json!({ "uploadId": "real-img", "seq": 0, "data": RED_PNG_B64 }),
         )
         .await
         .expect("UploadChunk");
     let committed = client
         .call(
-            zeron_rpc::methods::UPLOAD_COMMIT,
+            postillion_rpc::methods::UPLOAD_COMMIT,
             serde_json::json!({ "uploadId": "real-img", "fileName": "swatch.png" }),
         )
         .await

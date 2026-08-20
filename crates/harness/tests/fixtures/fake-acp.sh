@@ -155,7 +155,7 @@ case "$promptline" in
   # Non-text content chunks map to nothing.
   update '{"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"x","mimeType":"image/png"}}'
   # Execute tool: pending call, then completed update with output content.
-  update '{"sessionUpdate":"tool_call","toolCallId":"t1","title":"cargo test -p zeron-harness","kind":"execute","status":"pending","rawInput":{"command":"cargo test -p zeron-harness"}}'
+  update '{"sessionUpdate":"tool_call","toolCallId":"t1","title":"cargo test -p postillion-harness","kind":"execute","status":"pending","rawInput":{"command":"cargo test -p postillion-harness"}}'
   update '{"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"   Compiling zeron-harness v0.1.21\n    Finished `dev` profile [unoptimized] in 2.41s\n     Running tests/acp.rs\n\nrunning 13 tests\ntest result: ok. 13 passed; 0 failed; 0 ignored"}}]}'
   # Edit tool resolved in one shot with an inline diff (real hunk: context,
   # line numbers, rust syntax for the transcript's diff component).
@@ -353,7 +353,7 @@ case "$promptline" in
   # Blanket dropped-reply settle, no adapter-specific evidence: content
   # streamed, no open tool, then silence — the response never comes. The
   # harness must settle off the generic quiet window (tests set
-  # ZERON_ACP_QUIET_SETTLE_MS small), well before this stream's 8s EOF.
+  # POSTILLION_ACP_QUIET_SETTLE_MS small), well before this stream's 8s EOF.
   update '{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"working"}}'
   sleep 8
   exit 0

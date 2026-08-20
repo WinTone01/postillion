@@ -124,10 +124,10 @@ pub fn conflict_owner(keymap: &KeymapConfig, id: ShortcutId, combo: &str) -> Opt
 /// `SHORTCUT_DEFINITIONS` descriptions, verbatim).
 fn description(id: ShortcutId) -> &'static str {
     match id {
-        ShortcutId::ToggleSidebar => "Show or hide sessions and settings navigation.",
-        ShortcutId::ToggleChanges => "Show or hide changes for the current session.",
-        ShortcutId::ToggleTerminal => "Show or hide the terminal for the current session.",
-        ShortcutId::NewSession => "Open a blank session canvas to start a new session.",
+        ShortcutId::ToggleSidebar => crate::i18n::t("Show or hide sessions and settings navigation."),
+        ShortcutId::ToggleChanges => crate::i18n::t("Show or hide changes for the current session."),
+        ShortcutId::ToggleTerminal => crate::i18n::t("Show or hide the terminal for the current session."),
+        ShortcutId::NewSession => crate::i18n::t("Open a blank session canvas to start a new session."),
     }
 }
 
@@ -143,7 +143,7 @@ impl Render for ShortcutsPage {
             let is_recording = recording == Some(id);
             let non_default = combo != id.default_combo();
             let chip_text: SharedString = if is_recording {
-                "Press keys…".into()
+                crate::i18n::t("Press keys…").into()
             } else {
                 display_combo(&combo).into()
             };
@@ -238,11 +238,11 @@ impl Render for ShortcutsPage {
         // Helper line stays in the muted tone even for a rejected conflict —
         // the message names the specific clash (zeron settings.shortcuts.tsx).
         let helper: SharedString = if recording.is_some() {
-            "Press Escape to cancel.".into()
+            crate::i18n::t("Press Escape to cancel.").into()
         } else if let Some(notice) = self.conflict_notice.clone() {
             notice
         } else {
-            "Shortcuts must be unique.".into()
+            crate::i18n::t("Shortcuts must be unique.").into()
         };
 
         div()
@@ -266,7 +266,7 @@ impl Render for ShortcutsPage {
                                 div()
                                     .flex()
                                     .flex_col()
-                                    .child(widgets::page_header(&theme, "Keyboard shortcuts", None))
+                                    .child(widgets::page_header(&theme, crate::i18n::t("Keyboard shortcuts"), None))
                                     .child(
                                         widgets::page_subtitle(
                                             &theme,

@@ -11,14 +11,14 @@
 use super::*;
 use crate::pickers::{breadcrumbs, browser_rows, completion_prefix_len, parent_path};
 use gpui::FocusHandle;
-use zeron_proto::{ChatIndicator, Device, DriveEntry, DriveListing, FolderListing, Space};
+use postillion_proto::{ChatIndicator, Device, DriveEntry, DriveListing, FolderListing, Space};
 
 struct ActiveChatRow {
     status: ChatIndicator,
-    chat: zeron_proto::Chat,
+    chat: postillion_proto::Chat,
     folder: String,
     branch: Option<String>,
-    change_request: Option<zeron_proto::ChangeRequestSummary>,
+    change_request: Option<postillion_proto::ChangeRequestSummary>,
 }
 
 /// The space-filter dropdown, `Some` while open. The same searchable-menu
@@ -208,7 +208,7 @@ impl Shell {
         // "PaletteSearch" context: ↑↓/⏎ stay unbound in the input and bubble
         // to the card's key handler.
         let search =
-            cx.new(|cx| ComposerInput::with_context("Search projects…", "PaletteSearch", cx));
+            cx.new(|cx| ComposerInput::with_context(crate::i18n::t("Search projects…"), "PaletteSearch", cx));
         let search_events = cx.subscribe(&search, |this: &mut Shell, _, event, cx| {
             if matches!(event, ComposerInputEvent::Edited) {
                 if let Some(menu) = this.spaces_menu.open_mut() {
@@ -665,7 +665,7 @@ impl Shell {
                 let element = self.render_chat_row(
                     chat.id.clone(),
                     transcript::single_line(
-                        &chat.title.clone().unwrap_or_else(|| "New session".into()),
+                        &chat.title.clone().unwrap_or_else(|| crate::i18n::t("New session").into()),
                     )
                     .into(),
                     time_ago,
@@ -700,7 +700,7 @@ impl Shell {
         const PAGE: usize = 25;
         let now = Utc::now();
         let filter = self.settings.space_filter.clone();
-        let rows: Vec<zeron_proto::Chat> = {
+        let rows: Vec<postillion_proto::Chat> = {
             let state = self.state.read(cx);
             state
                 .chats
@@ -723,7 +723,7 @@ impl Shell {
         // filling the middle, chevron flipping open/closed. The count only
         // shows while collapsed — expanded, the rows speak for themselves.
         let label: SharedString = if open {
-            "Archived".into()
+            crate::i18n::t("Archived").into()
         } else {
             format!("Archived ({total})").into()
         };
@@ -771,7 +771,7 @@ impl Shell {
                 let hovered = self.archived_hover.as_deref() == Some(id.as_str());
                 let is_selected = selected.as_deref() == Some(id.as_str());
                 let title: SharedString = transcript::single_line(
-                    &chat.title.clone().unwrap_or_else(|| "New session".into()),
+                    &chat.title.clone().unwrap_or_else(|| crate::i18n::t("New session").into()),
                 )
                 .into();
                 let time_ago: SharedString =
@@ -943,7 +943,7 @@ impl Shell {
         // bubble to the palette frame (`add_space_key`) instead of moving the
         // text caret — Enter and ⌘Enter are both handled there.
         let search =
-            cx.new(|cx| ComposerInput::with_context("Search folders…", "PaletteSearch", cx));
+            cx.new(|cx| ComposerInput::with_context(crate::i18n::t("Search folders…"), "PaletteSearch", cx));
         let search_events = cx.subscribe(&search, |this: &mut Shell, _, event, cx| {
             if matches!(event, ComposerInputEvent::Edited) {
                 // Typing `/` after a query that names a folder descends into
@@ -1074,7 +1074,7 @@ impl Shell {
 
     /// The current listing's folder rows filtered by the search query
     /// (prefix matches first — `popover::filter_indices`).
-    fn add_space_filtered(&self, cx: &App) -> Vec<zeron_proto::FolderEntry> {
+    fn add_space_filtered(&self, cx: &App) -> Vec<postillion_proto::FolderEntry> {
         let Some(flow) = self.add_space.as_ref() else {
             return Vec::new();
         };
@@ -1538,7 +1538,7 @@ impl Shell {
         let device_name: SharedString = device
             .as_ref()
             .map(|d| d.name.clone())
-            .unwrap_or_else(|| "This device".to_string())
+            .unwrap_or_else(|| crate::i18n::t("This device").to_string())
             .into();
         // The rail's active Locations row: the root that owns the browsed
         // path. Longest mount prefix wins; home outranks a drive covering it
@@ -1866,9 +1866,9 @@ impl Shell {
                 .text_size(px(12.5))
                 .text_color(theme.text_faint)
                 .child(SharedString::from(if query_empty {
-                    "No folders here"
+                    crate::i18n::t("No folders here")
                 } else {
-                    "No folders match"
+                    crate::i18n::t("No folders match")
                 }))
                 .into_any_element()
         } else {
@@ -2156,11 +2156,11 @@ impl Shell {
                 &theme,
                 icons::ARROW_UP,
                 icons::ARROW_DOWN,
-                "Navigate",
+                crate::i18n::t("Navigate"),
             ))
             .child(popover::key_hint(&theme, icons::ARROW_LEFT, "Up"))
-            .child(popover::key_hint(&theme, icons::ARROW_RIGHT, "Open"))
-            .child(popover::key_hint_text(&theme, "tab", "Complete"))
+            .child(popover::key_hint(&theme, icons::ARROW_RIGHT, crate::i18n::t("Open")))
+            .child(popover::key_hint_text(&theme, "tab", crate::i18n::t("Complete")))
             .when_some(error, |el, message| {
                 el.child(
                     div()
@@ -2237,7 +2237,7 @@ impl Shell {
             .space_row(&space_id)
             .map(|s| s.display_name().to_string())
             .unwrap_or_default();
-        let input = cx.new(|cx| ComposerInput::new("Project name", cx));
+        let input = cx.new(|cx| ComposerInput::new(crate::i18n::t("Project name"), cx));
         input.update(cx, |input, cx| input.set_text(current, cx));
         let events = cx.subscribe(&input, |this: &mut Shell, _, event, cx| {
             if matches!(event, ComposerInputEvent::Submitted) {
@@ -2345,7 +2345,7 @@ impl Shell {
                         cx.notify();
                     }
                 }))
-                .child(popover::dialog_title(&theme, "Rename project"))
+                .child(popover::dialog_title(&theme, crate::i18n::t("Rename project")))
                 .child(
                     div()
                         .mt(px(12.0))
@@ -2359,7 +2359,7 @@ impl Shell {
                         .justify_end()
                         .gap(px(8.0))
                         .child(
-                            popover::btn_ghost(&theme, "Cancel", "rename-space-cancel")
+                            popover::btn_ghost(&theme, crate::i18n::t("Cancel"), "rename-space-cancel")
                                 .id("rename-space-cancel")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.rename_space_dialog = None;
@@ -2367,7 +2367,7 @@ impl Shell {
                                 })),
                         )
                         .child(
-                            popover::btn_primary(&theme, "Rename")
+                            popover::btn_primary(&theme, crate::i18n::t("Rename"))
                                 .id("rename-space-save")
                                 .on_click(
                                     cx.listener(|this, _, _, cx| this.submit_rename_space(cx)),
@@ -2403,7 +2403,7 @@ impl Shell {
                 )
             };
             let card = popover::dialog_card(&theme)
-                .child(popover::dialog_title(&theme, "Remove project?"))
+                .child(popover::dialog_title(&theme, crate::i18n::t("Remove project?")))
                 .child(div().mt(px(6.0)).child(popover::dialog_body(&theme, copy)))
                 .child(
                     div()
@@ -2413,7 +2413,7 @@ impl Shell {
                         .justify_end()
                         .gap(px(8.0))
                         .child(
-                            popover::btn_ghost(&theme, "Cancel", "delete-space-cancel")
+                            popover::btn_ghost(&theme, crate::i18n::t("Cancel"), "delete-space-cancel")
                                 .id("delete-space-cancel")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.delete_space_confirm = None;
@@ -2421,7 +2421,7 @@ impl Shell {
                                 })),
                         )
                         .child(
-                            popover::btn_danger(&theme, "Remove")
+                            popover::btn_danger(&theme, crate::i18n::t("Remove"))
                                 .id("delete-space-confirm")
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.delete_space(space_id.clone(), cx)

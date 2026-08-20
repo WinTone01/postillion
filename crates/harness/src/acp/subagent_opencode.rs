@@ -28,7 +28,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 use tokio::sync::mpsc;
-use zeron_proto::{AgentEvent, DoneStatus, TodoItem, ToolCall};
+use postillion_proto::{AgentEvent, DoneStatus, TodoItem, ToolCall};
 
 use crate::HarnessError;
 
@@ -442,7 +442,7 @@ async fn bus_task(state: Arc<Mutex<OcState>>, base: String) {
         return;
     }
     tracing::debug!(
-        target: "zeron_harness::acp",
+        target: "postillion_harness::acp",
         "opencode sidecar bus never connected ({base}); subagent transcripts degrade to final output"
     );
 }

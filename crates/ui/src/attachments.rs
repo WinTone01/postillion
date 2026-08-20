@@ -26,7 +26,7 @@ use gpui::{
 
 use crate::state::EngineHandle;
 use crate::theme::ink;
-use zeron_rpc::methods;
+use postillion_rpc::methods;
 
 /// use-attachments.ts `MAX_ATTACHMENT_BYTES`.
 pub const MAX_ATTACHMENT_BYTES: u64 = 24 * 1024 * 1024;
@@ -169,7 +169,7 @@ pub fn user_message_rail_text(content: &str) -> String {
     }
     match parsed.attachments.len() {
         0 => content.to_string(),
-        1 => "Attached image".to_string(),
+        1 => crate::i18n::t("Attached image").to_string(),
         n => format!("{n} attached images"),
     }
 }

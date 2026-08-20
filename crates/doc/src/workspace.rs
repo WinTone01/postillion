@@ -22,13 +22,13 @@
 //! zeron's 15s heartbeat writes so liveness never grows the oplog.
 //!
 //! Timestamps are stored as epoch millis (the session-doc convention) and surface as
-//! `chrono::DateTime<Utc>` through the `zeron_proto` entity types.
+//! `chrono::DateTime<Utc>` through the `postillion_proto` entity types.
 
 use chrono::{DateTime, Utc};
 use loro::{ExportMode, LoroDoc, LoroMap, LoroValue, ToJson};
 use serde::{Deserialize, Serialize};
 
-use zeron_proto::{Chat, ChatConfig, Device, Session, SessionStatus, Space};
+use postillion_proto::{Chat, ChatConfig, Device, Session, SessionStatus, Space};
 
 use crate::schema::DocError;
 
@@ -711,7 +711,7 @@ impl From<RawSession> for Session {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zeron_proto::{HarnessId, SandboxLevel};
+    use postillion_proto::{HarnessId, SandboxLevel};
 
     fn ts(ms: i64) -> DateTime<Utc> {
         dt(ms)
@@ -861,7 +861,7 @@ mod tests {
         let config = ChatConfig {
             harness: HarnessId::ClaudeCode,
             model: Some("claude-fable-5".into()),
-            reasoning: Some(zeron_proto::ReasoningLevel::XHigh),
+            reasoning: Some(postillion_proto::ReasoningLevel::XHigh),
             model_options: options,
             sandbox: SandboxLevel::WorkspaceWrite,
             mcp_servers: None,

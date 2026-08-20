@@ -22,8 +22,8 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tokio::sync::mpsc;
 
-use zeron_doc::TERMINAL_OUTPUT_BATCH_MS;
-use zeron_proto::{TerminalEvent, TerminalSession};
+use postillion_doc::TERMINAL_OUTPUT_BATCH_MS;
+use postillion_proto::{TerminalEvent, TerminalSession};
 
 use crate::{EngineError, new_id};
 

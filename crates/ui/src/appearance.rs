@@ -43,9 +43,9 @@ impl AppearanceMode {
     /// Menu/label text.
     pub fn label(self) -> &'static str {
         match self {
-            Self::System => "System",
-            Self::Light => "Light",
-            Self::Dark => "Dark",
+            Self::System => crate::i18n::t("System"),
+            Self::Light => crate::i18n::t("Light"),
+            Self::Dark => crate::i18n::t("Dark"),
         }
     }
 

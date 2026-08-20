@@ -16,7 +16,7 @@
 //! Revalidate the shim against the typings on every bump.
 //!
 //! - The shim is materialized into the SDK's managed npm install
-//!   (`~/.zeron/adapters/…`, [`crate::adapter_install::ensure_installed_shim`])
+//!   (`~/.postillion/adapters/…`, [`crate::adapter_install::ensure_installed_shim`])
 //!   and spawned as `node <shim>`.
 //! - Done = the SDK run's terminal result (`turn` frame off `run.wait()` /
 //!   `turn-ended`) — a crisp turn end by construction.
@@ -46,7 +46,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::mpsc;
 
-use zeron_proto::{
+use postillion_proto::{
     AgentEvent, DoneStatus, HarnessId, Model, ModelOption, ModelOptionChoice, ReasoningLevel,
     RunRequest, SteeringMode, TodoItem, ToolCall,
 };
@@ -264,7 +264,7 @@ impl Harness for CursorHarness {
             tokio::spawn(async move {
                 let mut lines = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    tracing::debug!(target: "zeron_harness::cursor", "stderr: {line}");
+                    tracing::debug!(target: "postillion_harness::cursor", "stderr: {line}");
                     tail.push(&line);
                 }
             });
@@ -418,7 +418,7 @@ async fn stdin_writer(mut stdin: ChildStdin, mut rx: mpsc::UnboundedReceiver<Str
             stdin.flush().await
         };
         if let Err(e) = write.await {
-            tracing::debug!(target: "zeron_harness::cursor", "stdin write failed (tolerated): {e}");
+            tracing::debug!(target: "postillion_harness::cursor", "stdin write failed (tolerated): {e}");
             return;
         }
     }
@@ -487,7 +487,7 @@ async fn run_session(session: Session) {
                         continue;
                     }
                     let Ok(frame) = serde_json::from_str::<Value>(line) else {
-                        tracing::debug!(target: "zeron_harness::cursor", "unparseable shim frame (skipped)");
+                        tracing::debug!(target: "postillion_harness::cursor", "unparseable shim frame (skipped)");
                         continue;
                     };
                     match frame.get("ev").and_then(Value::as_str).unwrap_or("") {
@@ -887,7 +887,7 @@ fn map_shim_frame(frame: &Value, interrupted: bool) -> Vec<AgentEvent> {
             session_id: None,
         }],
         other => {
-            tracing::debug!(target: "zeron_harness::cursor", "unknown shim frame (skipped): {other}");
+            tracing::debug!(target: "postillion_harness::cursor", "unknown shim frame (skipped): {other}");
             Vec::new()
         }
     }

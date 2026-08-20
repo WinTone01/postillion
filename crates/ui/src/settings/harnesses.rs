@@ -19,9 +19,9 @@ use gpui::{
     px,
 };
 
-use zeron_engine::registry::{HarnessDescriptor, descriptor_enabled};
-use zeron_proto::HarnessId;
-use zeron_rpc::methods;
+use postillion_engine::registry::{HarnessDescriptor, descriptor_enabled};
+use postillion_proto::HarnessId;
+use postillion_rpc::methods;
 
 use crate::pickers::visible_harnesses;
 use crate::popover::{self, Loadable};
@@ -33,7 +33,7 @@ use crate::theme::Theme;
 /// with a description; the catalog descriptor doesn't carry one).
 pub fn blurb(harness: HarnessId) -> &'static str {
     match harness {
-        HarnessId::ClaudeCode => "Anthropic's coding agent, driven through the Claude Code CLI.",
+        HarnessId::ClaudeCode => crate::i18n::t("Anthropic's coding agent, driven through the Claude Code CLI."),
         HarnessId::Codex => "OpenAI's coding agent, driven through the Codex CLI.",
         HarnessId::Cursor => "Cursor's coding agent, driven through the cursor-agent CLI.",
         HarnessId::Grok => "xAI's Grok Build agent (grok CLI).",
@@ -282,7 +282,7 @@ impl HarnessesPage {
                 .flex()
                 .flex_col()
                 .gap(px(2.0))
-                .child(popover::menu_heading(theme, "Devices"))
+                .child(popover::menu_heading(theme, crate::i18n::t("Devices")))
                 .children(devices.into_iter().enumerate().map(|(ix, d)| {
                     let is_active = Some(d.id.as_str()) == effective.as_deref();
                     let is_local = local_id.as_deref() == Some(d.id.as_str());
@@ -468,7 +468,7 @@ impl Render for HarnessesPage {
                             .flex_row()
                             .items_center()
                             .justify_between()
-                            .child(widgets::page_header(&theme, "Agents", None))
+                            .child(widgets::page_header(&theme, crate::i18n::t("Agents"), None))
                             .child(switcher),
                     )
                     .child(

@@ -45,7 +45,7 @@ use tokio::io::AsyncBufReadExt;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 
-use zeron_proto::{
+use postillion_proto::{
     AgentEvent, DoneStatus, HarnessId, Model, ModelOption, ModelOptionChoice, ReasoningLevel,
     RunRequest, SlashCommand, SteeringMode, UserInputAnswer, UserInputQuestion,
 };
@@ -519,12 +519,12 @@ pub fn prewarm_managed_adapters() {
         handle.spawn(async move {
             match crate::adapter_install::ensure_installed(pin, bin_name, display_name).await {
                 Ok(entry) => tracing::info!(
-                    target: "zeron_harness::adapter_install",
+                    target: "postillion_harness::adapter_install",
                     adapter = %entry.display(),
                     "prewarmed {display_name} ACP adapter"
                 ),
                 Err(e) => tracing::warn!(
-                    target: "zeron_harness::adapter_install",
+                    target: "postillion_harness::adapter_install",
                     "prewarm of the {display_name} ACP adapter failed: {e}"
                 ),
             }
@@ -715,7 +715,7 @@ impl AcpHarness {
                             .await
                             {
                                 tracing::warn!(
-                                    target: "zeron_harness::adapter_install",
+                                    target: "postillion_harness::adapter_install",
                                     "background adapter install failed: {e}"
                                 );
                             }
@@ -764,7 +764,7 @@ impl AcpHarness {
             tokio::spawn(async move {
                 let mut lines = tokio::io::BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    tracing::debug!(target: "zeron_harness::acp", "stderr: {line}");
+                    tracing::debug!(target: "postillion_harness::acp", "stderr: {line}");
                     tail.push(&line);
                 }
             });
@@ -1646,7 +1646,7 @@ fn handle_server_request(
             Vec::new()
         }
         _ => {
-            tracing::debug!(target: "zeron_harness::acp", "unhandled server request: {method}");
+            tracing::debug!(target: "postillion_harness::acp", "unhandled server request: {method}");
             client.respond_error(&id, -32601, &format!("unsupported method: {method}"));
             Vec::new()
         }
@@ -1883,7 +1883,7 @@ async fn run_session(session: Session) {
                 // A missing/foreign session falls back to a fresh one.
                 Err(e) => {
                     tracing::debug!(
-                        target: "zeron_harness::acp",
+                        target: "postillion_harness::acp",
                         "session/load failed (starting fresh): {e}"
                     );
                     let new = request_draining(
@@ -1948,7 +1948,7 @@ async fn run_session(session: Session) {
             .await
             {
                 tracing::debug!(
-                    target: "zeron_harness::acp",
+                    target: "postillion_harness::acp",
                     "session/set_config_option {config_id}={payload} rejected (agent default runs): {e}"
                 );
             }
@@ -1997,7 +1997,7 @@ async fn run_session(session: Session) {
                             None => e.to_string(),
                         },
                     };
-                    tracing::warn!(target: "zeron_harness::acp", %error, "agent setup failed");
+                    tracing::warn!(target: "postillion_harness::acp", %error, "agent setup failed");
                     let _ = event_tx
                         .send(Ok(AgentEvent::Done {
                             status: DoneStatus::Errored,
@@ -2080,8 +2080,8 @@ async fn run_session(session: Session) {
     let mut prompt_seq: u64 = 0;
     let mut current_prompt_id: Option<String> = None;
     let mut completed_prompts: VecDeque<String> = VecDeque::new();
-    // `ZERON_ACP_PROMPT_STALL_MS` overrides the spec's bound; 0 disables.
-    let prompt_stall: Option<Duration> = match std::env::var("ZERON_ACP_PROMPT_STALL_MS")
+    // `POSTILLION_ACP_PROMPT_STALL_MS` overrides the spec's bound; 0 disables.
+    let prompt_stall: Option<Duration> = match std::env::var("POSTILLION_ACP_PROMPT_STALL_MS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
     {
@@ -2144,8 +2144,8 @@ async fn run_session(session: Session) {
     // Done ever comes, and the session strands Working until the engine's
     // quiesce watchdog parks it.
     //
-    // `ZERON_ACP_QUIET_SETTLE_MS` overrides; 0 disables.
-    let quiet_settle: Option<Duration> = match std::env::var("ZERON_ACP_QUIET_SETTLE_MS")
+    // `POSTILLION_ACP_QUIET_SETTLE_MS` overrides; 0 disables.
+    let quiet_settle: Option<Duration> = match std::env::var("POSTILLION_ACP_QUIET_SETTLE_MS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
     {
@@ -2499,7 +2499,7 @@ async fn run_session(session: Session) {
                         .to_owned(),
                     Err(e) => {
                         tracing::debug!(
-                            target: "zeron_harness::acp",
+                            target: "postillion_harness::acp",
                             "_session/steering failed (redelivering): {e}"
                         );
                         // Failed calls redeliver like a lost turn-end race.
@@ -2595,7 +2595,7 @@ async fn run_session(session: Session) {
                         == Some("noRunningTurn")
                     {
                         tracing::warn!(
-                            target: "zeron_harness::acp",
+                            target: "postillion_harness::acp",
                             "steering answered noRunningTurn with a prompt \
                              outstanding; arming starved-turn recovery"
                         );
@@ -2708,7 +2708,7 @@ async fn run_session(session: Session) {
                 && open_questions.load(std::sync::atomic::Ordering::SeqCst) == 0 =>
             {
                 tracing::warn!(
-                    target: "zeron_harness::acp",
+                    target: "postillion_harness::acp",
                     quiet_ms = quiet_settle.unwrap_or_default().as_millis() as u64,
                     "turn quiet past the settle window with completed output; \
                      treating the prompt response as dropped"
@@ -2731,7 +2731,7 @@ async fn run_session(session: Session) {
             ), if starve_deadline.is_some() && turn.is_some() && !interrupted => {
                 starve_deadline = None;
                 tracing::warn!(
-                    target: "zeron_harness::acp",
+                    target: "postillion_harness::acp",
                     "prompt response missing past turn-end evidence; settling \
                      the dead turn (and promoting any queued steer)"
                 );
@@ -2822,7 +2822,7 @@ async fn run_session(session: Session) {
                         // merged turn really ends. Only adapters with no
                         // verified turn-end frame pay the cancel.
                         tracing::info!(
-                            target: "zeron_harness::acp",
+                            target: "postillion_harness::acp",
                             "steer into a self-continuing session; cancelling \
                              the unowned turn before prompting"
                         );

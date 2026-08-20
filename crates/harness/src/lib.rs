@@ -1,4 +1,4 @@
-//! zeron-harness — one interface over coding agents (plus a mock for tests).
+//! postillion-harness — one interface over coding agents (plus a mock for tests).
 //!
 //! NATIVE DRIVERS speak each agent's own wire directly: Claude Code over
 //! stream-json ([`ClaudeHarness`]), Codex over the app-server JSON-RPC
@@ -17,7 +17,7 @@ use futures::stream::BoxStream;
 use tokio::sync::{mpsc, oneshot};
 pub use tokio_util::sync::CancellationToken;
 
-use zeron_proto::{
+use postillion_proto::{
     AgentEvent, HarnessId, Model, ReasoningLevel, RunRequest, SlashCommand, SteeringMode,
     UserInputAnswer, UserInputQuestion,
 };

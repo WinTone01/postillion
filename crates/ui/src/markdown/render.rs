@@ -19,7 +19,7 @@ use gpui::{
     StyledText, TextRun, UnderlineStyle, Window, canvas, div, font, point, prelude::*, px, quad,
     size,
 };
-use zeron_syntax::{HighlightKind, HighlightSpan, HighlightedDocument};
+use postillion_syntax::{HighlightKind, HighlightSpan, HighlightedDocument};
 
 use crate::theme::Theme;
 
@@ -1215,7 +1215,7 @@ mod tests {
         let theme = Theme::dark();
         let mono = font(theme.font_mono.clone());
         let line = r#"let x = "hi"; // done"#;
-        let document = zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+        let document = postillion_syntax::highlight(postillion_syntax::HighlightRequest {
             source: line,
             path: None,
             fence_tag: Some("rust"),
@@ -1237,7 +1237,7 @@ mod tests {
         let theme = Theme::dark();
         let mono = font(theme.font_mono.clone());
         let line = "let widget = build!(42);";
-        let document = zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+        let document = postillion_syntax::highlight(postillion_syntax::HighlightRequest {
             source: line,
             path: None,
             fence_tag: Some("rust"),

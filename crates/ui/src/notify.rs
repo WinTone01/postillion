@@ -19,12 +19,12 @@
 //!   desktop).
 //! - Windows: no-op for now — toasts require a registered AppUserModelID
 //!   (an installer concern); the chime still covers it.
-//! - `ZERON_DISABLE_NOTIFICATIONS` env kill-switch + the
+//! - `POSTILLION_DISABLE_NOTIFICATIONS` env kill-switch + the
 //!   `notificationsEnabled` ui-setting (checked by the caller);
 //! - failures are logged and swallowed — a missing notifier must never
 //!   bother the session flow.
 
-const DISABLE_ENV: &str = "ZERON_DISABLE_NOTIFICATIONS";
+const DISABLE_ENV: &str = "POSTILLION_DISABLE_NOTIFICATIONS";
 
 /// Post a desktop banner. Call from the main thread (the macOS native path
 /// talks to AppKit); slow paths (spawning a CLI) hop to a background thread.
@@ -63,7 +63,7 @@ fn post_impl(title: &str, body: &str) {
 /// The identity banners are attributed to — the packaged app's bundle id
 /// (`dist/macos/Info.plist`), which the center resolves to its name + icon.
 #[cfg(target_os = "macos")]
-const MACOS_BUNDLE_ID: &std::ffi::CStr = c"sh.zeron.app";
+const MACOS_BUNDLE_ID: &std::ffi::CStr = c"sh.postillion.app";
 
 /// Deliver through the app's notification center; false when the process has
 /// no bundle (dev runs — `defaultUserNotificationCenter` is nil there) and
@@ -133,8 +133,8 @@ mod delegate {
     pub(super) fn always_present() -> *mut Object {
         static DELEGATE: OnceLock<usize> = OnceLock::new();
         *DELEGATE.get_or_init(|| unsafe {
-            let mut decl = ClassDecl::new("ZeronNotifyDelegate", class!(NSObject))
-                .expect("ZeronNotifyDelegate registered twice");
+            let mut decl = ClassDecl::new("PostillionNotifyDelegate", class!(NSObject))
+                .expect("PostillionNotifyDelegate registered twice");
             decl.add_method(
                 sel!(userNotificationCenter:shouldPresentNotification:),
                 should_present as extern "C" fn(&Object, Sel, *mut Object, *mut Object) -> BOOL,
@@ -240,7 +240,7 @@ fn post_impl(title: &str, body: &str) {
         // `--` ends option parsing: session titles are model-generated, so a
         // `-`-leading one must land as the summary, not as a flag.
         let result = std::process::Command::new("notify-send")
-            .args(["--app-name=Zeron", "--", &title, &body])
+            .args(["--app-name=Postillion", "--", &title, &body])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status();

@@ -38,8 +38,8 @@ use gpui::{
     Subscription, Task, TextRun, Window, canvas, div, img, list, prelude::*, px, quad,
 };
 
-use zeron_doc::{MessagePart, MessageRole, MessageStatus, SessionMessageEntry, SubagentStatus};
-use zeron_proto::ToolCall;
+use postillion_doc::{MessagePart, MessageRole, MessageStatus, SessionMessageEntry, SubagentStatus};
+use postillion_proto::ToolCall;
 
 use crate::markdown::parser::{Block, BlockTree, IncrementalParser, parse_full};
 use crate::markdown::render::{self, RenderCache, RenderOptions};
@@ -48,7 +48,7 @@ use crate::motion::{self, AnimationExt as _, RESIZE};
 use crate::state::AppState;
 use crate::syntax_cache::{DocumentHighlightKey, SyntaxHighlightCache};
 use crate::theme::Theme;
-use zeron_syntax::LanguageId as Lang;
+use postillion_syntax::LanguageId as Lang;
 
 // ---------------------------------------------------------------------------
 // Constants (mugen ports)
@@ -272,7 +272,7 @@ pub enum ToolDetail {
     /// (chat2-sync A1). The full diff upgrades this to [`ToolDetail::Diff`]
     /// via the sidecar fetch.
     Stats {
-        stats: Arc<Vec<zeron_doc::ToolDiffStat>>,
+        stats: Arc<Vec<postillion_doc::ToolDiffStat>>,
     },
 }
 
@@ -299,8 +299,8 @@ const DETAIL_SEPARATOR: f32 = 1.0;
 /// STATS instead of inline diff text, which win the same way.
 pub fn tool_detail(
     output: Option<&str>,
-    diff: Option<&zeron_proto::ToolDiff>,
-    diff_stats: Option<&[zeron_doc::ToolDiffStat]>,
+    diff: Option<&postillion_proto::ToolDiff>,
+    diff_stats: Option<&[postillion_doc::ToolDiffStat]>,
 ) -> Option<ToolDetail> {
     if let Some(diff) = diff {
         let mut file = diff_to_file(diff);
@@ -427,10 +427,10 @@ pub fn call_block(call: &ToolCall) -> Option<ToolDetail> {
     })
 }
 
-/// Reduce an inline [`zeron_proto::ToolDiff`] to the changes pane's
+/// Reduce an inline [`postillion_proto::ToolDiff`] to the changes pane's
 /// [`crate::changes::FileDiff`]: hunks grouped with 3 context lines, dual
 /// 1-based line numbers, unified-diff hunk headers, and add/del counts.
-pub fn diff_to_file(diff: &zeron_proto::ToolDiff) -> crate::changes::FileDiff {
+pub fn diff_to_file(diff: &postillion_proto::ToolDiff) -> crate::changes::FileDiff {
     use crate::changes::{DiffLine, FileDiff, FileStatus, Hunk, LineKind};
     let old = diff.old_text.as_deref().unwrap_or("");
     let text_diff = similar::TextDiff::from_lines(old, &diff.new_text);
@@ -834,7 +834,7 @@ pub fn rows_for_entry(
                             &questions
                                 .first()
                                 .map(|q| q.header.clone())
-                                .unwrap_or_else(|| "Question".to_string()),
+                                .unwrap_or_else(|| crate::i18n::t("Question").to_string()),
                         )
                         .into();
                         rows.push(Row {
@@ -892,23 +892,23 @@ pub fn rows_for_entry(
     rows
 }
 
-/// `ZERON_FRAME_STATS=1` logs live-row render-cost percentiles (p50/p95 µs
+/// `POSTILLION_FRAME_STATS=1` logs live-row render-cost percentiles (p50/p95 µs
 /// over rolling windows of [`FRAME_STATS_WINDOW`] samples) at `warn` level —
 /// the smoothness measurement knob. Off by default; zero cost when off.
 fn frame_stats_enabled() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ENABLED
-        .get_or_init(|| std::env::var("ZERON_FRAME_STATS").is_ok_and(|v| !v.is_empty() && v != "0"))
+        .get_or_init(|| std::env::var("POSTILLION_FRAME_STATS").is_ok_and(|v| !v.is_empty() && v != "0"))
 }
 
 const FRAME_STATS_WINDOW: usize = 240;
 
-/// `ZERON_NO_RENDER_CACHE=1` bypasses the cross-frame flatten cache — the
+/// `POSTILLION_NO_RENDER_CACHE=1` bypasses the cross-frame flatten cache — the
 /// A/B knob for the frame-cost measurement above.
 fn render_cache_disabled() -> bool {
     static DISABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *DISABLED.get_or_init(|| {
-        std::env::var("ZERON_NO_RENDER_CACHE").is_ok_and(|v| !v.is_empty() && v != "0")
+        std::env::var("POSTILLION_NO_RENDER_CACHE").is_ok_and(|v| !v.is_empty() && v != "0")
     })
 }
 
@@ -1053,19 +1053,19 @@ pub fn diff_rows(old: &[Row], new: &[Row]) -> Option<(Range<usize>, usize)> {
 
 /// The ToolGroup summary line — "Ran 3 commands · edited 2 files".
 ///
-/// The rule lives in `zeron_proto::view` so the terminal viewport reports the
+/// The rule lives in `postillion_proto::view` so the terminal viewport reports the
 /// same summary; this only adapts the row model's [`ToolItem`] to it.
 pub fn tool_group_summary(tools: &[ToolItem]) -> String {
     let pairs: Vec<(ToolCall, bool)> = tools.iter().map(|t| (t.call.clone(), t.is_error)).collect();
-    zeron_proto::view::tool_group_summary(&pairs)
+    postillion_proto::view::tool_group_summary(&pairs)
 }
 
 // `single_line` and the per-kind chip label/detail are shared with the terminal
-// viewport (`zeron_proto::view`): a tool must be named identically on every
+// viewport (`postillion_proto::view`): a tool must be named identically on every
 // surface, and the one-line collapse is needed for the same reason in both (a
 // literal newline breaks gpui's ellipsis logic and would be a cursor move in a
 // cell grid).
-pub use zeron_proto::view::{single_line, tool_chip_content};
+pub use postillion_proto::view::{single_line, tool_chip_content};
 
 /// Analytic expanded-chips height — no measurement needed for the fold tween.
 pub fn chips_height(count: usize) -> f32 {
@@ -1116,7 +1116,7 @@ const FULL_OUTPUT_MAX_LINES: usize = 400;
 /// blobs render (near-)uncapped — fetching past the summary was the point.
 fn blob_detail(text: &str, is_diff: bool) -> Option<ToolDetail> {
     if is_diff {
-        let diff: zeron_proto::ToolDiff = serde_json::from_str(text).ok()?;
+        let diff: postillion_proto::ToolDiff = serde_json::from_str(text).ok()?;
         return tool_detail(None, Some(&diff), None);
     }
     let mut lines: Vec<SharedString> = text
@@ -1217,7 +1217,7 @@ pub fn format_elapsed(secs: i64) -> String {
 
 struct HighlightEntry {
     key: DocumentHighlightKey,
-    document: Option<Weak<zeron_syntax::HighlightedDocument>>,
+    document: Option<Weak<postillion_syntax::HighlightedDocument>>,
     _task: Option<Task<()>>,
 }
 
@@ -1239,7 +1239,7 @@ impl HighlightStore {
         lang: Lang,
         code: &str,
         cx: &mut Context<Transcript>,
-    ) -> Option<Arc<zeron_syntax::HighlightedDocument>> {
+    ) -> Option<Arc<postillion_syntax::HighlightedDocument>> {
         let slot_key = (row_id.clone(), block_ix);
         let document_key = DocumentHighlightKey::new(lang, code);
         if let Some(entry) = self.entries.get(&slot_key)
@@ -1268,7 +1268,7 @@ impl HighlightStore {
             let document = cx
                 .background_executor()
                 .spawn(async move {
-                    zeron_syntax::highlight(zeron_syntax::HighlightRequest {
+                    postillion_syntax::highlight(postillion_syntax::HighlightRequest {
                         source: &code,
                         path: None,
                         fence_tag: Some(match lang {
@@ -2534,7 +2534,7 @@ impl Transcript {
             let reply = crate::attachments::call_with_timeout(
                 &engine,
                 cx.background_executor(),
-                zeron_rpc::methods::FETCH_TOOL_BLOB,
+                postillion_rpc::methods::FETCH_TOOL_BLOB,
                 serde_json::json!({ "blobRef": ref_key.as_ref() }),
                 Duration::from_secs(20),
             )
@@ -2801,7 +2801,7 @@ impl Transcript {
                             // so the overlay stays live even once the trailer's
                             // 30s pending-send bridge has lapsed.
                             let pulse = motion::pulse_wave(motion::pulse_delta(
-                                &motion::ZERON_PULSE,
+                                &motion::POSTILLION_PULSE,
                                 cx.entity_id(),
                                 cx,
                             ));
@@ -2846,7 +2846,7 @@ impl Transcript {
                     .opacity(
                         0.35 + 0.4
                             * motion::pulse_wave(motion::pulse_delta(
-                                &motion::ZERON_PULSE,
+                                &motion::POSTILLION_PULSE,
                                 cx.entity_id(),
                                 cx,
                             )),
@@ -2883,7 +2883,7 @@ impl Transcript {
                 let params = serde_json::json!({ "chatId": chat_id });
                 if let Err(err) = engine
                     .client()
-                    .call(zeron_rpc::methods::RETRY_DELIVERY, params)
+                    .call(postillion_rpc::methods::RETRY_DELIVERY, params)
                     .await
                 {
                     tracing::warn!(error = %err, "delivery retry RPC failed");
@@ -3346,7 +3346,7 @@ impl Transcript {
         tree: &Arc<BlockTree>,
         only: Option<usize>,
         cx: &mut Context<Self>,
-    ) -> HashMap<usize, Option<Arc<zeron_syntax::HighlightedDocument>>> {
+    ) -> HashMap<usize, Option<Arc<postillion_syntax::HighlightedDocument>>> {
         let mut out = HashMap::new();
         for (ix, top) in tree.blocks.iter().enumerate() {
             if only.is_some_and(|o| o != ix) {
@@ -3355,7 +3355,7 @@ impl Transcript {
             if let Block::CodeBlock { language, code } = &top.block
                 && let Some(lang) = language
                     .as_deref()
-                    .and_then(zeron_syntax::language_for_alias)
+                    .and_then(postillion_syntax::language_for_alias)
             {
                 out.insert(
                     ix,
@@ -3385,7 +3385,7 @@ impl Transcript {
         let old = match old_text {
             Some(source) => {
                 let path = file.old_path.as_deref().unwrap_or(&file.path);
-                let lang = zeron_syntax::language_for_path(path)?;
+                let lang = postillion_syntax::language_for_path(path)?;
                 Some(
                     self.highlights
                         .request(cache_row.clone(), 0, lang, source, cx)?,
@@ -3395,7 +3395,7 @@ impl Transcript {
         };
         let new = match new_text {
             Some(source) => {
-                let lang = zeron_syntax::language_for_path(&file.path)?;
+                let lang = postillion_syntax::language_for_path(&file.path)?;
                 Some(self.highlights.request(cache_row, 1, lang, source, cx)?)
             }
             None => None,
@@ -4602,7 +4602,7 @@ impl Render for Transcript {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zeron_doc::MessagePart;
+    use postillion_doc::MessagePart;
 
     // ---- streaming parse wiring (the transcript side, not the parser) ----
 
@@ -5117,7 +5117,7 @@ mod tests {
         let old = (1..=20).map(|i| format!("line {i}")).collect::<Vec<_>>();
         let mut new = old.clone();
         new[9] = "LINE 10".into();
-        let diff = zeron_proto::ToolDiff {
+        let diff = postillion_proto::ToolDiff {
             path: "/w/a.rs".into(),
             old_text: Some(old.join("\n") + "\n"),
             new_text: new.join("\n") + "\n",
@@ -5154,7 +5154,7 @@ mod tests {
         assert_eq!(old_text.as_deref(), diff.old_text.as_deref());
         assert_eq!(new_text.as_deref(), Some(diff.new_text.as_str()));
         // New files carry Added status (and no old numbers).
-        let created = zeron_proto::ToolDiff {
+        let created = postillion_proto::ToolDiff {
             path: "/w/new.txt".into(),
             old_text: None,
             new_text: "only\n".into(),
@@ -5368,11 +5368,11 @@ mod tests {
         );
         let todo = ToolCall::Todo {
             items: vec![
-                zeron_proto::TodoItem {
+                postillion_proto::TodoItem {
                     text: "a".into(),
                     done: true,
                 },
-                zeron_proto::TodoItem {
+                postillion_proto::TodoItem {
                     text: "b".into(),
                     done: false,
                 },
@@ -5442,11 +5442,11 @@ mod tests {
         // Todos list one item per line with checkbox state.
         let Some(ToolDetail::Output { lines, .. }) = call_block(&ToolCall::Todo {
             items: vec![
-                zeron_proto::TodoItem {
+                postillion_proto::TodoItem {
                     text: "a".into(),
                     done: true,
                 },
-                zeron_proto::TodoItem {
+                postillion_proto::TodoItem {
                     text: "b".into(),
                     done: false,
                 },

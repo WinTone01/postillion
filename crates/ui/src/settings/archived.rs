@@ -5,8 +5,8 @@ use gpui::{
     AnyElement, Context, Entity, SharedString, Subscription, Task, Window, div, prelude::*, px,
 };
 
-use zeron_proto::Chat;
-use zeron_rpc::methods;
+use postillion_proto::Chat;
+use postillion_rpc::methods;
 
 use crate::state::AppState;
 use crate::theme::Theme;
@@ -92,7 +92,7 @@ impl Render for ArchivedPage {
                 let title: SharedString = chat
                     .title
                     .clone()
-                    .unwrap_or_else(|| "Untitled session".into())
+                    .unwrap_or_else(|| crate::i18n::t("Untitled session").into())
                     .into();
                 // Unknown device → no fragment at all (zeron renders the
                 // device span only when the name resolves).
@@ -229,9 +229,9 @@ impl Render for ArchivedPage {
                                     .text_color(theme.text_muted),
                             )
                             .child(SharedString::from(if is_busy {
-                                "Unarchiving…"
+                                crate::i18n::t("Unarchiving…")
                             } else {
-                                "Unarchive"
+                                crate::i18n::t("Unarchive")
                             })),
                     )
                     .into_any_element()
@@ -266,7 +266,7 @@ impl Render for ArchivedPage {
                         .text_size(px(12.0))
                         .text_color(theme.text_muted.opacity(0.4))
                         .child(SharedString::from(
-                            "Right-click a session in the sidebar to archive it.",
+                            crate::i18n::t("Right-click a session in the sidebar to archive it."),
                         )),
                 )
                 .into_any_element()
@@ -288,7 +288,7 @@ impl Render for ArchivedPage {
                 widgets::page_column()
                     .child(widgets::page_header(
                         &theme,
-                        "Archived sessions",
+                        crate::i18n::t("Archived sessions"),
                         (count > 0).then_some(count),
                     ))
                     .child(widgets::page_subtitle(

@@ -20,8 +20,8 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 
-use zeron_harness::{CancellationToken, RunControls, SteerMessage};
-use zeron_proto::{
+use postillion_harness::{CancellationToken, RunControls, SteerMessage};
+use postillion_proto::{
     AgentEvent, DoneStatus, HarnessId, Model, ReasoningLevel, RunRequest, SandboxLevel,
     UserInputAnswer, UserInputQuestion,
 };
@@ -225,7 +225,7 @@ fn clean_title(raw: &str) -> String {
 /// Drive one titling run through the harness: no steering, questions resolved
 /// empty immediately (a titling prompt must never block on input).
 async fn collect_text(
-    harness: &dyn zeron_harness::Harness,
+    harness: &dyn postillion_harness::Harness,
     request: RunRequest,
 ) -> Result<String, EngineError> {
     let (steer_tx, steer_rx) = tokio::sync::mpsc::channel::<SteerMessage>(1);
@@ -265,7 +265,7 @@ async fn collect_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zeron_proto::Model;
+    use postillion_proto::Model;
 
     fn model(id: &str, label: &str) -> Model {
         Model {

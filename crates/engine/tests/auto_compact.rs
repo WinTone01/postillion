@@ -17,9 +17,9 @@ use futures::StreamExt;
 use futures::stream::BoxStream;
 use tokio::sync::{Mutex, mpsc};
 
-use zeron_engine::{EngineCore, HarnessRegistry};
-use zeron_harness::{Harness, HarnessError, RunControls};
-use zeron_proto::{
+use postillion_engine::{EngineCore, HarnessRegistry};
+use postillion_harness::{Harness, HarnessError, RunControls};
+use postillion_proto::{
     AgentEvent, DoneStatus, HarnessId, Model, ReasoningLevel, RunRequest, SandboxLevel,
     SessionStatus, SteeringMode,
 };

@@ -19,8 +19,8 @@ echo "▸ building (first run takes a few minutes)…"
 cargo build -p zeron -q
 
 echo "▸ starting engine daemon on :$IPC"
-env ZERON_DATA_DIR="$DAEMON_DIR" ZERON_IPC_PORT=$IPC ZERON_HARNESS=mock \
-  ${DELAY:+ZERON_MOCK_DELAY_MS=$DELAY} RUST_LOG=warn \
+env POSTILLION_DATA_DIR="$DAEMON_DIR" POSTILLION_IPC_PORT=$IPC POSTILLION_HARNESS=mock \
+  ${DELAY:+POSTILLION_MOCK_DELAY_MS=$DELAY} RUST_LOG=warn \
   ./target/debug/zeron headless &
 DAEMON_PID=$!
 trap 'kill $DAEMON_PID 2>/dev/null || true' EXIT
@@ -62,4 +62,4 @@ if [[ ! -f "$DAEMON_DIR/.demo-seeded" ]]; then
 fi
 
 echo "▸ opening zeron (composer is live — type into it; --slow shows streaming)"
-ZERON_DATA_DIR="$UI_DIR" ZERON_IPC_PORT=$IPC RUST_LOG=warn ./target/debug/zeron
+POSTILLION_DATA_DIR="$UI_DIR" POSTILLION_IPC_PORT=$IPC RUST_LOG=warn ./target/debug/zeron

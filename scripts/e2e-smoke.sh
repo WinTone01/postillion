@@ -9,13 +9,13 @@
 # one-user-many-devices model; chat/device rooms are claim-on-first-join per user.
 #
 # Usage: scripts/e2e-smoke.sh
-# Env:   ZERON_E2E_EDGE_PORT (default 27640), ZERON_E2E_KEEP_LOGS=1 to keep logs.
+# Env:   POSTILLION_E2E_EDGE_PORT (default 27640), POSTILLION_E2E_KEEP_LOGS=1 to keep logs.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 command -v cargo >/dev/null 2>&1 || PATH="$HOME/.cargo/bin:$PATH"
-EDGE_PORT="${ZERON_E2E_EDGE_PORT:-27640}"
+EDGE_PORT="${POSTILLION_E2E_EDGE_PORT:-27640}"
 EDGE_URL="http://localhost:${EDGE_PORT}"
 TOKEN="alice@org1"
 ORG="org1"
@@ -50,7 +50,7 @@ cleanup() {
     echo "--- engine B log (tail) ---"; tail -n 40 "$LOG_DIR/engine-b.log" 2>/dev/null || true
     echo "--- edge log (tail) ---"; tail -n 40 "$LOG_DIR/edge.log" 2>/dev/null || true
   fi
-  if [[ "${ZERON_E2E_KEEP_LOGS:-0}" != "1" ]]; then
+  if [[ "${POSTILLION_E2E_KEEP_LOGS:-0}" != "1" ]]; then
     rm -rf "$LOG_DIR"
   else
     echo "logs kept in $LOG_DIR"
@@ -101,9 +101,9 @@ rm -rf "$A_DIR" "$B_DIR"
 mkdir -p "$A_DIR" "$B_DIR"
 
 start_engine() { # start_engine <data_dir> <ipc_port> <name> <log>
-  ZERON_DATA_DIR="$1" ZERON_IPC_PORT="$2" ZERON_DEVICE_NAME="$3" \
-    ZERON_EDGE_URL="$EDGE_URL" ZERON_EDGE_TOKEN="$TOKEN" ZERON_ORG_ID="$ORG" \
-    ZERON_HARNESS=mock RUST_LOG=info \
+  POSTILLION_DATA_DIR="$1" POSTILLION_IPC_PORT="$2" POSTILLION_DEVICE_NAME="$3" \
+    POSTILLION_EDGE_URL="$EDGE_URL" POSTILLION_EDGE_TOKEN="$TOKEN" POSTILLION_ORG_ID="$ORG" \
+    POSTILLION_HARNESS=mock RUST_LOG=info \
     "$ZERON" headless >"$4" 2>&1 &
 }
 
