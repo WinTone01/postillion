@@ -15,6 +15,7 @@ use gpui::{
 use postillion_harness::claude::catalog_manage::{Marketplace, Plugin, Skill};
 use postillion_rpc::methods;
 
+use crate::composer::ComposerInput;
 use crate::state::AppState;
 use crate::theme::Theme;
 
@@ -25,10 +26,20 @@ pub enum Tab {
     Available,
     Marketplaces,
     Skills,
+    /// MCP sunucuları — ekleme burada, sohbete özel SEÇİM composer'daki
+    /// rozette. İkisi farklı iş: burası cihaza sunucu tanıtıyor, rozet o
+    /// sunuculardan hangilerinin bu sohbette açık olduğunu seçiyor.
+    Mcp,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 4] = [Tab::Installed, Tab::Available, Tab::Marketplaces, Tab::Skills];
+    pub const ALL: [Tab; 5] = [
+        Tab::Installed,
+        Tab::Available,
+        Tab::Marketplaces,
+        Tab::Skills,
+        Tab::Mcp,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -36,6 +47,7 @@ impl Tab {
             Tab::Available => crate::i18n::t("Available"),
             Tab::Marketplaces => crate::i18n::t("Marketplaces"),
             Tab::Skills => crate::i18n::t("Skills"),
+            Tab::Mcp => crate::i18n::t("MCP servers"),
         }
     }
 }
@@ -76,6 +88,38 @@ pub fn filter_skills<'a>(skills: &'a [Skill], query: &str) -> Vec<&'a Skill> {
         .collect()
 }
 
+/// Kullanıcının yazdığı tek satırdan MCP sunucu tanımı.
+///
+/// Biçim `ad=hedef`. Hedef `http://` ya da `https://` ile başlıyorsa uzak
+/// sunucu (HTTP taşıması), değilse yerelde çalıştırılacak bir komut ve
+/// argümanları. Tek satır seçildi çünkü alternatifi beş alanlı bir form ve
+/// kullanıcıların çoğu bu iki şekilden birini zaten kopyalayıp yapıştırıyor.
+///
+/// Döndürülen üçlü: (ad, taşıma, hedef, komut argümanları).
+pub fn parse_mcp_entry(input: &str) -> Result<(String, &'static str, String, Vec<String>), String> {
+    let (name, rest) = input
+        .split_once('=')
+        .ok_or_else(|| "biçim: ad=komut ya da ad=https://…".to_string())?;
+    let name = name.trim();
+    let rest = rest.trim();
+
+    if name.is_empty() {
+        return Err("sunucu ismi boş olamaz".into());
+    }
+    if rest.is_empty() {
+        return Err("hedef boş olamaz".into());
+    }
+
+    if rest.starts_with("http://") || rest.starts_with("https://") {
+        return Ok((name.to_string(), "http", rest.to_string(), Vec::new()));
+    }
+
+    let mut parts = rest.split_whitespace();
+    let command = parts.next().unwrap_or_default().to_string();
+    let args: Vec<String> = parts.map(str::to_string).collect();
+    Ok((name.to_string(), "stdio", command, args))
+}
+
 /// `2563` → `2.5k`. Kurulum sayısı rozetinde yer kazanıyor.
 pub fn short_count(count: u64) -> String {
     if count < 1_000 {
@@ -90,13 +134,18 @@ struct Lists {
     available: Vec<Plugin>,
     marketplaces: Vec<Marketplace>,
     skills: Vec<Skill>,
+    mcp: Vec<String>,
 }
 
 pub struct ExtensionsPage {
     state: Entity<AppState>,
     tab: Tab,
     lists: Lists,
-    query: String,
+    /// Liste araması. Kurulabilir sekmede zorunlu: bu makinede 2563 kayıt
+    /// dönüyor ve arama olmadan liste kullanılamaz.
+    search: Entity<ComposerInput>,
+    /// Marketplace kaynağı ya da yeni skill adı — sekmeye göre.
+    new_entry: Entity<ComposerInput>,
     error: Option<SharedString>,
     /// Yükleme sürüyor mu — sekme başına değil, tek bayrak: aynı anda tek
     /// istek atılıyor.
@@ -110,11 +159,16 @@ pub struct ExtensionsPage {
 
 impl ExtensionsPage {
     pub fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
+        let search = cx.new(|cx| ComposerInput::new(crate::i18n::t("Search…"), cx));
+        let new_entry = cx.new(|cx| {
+            ComposerInput::new(crate::i18n::t("Marketplace source (git URL or path)"), cx)
+        });
         let mut page = Self {
             state,
             tab: Tab::Installed,
             lists: Lists::default(),
-            query: String::new(),
+            search,
+            new_entry,
             error: None,
             loading: false,
             busy: None,
@@ -125,11 +179,35 @@ impl ExtensionsPage {
         page
     }
 
+    fn query(&self, cx: &gpui::App) -> String {
+        self.search.read(cx).text().trim().to_string()
+    }
+
     fn select_tab(&mut self, tab: Tab, cx: &mut Context<Self>) {
         self.tab = tab;
-        self.query.clear();
+        self.search.update(cx, |input, cx| input.set_text("", cx));
+        self.new_entry.update(cx, |input, cx| {
+            input.set_text("", cx);
+            input.set_placeholder(
+                match tab {
+                    Tab::Skills => crate::i18n::t("New skill name"),
+                    Tab::Mcp => crate::i18n::t("name=command arg…  or  name=https://url"),
+                    _ => crate::i18n::t("Marketplace source (git URL or path)"),
+                },
+                cx,
+            );
+        });
         // Kurulabilir liste büyük; ilk gerçek ziyarete kadar çekilmiyor.
-        if tab == Tab::Available && !self.available_loaded {
+        // Diğer sekmeler boşsa (ilk ziyaret ya da bir işlemden sonra
+        // temizlendiyse) hemen çekiliyor.
+        let needs_load = match tab {
+            Tab::Available => !self.available_loaded,
+            Tab::Installed => self.lists.installed.is_empty(),
+            Tab::Marketplaces => self.lists.marketplaces.is_empty(),
+            Tab::Skills => self.lists.skills.is_empty(),
+            Tab::Mcp => self.lists.mcp.is_empty(),
+        };
+        if needs_load {
             self.reload(cx);
         }
         cx.notify();
@@ -151,6 +229,7 @@ impl ExtensionsPage {
                 Tab::Available => methods::LIST_AVAILABLE_PLUGINS,
                 Tab::Marketplaces => methods::LIST_MARKETPLACES,
                 Tab::Skills => methods::LIST_SKILLS,
+                Tab::Mcp => methods::LIST_MCP_SERVERS,
             };
             let result = engine
                 .client()
@@ -177,6 +256,10 @@ impl ExtensionsPage {
                             }
                             Tab::Skills => {
                                 page.lists.skills =
+                                    serde_json::from_value(value).unwrap_or_default();
+                            }
+                            Tab::Mcp => {
+                                page.lists.mcp =
                                     serde_json::from_value(value).unwrap_or_default();
                             }
                         }
@@ -210,11 +293,79 @@ impl ExtensionsPage {
             this.update(cx, |page, cx| {
                 page.busy = None;
                 match result {
-                    // Liste artık bayat: kurulan/silinen kayıt yansımalı.
                     Ok(_) => {
-                        // Kurulum kurulabilir listeyi de etkiliyor; ikisini de
-                        // yeniden çekmek yerine görünen sekmeyi tazeliyoruz ve
-                        // diğerini bayat işaretliyoruz.
+                        // Kurmak/kaldırmak İKİ listeyi birden değiştiriyor:
+                        // kurulan eklenti "Kurulu"ya giriyor, "Kurulabilir"den
+                        // çıkıyor. Yalnızca görünen sekmeyi tazelemek, kurulan
+                        // eklentinin ancak uygulama yeniden açılınca listede
+                        // görünmesine yol açıyordu.
+                        page.available_loaded = false;
+                        page.lists.installed.clear();
+                        page.reload(cx);
+                    }
+                    Err(err) => {
+                        page.error = Some(err.to_string().into());
+                        cx.notify();
+                    }
+                }
+            })
+            .ok();
+        }));
+    }
+
+    /// Marketplace ekler ya da skill oluşturur — sekmeye göre.
+    fn submit_new_entry(&mut self, cx: &mut Context<Self>) {
+        let value = self.new_entry.read(cx).text().trim().to_string();
+        if value.is_empty() {
+            return;
+        }
+        let Some(engine) = self.state.read(cx).engine().cloned() else {
+            return;
+        };
+        let tab = self.tab;
+        self.busy = Some(value.clone());
+        self.error = None;
+        cx.notify();
+
+        self.task = Some(cx.spawn(async move |this, cx| {
+            let (method, params) = match tab {
+                Tab::Skills => (
+                    methods::SKILL_CREATE,
+                    serde_json::json!({ "name": value }),
+                ),
+                Tab::Mcp => match parse_mcp_entry(&value) {
+                    Ok((name, transport, target, command_args)) => (
+                        methods::ADD_MCP_SERVER,
+                        serde_json::json!({
+                            "name": name,
+                            "transport": transport,
+                            "target": target,
+                            "commandArgs": command_args,
+                        }),
+                    ),
+                    Err(message) => {
+                        // Biçim hatası ağa gitmeden burada bitiyor.
+                        this.update(cx, |page, cx| {
+                            page.busy = None;
+                            page.error = Some(message.into());
+                            cx.notify();
+                        })
+                        .ok();
+                        return;
+                    }
+                },
+                _ => (
+                    methods::MARKETPLACE_ADD,
+                    serde_json::json!({ "id": value }),
+                ),
+            };
+            let result = engine.client().call(method, params).await;
+            this.update(cx, |page, cx| {
+                page.busy = None;
+                match result {
+                    Ok(_) => {
+                        page.new_entry.update(cx, |input, cx| input.set_text("", cx));
+                        // Marketplace eklemek kurulabilir listeyi de değiştiriyor.
                         page.available_loaded = false;
                         page.reload(cx);
                     }
@@ -271,6 +422,7 @@ impl ExtensionsPage {
     }
 
     fn render_body(&mut self, theme: &Theme, cx: &mut Context<Self>) -> AnyElement {
+        let query = self.query(cx);
         if self.loading {
             return crate::popover::skeleton_rows("ext-skeleton", theme, 5, cx.entity_id(), cx);
         }
@@ -284,7 +436,15 @@ impl ExtensionsPage {
         }
 
         let busy = self.busy.clone();
-        let mut list = div().id("ext-list").flex().flex_col().overflow_y_scroll();
+        // `size_full` + `overflow_y_scroll`: arşiv sayfasının deseni. Yalnızca
+        // `overflow_y_scroll` vermek yetmiyor — kutu içeriği kadar uzuyor ve
+        // taşma hiç oluşmadığı için kaydırma da olmuyor.
+        let mut list = div()
+            .id("ext-list")
+            .size_full()
+            .flex()
+            .flex_col()
+            .overflow_y_scroll();
 
         match self.tab {
             Tab::Installed | Tab::Available => {
@@ -294,7 +454,7 @@ impl ExtensionsPage {
                 } else {
                     &self.lists.available
                 };
-                let rows = filter_plugins(source, &self.query);
+                let rows = filter_plugins(source, &query);
                 if rows.is_empty() {
                     return empty_note(theme, crate::i18n::t("Nothing here yet."));
                 }
@@ -453,8 +613,44 @@ impl ExtensionsPage {
                     );
                 }
             }
+            Tab::Mcp => {
+                if self.lists.mcp.is_empty() {
+                    return empty_note(theme, crate::i18n::t("No MCP servers configured."));
+                }
+                for (index, name) in self.lists.mcp.clone().into_iter().enumerate() {
+                    let for_remove = name.clone();
+                    list = list.child(
+                        Self::row_shell(theme)
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .text_size(px(13.0))
+                                    .text_color(theme.text)
+                                    .truncate()
+                                    .child(SharedString::from(name.clone())),
+                            )
+                            .child(
+                                crate::popover::btn_ghost(
+                                    theme,
+                                    crate::i18n::t("Remove"),
+                                    format!("mcp-remove-{index}"),
+                                )
+                                .id(("mcp-remove", index))
+                                .on_click(cx.listener(move |page, _, _, cx| {
+                                    page.act(
+                                        methods::REMOVE_MCP_SERVER,
+                                        for_remove.clone(),
+                                        false,
+                                        cx,
+                                    );
+                                })),
+                            ),
+                    );
+                }
+            }
             Tab::Skills => {
-                let rows = filter_skills(&self.lists.skills, &self.query);
+                let rows = filter_skills(&self.lists.skills, &query);
                 if rows.is_empty() {
                     return empty_note(theme, crate::i18n::t("No skills installed."));
                 }
@@ -529,7 +725,53 @@ impl Render for ExtensionsPage {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(cx).clone();
         let tabs = self.render_tabs(&theme, cx);
+        let tab = self.tab;
         let body = self.render_body(&theme, cx);
+
+        // Arama yalnızca listelerde anlamlı; marketplace listesi kısa ve
+        // zaten tamamı ekrana sığıyor.
+        let search = matches!(tab, Tab::Installed | Tab::Available | Tab::Skills).then(|| {
+            crate::popover::search_input_frame(
+                &theme,
+                self.search.clone().into_any_element(),
+            )
+        });
+
+        // Marketplace eklemek ve skill oluşturmak aynı satırı paylaşıyor:
+        // ikisi de tek bir metin alıp bir düğmeyle çalışıyor.
+        let adder = matches!(tab, Tab::Marketplaces | Tab::Skills | Tab::Mcp).then(|| {
+            let busy = self.busy.is_some();
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(px(8.0))
+                .mb(px(8.0))
+                .child(
+                    div().flex_1().min_w_0().child(
+                        crate::popover::search_input_frame(
+                            &theme,
+                            self.new_entry.clone().into_any_element(),
+                        ),
+                    ),
+                )
+                .child(
+                    crate::popover::btn_primary(
+                        &theme,
+                        if busy {
+                            crate::i18n::t("Working…")
+                        } else if tab == Tab::Skills {
+                            crate::i18n::t("Create")
+                        } else if tab == Tab::Mcp {
+                            crate::i18n::t("Add server")
+                        } else {
+                            crate::i18n::t("Add")
+                        },
+                    )
+                    .id("ext-add")
+                    .on_click(cx.listener(|page, _, _, cx| page.submit_new_entry(cx))),
+                )
+        });
 
         div()
             .size_full()
@@ -537,6 +779,10 @@ impl Render for ExtensionsPage {
             .flex_col()
             .p(px(16.0))
             .child(tabs)
+            .when_some(search, |el, search| el.child(search))
+            .when_some(adder, |el, adder| el.child(adder))
+            // `min_h_0` olmadan liste içeriği kadar uzuyor ve kaydırma hiç
+            // devreye girmiyordu — kullanıcı raporu: "aşağı kaydırılmıyor".
             .child(div().flex_1().min_h_0().child(body))
     }
 }
@@ -602,6 +848,39 @@ mod tests {
         assert_eq!(filter_skills(&skills, "PDF")[0].name, "pdf");
         // Açıklaması olmayan kayıt aramada panik etmemeli.
         assert!(filter_skills(&skills, "yok").is_empty());
+    }
+
+    #[test]
+    fn mcp_girdisi_uzak_ve_yerel_olarak_ayristiriliyor() {
+        // Uzak: http(s) ile başlayan hedef.
+        let (name, transport, target, args) =
+            parse_mcp_entry("ctx7=https://mcp.example/sse").unwrap();
+        assert_eq!(name, "ctx7");
+        assert_eq!(transport, "http");
+        assert_eq!(target, "https://mcp.example/sse");
+        assert!(args.is_empty());
+
+        // Yerel: komut ve argümanları.
+        let (name, transport, target, args) =
+            parse_mcp_entry("local=npx -y some-server").unwrap();
+        assert_eq!(name, "local");
+        assert_eq!(transport, "stdio");
+        assert_eq!(target, "npx");
+        assert_eq!(args, vec!["-y", "some-server"]);
+
+        // Boşluklar kırpılıyor.
+        let (name, _, target, _) = parse_mcp_entry("  pad  =  ./run.sh  ").unwrap();
+        assert_eq!(name, "pad");
+        assert_eq!(target, "./run.sh");
+    }
+
+    #[test]
+    fn bozuk_mcp_girdisi_aga_gitmeden_reddediliyor() {
+        // Eşittir yoksa ne ad ne hedef belli.
+        assert!(parse_mcp_entry("sadece-isim").is_err());
+        assert!(parse_mcp_entry("=komut").is_err());
+        assert!(parse_mcp_entry("ad=").is_err());
+        assert!(parse_mcp_entry("ad=   ").is_err());
     }
 
     #[test]

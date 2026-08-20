@@ -124,6 +124,7 @@ pub mod methods {
     pub const MARKETPLACE_REMOVE: &str = "MarketplaceRemove";
     pub const LIST_SKILLS: &str = "ListSkills";
     pub const SKILL_DELETE: &str = "SkillDelete";
+    pub const SKILL_CREATE: &str = "SkillCreate";
     /// MCP sunucusu ekler (`claude mcp add`).
     pub const ADD_MCP_SERVER: &str = "AddMcpServer";
     /// MCP sunucusu siler (`claude mcp remove`).

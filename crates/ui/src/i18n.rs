@@ -200,6 +200,13 @@ fn turkish(source: &str) -> Option<&'static str> {
         "Nothing here yet." => "Burada henüz bir şey yok.",
         "No marketplaces added." => "Eklenmiş marketplace yok.",
         "No skills installed." => "Kurulu skill yok.",
+        "MCP servers" => "MCP sunucuları",
+        "Add" => "Ekle",
+        "Add server" => "Sunucu ekle",
+        "Create" => "Oluştur",
+        "Marketplace source (git URL or path)" => "Marketplace kaynağı (git URL'si ya da yol)",
+        "New skill name" => "Yeni skill adı",
+        "name=command arg…  or  name=https://url" => "ad=komut arg…  ya da  ad=https://url",
 
         // ── süreç paneli
         "Processes" => "Süreçler",
