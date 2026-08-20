@@ -173,17 +173,16 @@ export default function App() {
   /**
    * Etkin hesabın kullanımını yeniler.
    *
-   * Sorgu bir `claude` süreci başlatıyor (~3 sn, token harcamıyor), o yüzden
-   * kısıtlanıyor. Tetikleyiciler: açılış, hesap değişimi, bir turun bitmesi ve
-   * beş dakikalık zamanlayıcı.
+   * Sorgu artık resmi API'ye gidiyor (token harcamıyor) ve bütün hesapları
+   * birden ölçüyor; yine de ağ isteği olduğu için kısıtlanıyor. Tetikleyiciler:
+   * açılış, hesap değişimi, bir turun bitmesi ve beş dakikalık zamanlayıcı.
    */
   const lastUsageRef = useRef(0);
   const refreshUsage = useCallback(async (force = false) => {
     if (!force && Date.now() - lastUsageRef.current < USAGE_MIN_GAP_MS) return;
     lastUsageRef.current = Date.now();
     try {
-      await api.refreshUsage();
-      setUsage(await api.usageCache());
+      setUsage(await api.refreshAllUsage());
     } catch (e) {
       // Kullanım göstergesi ikincil; hata bildirimiyle araya girmiyor.
       log("warn", "kullanım yenilenemedi:", e);

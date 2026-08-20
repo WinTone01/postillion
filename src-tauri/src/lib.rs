@@ -349,11 +349,6 @@ fn usage_cache() -> usage::Cache {
 }
 
 /// Etkin hesabın kullanımını ölçüp önbelleğe yazar.
-///
-/// Yalnızca etkin hesap sorgulanabiliyor: `claude` kimliği paylaşılan
-/// `.credentials.json`'dan okuyor. Başka bir hesabı sorgulamak onu geçici
-/// olarak etkin yapmak demek olurdu ve bu, terminaldeki oturumları da
-/// etkilerdi.
 #[tauri::command]
 fn refresh_usage() -> Result<Option<usage::Usage>> {
     let _guard = exclusive();
@@ -362,9 +357,41 @@ fn refresh_usage() -> Result<Option<usage::Usage>> {
         return Ok(None);
     };
 
-    let measured = usage::query()?;
+    let measured = usage::query(Some(&active.slug))?;
     usage::write_cache(&active.slug, &measured)?;
     Ok(Some(measured))
+}
+
+/// Bütün hesapların kullanımını ölçüp önbelleğe yazar.
+///
+/// Resmi API her hesabı kendi saklanmış jetonuyla sorgulayabildiği için artık
+/// ölçmek adına hesap değiştirmek gerekmiyor — eskiden etkin olmayan hesaplarda
+/// gösterilen değer, o hesabın en son etkin olduğu andan kalmaydı.
+///
+/// Jetonu olmayan ya da süresi dolmuş hesaplar atlanıyor: önbellekteki eski
+/// ölçümleri duruyor ve arayüz onları yaşıyla birlikte gösteriyor.
+#[tauri::command]
+fn refresh_all_usage() -> Result<usage::Cache> {
+    let _guard = exclusive();
+
+    for account in accounts::list()? {
+        if !account.has_credentials {
+            continue;
+        }
+        // Etkin hesap API'den okunamazsa yerel önbellek ve komut yolları
+        // devrede; diğerleri için tek kaynak API.
+        let measured = if account.is_active {
+            usage::query(Some(&account.slug)).ok()
+        } else {
+            usage::fetch(&account.slug)
+        };
+
+        if let Some(measured) = measured {
+            usage::write_cache(&account.slug, &measured)?;
+        }
+    }
+
+    Ok(usage::read_cache())
 }
 
 
@@ -433,12 +460,21 @@ pub mod testing {
     }
 
     pub fn query_usage() -> Result<Usage> {
-        usage::query()
+        usage::query(None)
     }
 
     /// Yalnızca yerel önbellek yolu; komuta düşmüyor.
     pub fn local_usage() -> Option<Usage> {
         usage::read_local()
+    }
+
+    /// Yalnızca resmi API yolu.
+    pub fn fetch_usage(slug: &str) -> Option<Usage> {
+        usage::fetch(slug)
+    }
+
+    pub fn list_accounts_raw() -> Result<Vec<Account>> {
+        accounts::list()
     }
 }
 
@@ -633,6 +669,7 @@ pub fn run() {
             set_session_mcp,
             usage_cache,
             refresh_usage,
+            refresh_all_usage,
             list_models,
             effort_levels,
             read_preferences,

@@ -152,10 +152,18 @@ export const api = {
   usageCache: () => invoke<Record<string, Usage>>("usage_cache"),
 
   /**
-   * Etkin hesabın kullanımını ölçer (~3 sn, token harcamıyor).
-   * Etkin hesap yoksa `null`.
+   * Etkin hesabın kullanımını ölçer. Etkin hesap yoksa `null`.
    */
   refreshUsage: () => invoke<Usage | null>("refresh_usage"),
+
+  /**
+   * Bütün hesapların kullanımını ölçüp güncel önbelleği döndürür.
+   *
+   * Resmi API her hesabı kendi saklanmış jetonuyla sorguladığı için ölçmek
+   * adına hesap değiştirmek gerekmiyor; etkin olmayan hesaplarda gösterilen
+   * değer artık "en son etkin olduğunda" değil, şu anki değer.
+   */
+  refreshAllUsage: () => invoke<Record<string, Usage>>("refresh_all_usage"),
 
   /** Modeli süren oturumda değiştirir; sohbet bağlamı korunur. */
   agentSetModel: (id: string, model: string) =>

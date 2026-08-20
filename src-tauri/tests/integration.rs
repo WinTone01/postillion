@@ -49,16 +49,41 @@ fn kimlik_profile_yakalanir_ve_listelenir() {
 
     assert_eq!(active.slug, expected_slug, "slug e-postadan türetilmeli");
     assert_eq!(active.email.as_deref(), Some(email));
-    assert!(active.has_credentials, "jeton saklanmalıydı");
     assert!(!active.label.is_empty(), "etiket boş olmamalı");
 
-    // Jeton 0600 olmalı — kimlik bilgisi.
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let creds = root.join(&expected_slug).join(".credentials.json");
-        let mode = fs::metadata(&creds).unwrap().permissions().mode();
-        assert_eq!(mode & 0o777, 0o600, "jeton 0600 olmalı");
+    // Jeton yakalama yalnızca canlı dosyada gerçekten bir jeton varsa
+    // bekleniyor. `claude` `accessToken`'ı boş bırakan bir dosya yazabiliyor ve
+    // o durumda kopyalamamak DOĞRU davranış — saklanmış sağlam bir jetonun
+    // üzerine boş dosya yazmak hesabı kaybettiriyordu.
+    let live = home.join(".claude").join(".credentials.json");
+    let live_has_token = fs::read_to_string(&live)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|v| {
+            v.get("claudeAiOauth")?
+                .get("accessToken")?
+                .as_str()
+                .map(str::to_string)
+        })
+        .is_some_and(|token| !token.is_empty());
+
+    if live_has_token {
+        assert!(active.has_credentials, "jeton saklanmalıydı");
+
+        // Jeton 0600 olmalı — kimlik bilgisi.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let creds = root.join(&expected_slug).join(".credentials.json");
+            let mode = fs::metadata(&creds).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600, "jeton 0600 olmalı");
+        }
+    } else {
+        eprintln!("canlı jeton boş — yakalama beklenmiyor, kopyalamama doğru davranış");
+        assert!(
+            !root.join(&expected_slug).join(".credentials.json").exists(),
+            "boş jeton kopyalanmamalıydı"
+        );
     }
 
     // Etkin hesap silinemez: kullanıcı kendini dışarıda bırakamamalı.
@@ -317,4 +342,49 @@ fn yerel_deger_komutla_ayni() {
             window.percent
         );
     }
+}
+
+/// Resmi kullanım API'sinin etkin OLMAYAN hesapları da ölçebildiğini
+/// doğrular — `/usage` komutunun yapamadığı şey buydu.
+///
+/// `#[ignore]`: ağ ve geçerli bir jeton gerektiriyor.
+#[test]
+#[ignore]
+fn api_etkin_olmayan_hesabi_da_olcer() {
+    let accounts = postillion_lib::testing::list_accounts_raw().expect("hesaplar listelenmeli");
+
+    let mut measured = 0;
+    for account in &accounts {
+        if !account.has_credentials {
+            continue;
+        }
+        let Some(usage) = postillion_lib::testing::fetch_usage(&account.slug) else {
+            eprintln!("{} — jeton yok ya da süresi dolmuş, atlandı", account.slug);
+            continue;
+        };
+
+        eprintln!(
+            "{} (etkin={}) → {:?}",
+            account.slug,
+            account.is_active,
+            usage
+                .windows
+                .iter()
+                .map(|w| format!("{}:{}%", w.label, w.percent))
+                .collect::<Vec<_>>()
+        );
+
+        assert!(!usage.windows.is_empty(), "pencere bekleniyordu");
+        assert!(
+            usage.windows.iter().any(|w| w.label == "session"),
+            "oturum penceresi bekleniyordu"
+        );
+        assert!(usage.measured_at_ms > 0);
+        measured += 1;
+    }
+
+    assert!(
+        measured > 0,
+        "hiçbir hesap ölçülemedi — API yolu hiç çalışmamış olur"
+    );
 }

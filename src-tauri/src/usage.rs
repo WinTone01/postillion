@@ -70,10 +70,14 @@ fn now_ms() -> u64 {
 
 /// Etkin hesabın kullanımını okur.
 ///
-/// Önce Claude Code'un kendi tuttuğu yerel önbelleğe bakılıyor; orada
-/// kullanılabilir bir değer varsa hiç süreç başlatılmıyor. Komut yalnızca
-/// önbellek yoksa, başka hesaba aitse ya da penceresi dolmuşsa çalışıyor.
-pub fn query() -> Result<Usage> {
+/// Üç kaynak, güvenilirlik sırasıyla: resmi API (taze), Claude Code'un yerel
+/// önbelleği (bayat olabilir ama bedava), `/usage` komutu (süreç başlatıyor).
+/// İlk ikisi başarısız olmadıkça komut hiç çalışmıyor.
+pub fn query(slug: Option<&str>) -> Result<Usage> {
+    if let Some(usage) = slug.and_then(fetch) {
+        return Ok(usage);
+    }
+
     if let Some(usage) = read_local() {
         return Ok(usage);
     }
@@ -85,6 +89,85 @@ pub fn query() -> Result<Usage> {
         measured_at_ms: now_ms(),
         detail: text,
     })
+}
+
+// ------------------------------------------------------------- resmi API
+
+/// Claude Code'un kendi kullanım uçnoktası.
+///
+/// `/usage` komutunun ve `~/.claude.json`'daki önbelleğin kaynağı bu; cevabın
+/// `limits` dizisi her üçünde de aynı.
+const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+
+/// Uçnoktanın istediği beta başlığı.
+const OAUTH_BETA: &str = "oauth-2025-04-20";
+
+const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Bir hesabın kullanımını doğrudan API'den okur.
+///
+/// Yerel önbelleğe göre iki üstünlüğü var: değer tanımı gereği taze, ve **etkin
+/// olmayan** hesaplar da sorgulanabiliyor — her hesabın kendi jetonu saklı
+/// olduğu için ölçmek adına hesap değiştirmek gerekmiyor. `/usage` bunu
+/// yapamıyordu; kimliği paylaşılan dosyadan okuduğu için yalnızca etkin hesabı
+/// görüyordu.
+///
+/// Jeton yoksa, süresi dolmuşsa ya da istek başarısızsa `None`.
+pub fn fetch(slug: &str) -> Option<Usage> {
+    let token = access_token(slug)?;
+
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(HTTP_TIMEOUT))
+        .build()
+        .into();
+
+    let body: Value = agent
+        .get(USAGE_URL)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("anthropic-beta", OAUTH_BETA)
+        .call()
+        .ok()?
+        .into_body()
+        .read_json()
+        .ok()?;
+
+    let windows = windows_from(&body);
+    if windows.is_empty() {
+        return None;
+    }
+
+    Some(Usage {
+        detail: detail_from(&windows),
+        windows,
+        measured_at_ms: now_ms(),
+    })
+}
+
+/// Bir hesabın saklanmış erişim jetonu.
+///
+/// Süresi dolmuşsa `None` döndürülüyor: yenilemek refresh jetonunu harcar ve o
+/// jeton çoğu zaman tek kullanımlık — etkin hesabın altından çekilirse `claude`
+/// yeniden giriş ister. Yenileme bu yüzden kasıtlı olarak yapılmıyor.
+fn access_token(slug: &str) -> Option<String> {
+    let path = paths::accounts_root()
+        .ok()?
+        .join(slug)
+        .join(".credentials.json");
+    let stored: Value = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+
+    let oauth = stored.get("claudeAiOauth")?;
+    let token = oauth.get("accessToken").and_then(Value::as_str)?;
+    if token.is_empty() {
+        return None;
+    }
+
+    // Bir dakikalık pay: istek yolda iken süresi dolan jeton reddedilirdi.
+    let expires_at = oauth.get("expiresAt").and_then(Value::as_u64)?;
+    if expires_at <= now_ms() + 60_000 {
+        return None;
+    }
+
+    Some(token.to_string())
 }
 
 // --------------------------------------------------- yerel önbellekten okuma
@@ -128,52 +211,82 @@ fn read_local_from(config: &Value, now: u64) -> Option<Usage> {
         return None;
     }
 
-    let limits = cached.get("utilization")?.get("limits")?.as_array()?;
+    let utilization = cached.get("utilization")?;
 
-    let mut windows = Vec::new();
-    for limit in limits {
-        let (Some(kind), Some(percent)) = (
-            limit.get("kind").and_then(Value::as_str),
-            limit.get("percent").and_then(Value::as_u64),
-        ) else {
-            continue;
-        };
-        let resets = limit.get("resets_at").and_then(Value::as_str);
-
-        // Pencere ölçümden sonra sıfırlandıysa yüzde artık yanlış: gerçekte
-        // düşmüş, önbellek hâlâ eskisini gösteriyor. Tek bir pencere bile
-        // dolduysa tüm okuma bırakılıyor, komut doğrusunu getirsin.
-        if resets.and_then(epoch_ms).is_some_and(|at| at <= now) {
-            return None;
-        }
-
-        windows.push(Window {
-            label: window_label(kind),
-            percent: percent.min(100) as u8,
-            resets: resets.map(str::to_string),
-        });
+    // Pencere ölçümden sonra sıfırlandıysa yüzde artık yanlış: gerçekte düşmüş,
+    // önbellek hâlâ eskisini gösteriyor. Tek bir pencere bile dolduysa tüm
+    // okuma bırakılıyor, çağıran doğrusunu başka yerden getirsin. Bu kontrol
+    // yalnızca önbelleğe özgü — API'den gelen değer tanımı gereği taze.
+    if limits_of(utilization)
+        .iter()
+        .any(|limit| reset_at(limit).is_some_and(|at| at <= now))
+    {
+        return None;
     }
 
+    let windows = windows_from(utilization);
     if windows.is_empty() {
         return None;
     }
 
-    // Ayrıntı kartı `/usage` metnini gösteriyordu; aynı biçim yeniden kuruluyor
-    // ki kaynak değişince kartın görünümü değişmesin.
-    let detail = windows
+    Some(Usage {
+        detail: detail_from(&windows),
+        windows,
+        measured_at_ms,
+    })
+}
+
+/// `utilization` nesnesindeki limit dizisi; yoksa boş.
+fn limits_of(utilization: &Value) -> &[Value] {
+    utilization
+        .get("limits")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+}
+
+fn reset_at(limit: &Value) -> Option<u64> {
+    limit
+        .get("resets_at")
+        .and_then(Value::as_str)
+        .and_then(epoch_ms)
+}
+
+/// `limits` dizisini pencerelere çevirir.
+///
+/// Hem yerel önbellek hem resmi API aynı diziyi veriyor — önbellek zaten o
+/// API'nin saklanmış cevabı — dolayısıyla ayrıştırma tek yerde.
+fn windows_from(utilization: &Value) -> Vec<Window> {
+    limits_of(utilization)
+        .iter()
+        .filter_map(|limit| {
+            let kind = limit.get("kind").and_then(Value::as_str)?;
+            let percent = limit.get("percent").and_then(Value::as_u64)?;
+            Some(Window {
+                label: window_label(kind),
+                percent: percent.min(100) as u8,
+                resets: limit
+                    .get("resets_at")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            })
+        })
+        .collect()
+}
+
+/// Ayrıntı kartının gösterdiği metin.
+///
+/// `/usage` çıktısının biçimi taklit ediliyor ki kaynak değişince kartın
+/// görünümü değişmesin.
+fn detail_from(windows: &[Window]) -> String {
+    windows
         .iter()
         .map(|w| match &w.resets {
             Some(at) => format!("Current {}: {}% used · resets {at}", w.label, w.percent),
             None => format!("Current {}: {}% used", w.label, w.percent),
         })
         .collect::<Vec<_>>()
-        .join("\n");
-
-    Some(Usage {
-        windows,
-        measured_at_ms,
-        detail,
-    })
+        .join("\n")
 }
 
 /// `limits[].kind` → `/usage` metnindeki etiket.
