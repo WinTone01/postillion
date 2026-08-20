@@ -76,6 +76,11 @@ pub struct DraftConfig {
     pub branch: Option<String>,
     /// Where the new session runs (the t3code env-mode).
     pub checkout: CheckoutKind,
+    /// Bu oturumun MCP sunucuları. `None` genel yapılandırma.
+    ///
+    /// Seçim yeni oturum tuvalinde de yapılabilmeli: küme süreç BAŞLARKEN
+    /// uygulanıyor, yani ilk mesajdan önce belirlenmesi gereken tek ayar bu.
+    pub mcp_servers: Option<Vec<String>>,
 }
 
 /// Where a new session runs (t3code's env-mode: `local | worktree`). "Current
@@ -115,6 +120,7 @@ pub struct ResolvedRunConfig {
     pub model: Option<String>,
     pub reasoning: Option<ReasoningLevel>,
     pub model_options: serde_json::Map<String, serde_json::Value>,
+    pub mcp_servers: Option<Vec<String>>,
 }
 
 impl ResolvedRunConfig {
@@ -126,7 +132,7 @@ impl ResolvedRunConfig {
             reasoning: self.reasoning,
             model_options: self.model_options.clone(),
             sandbox: SandboxLevel::WorkspaceWrite,
-            mcp_servers: None,
+            mcp_servers: self.mcp_servers.clone(),
         })
     }
 }
@@ -765,6 +771,9 @@ impl Pickers {
                 .or_else(|| self.effective_model_id(cx).map(str::to_string)),
             reasoning: self.effective_reasoning(cx),
             model_options: self.explicit_options(cx),
+            // Var olan sohbette küme satırda yaşıyor, taslakta picker'ın
+            // kendi durumunda; `mcp_selection` ikisini de biliyor.
+            mcp_servers: self.mcp_selection(cx),
         }
     }
 
@@ -1088,13 +1097,21 @@ impl Pickers {
         }));
     }
 
-    /// Sohbetin seçili MCP sunucuları; `None` genel yapılandırma.
+    /// Seçili MCP sunucuları; `None` genel yapılandırma.
+    ///
+    /// Var olan bir sohbette küme workspace satırında yaşıyor (kalıcı, diğer
+    /// cihazlara da gidiyor); henüz sohbet yokken picker'ın kendi taslak
+    /// durumunda. İkisi de aynı anlamı taşıyor, tek fark nerede durduğu.
     fn mcp_selection(&self, cx: &App) -> Option<Vec<String>> {
-        self.state
-            .read(cx)
-            .selected_chat_row()
-            .and_then(|c| c.config.as_ref())
-            .and_then(|c| c.mcp_servers.clone())
+        if self.state.read(cx).selected_chat.is_some() {
+            return self
+                .state
+                .read(cx)
+                .selected_chat_row()
+                .and_then(|c| c.config.as_ref())
+                .and_then(|c| c.mcp_servers.clone());
+        }
+        self.config.mcp_servers.clone()
     }
 
     /// Footer rozetinin metni.
@@ -1116,7 +1133,14 @@ impl Pickers {
     fn toggle_mcp(&mut self, name: String, cx: &mut Context<Self>) {
         let available = self.mcp.ready().cloned().unwrap_or_default();
         let next = next_mcp_selection(self.mcp_selection(cx).as_deref(), &available, &name);
-        self.update_chat_config(cx, move |config| config.mcp_servers = Some(next));
+
+        if self.state.read(cx).selected_chat.is_some() {
+            self.update_chat_config(cx, move |config| config.mcp_servers = Some(next));
+        } else {
+            // Taslak: sohbet henüz yok, yazılacak bir satır da yok. Seçim
+            // `createChat` ile birlikte kaydediliyor.
+            self.config.mcp_servers = Some(next);
+        }
         cx.notify();
     }
 
@@ -2640,12 +2664,45 @@ impl Pickers {
         // New-session canvas: checkout + ref only, LEFT-aligned (device +
         // project live under the canvas logo now).
         let git = space.as_ref().is_some_and(|s| s.git_detected);
+        let closing = self.open.closing_since();
+
+        // Git yoksa satır yalnızca MCP rozetini taşıyor. Checkout ve referans
+        // seçicilerin git'siz bir projede anlamı yok ama MCP'nin var — ve
+        // eskiden bütün satır kaybolduğu için rozet de kayboluyordu.
         if !git {
-            return None;
+            self.ensure_mcp(false, cx);
+            let mut overlay: Option<(PickerKind, AnyElement)> =
+                if self.mounted_kind() == Some(PickerKind::Mcp) {
+                    let content = self.render_mcp_popover(cx);
+                    Some((PickerKind::Mcp, self.popover_frame(280.0, content, cx)))
+                } else {
+                    None
+                };
+            let chip = self.footer_chip(
+                PickerKind::Mcp,
+                "picker-mcp",
+                crate::icons::WIDGET,
+                self.mcp_label(cx),
+                &theme,
+                cx,
+            );
+            let right = div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .min_w_0()
+                .child(attach_overlay_end(
+                    chip,
+                    &mut overlay,
+                    PickerKind::Mcp,
+                    "mcp-popover",
+                    closing,
+                ));
+            return Some(row().justify_end().child(right).into_any_element());
         }
+
         // Refs feed the draft labels — eager + idempotent.
         self.ensure_refs(false, cx);
-        let closing = self.open.closing_since();
         let mut overlay: Option<(PickerKind, AnyElement)> = match self.mounted_kind() {
             Some(PickerKind::Branch) => {
                 let content = self.render_branch_popover(cx);
@@ -2659,6 +2716,24 @@ impl Pickers {
             // (`render_target_selectors`), not here.
             _ => None,
         };
+
+        // Taslakta da MCP rozeti: küme süreç başlarken uygulanıyor, yani
+        // ilk mesajdan ÖNCE seçilebilmesi gerekiyor. Yalnızca var olan
+        // sohbetlerde göstermek, hiç oturumu olmayan bir kullanıcı için
+        // özelliği tamamen ulaşılamaz kılıyordu.
+        self.ensure_mcp(false, cx);
+        if self.mounted_kind() == Some(PickerKind::Mcp) {
+            let content = self.render_mcp_popover(cx);
+            overlay = Some((PickerKind::Mcp, self.popover_frame(280.0, content, cx)));
+        }
+        let draft_mcp_chip = self.footer_chip(
+            PickerKind::Mcp,
+            "picker-mcp",
+            crate::icons::WIDGET,
+            self.mcp_label(cx),
+            &theme,
+            cx,
+        );
 
         let ref_label = self.ref_label();
         let ref_chip = self.footer_chip(
@@ -2699,7 +2774,15 @@ impl Pickers {
             .flex()
             .flex_row()
             .items_center()
+            .gap(px(4.0))
             .min_w_0()
+            .child(attach_overlay(
+                draft_mcp_chip,
+                &mut overlay,
+                PickerKind::Mcp,
+                "mcp-popover",
+                closing,
+            ))
             .child(attach_overlay_end(
                 ref_chip,
                 &mut overlay,

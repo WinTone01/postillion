@@ -31,6 +31,16 @@ rm -rf "$STAGE" "$TARBALL"
 mkdir -p "$STAGE"
 install -m 755 "$BIN" "$STAGE/postillion"
 install -m 644 "$ROOT/dist/postillion.desktop" "$STAGE/postillion.desktop"
+install -m 644 "$ROOT/dist/postillion.svg" "$STAGE/postillion.svg"
+# Her boyut vektörden ayrı üretiliyor: tek bir büyüğü küçültmek ince
+# çizgileri bulanıklaştırıyor.
+mkdir -p "$STAGE/icons"
+if command -v rsvg-convert >/dev/null 2>&1; then
+  for size in 16 22 24 32 48 64 96 128 256 512 1024; do
+    rsvg-convert -w "$size" -h "$size" "$ROOT/dist/postillion.svg" \
+      -o "$STAGE/icons/postillion-${size}.png"
+  done
+fi
 install -m 644 "$ROOT/dist/postillion.png" "$STAGE/postillion.png"
 
 cat >"$STAGE/install.sh" <<'INSTALL'
@@ -62,7 +72,25 @@ install -Dm644 "$HOME/.local/share/applications/postillion.desktop.tmp" \
   "$HOME/.local/share/applications/postillion.desktop"
 rm -f "$HOME/.local/share/applications/postillion.desktop.tmp"
 
-install -Dm644 "$HERE/postillion.png" "$HOME/.local/share/icons/hicolor/1024x1024/apps/postillion.png"
+# İkon HER standart boyuta kuruluyor, yalnızca 1024'e değil.
+#
+# Görev çubuğu ve menü küçük boyutları seçiyor; tek bir büyük dosya
+# bırakıldığında tema arayışı bir ÖNCEKİ kurulumdan kalan küçük ikonlara
+# düşüyor ve eski logo görünmeye devam ediyor (ölçüldü: bu makinede Tauri
+# sürümünden kalan 16–512 px ikonlar hâlâ oradaydı).
+for size in 16 22 24 32 48 64 96 128 256 512 1024; do
+  src="$HERE/icons/postillion-${size}.png"
+  [[ -f "$src" ]] || src="$HERE/postillion.png"
+  install -Dm644 "$src" \
+    "$HOME/.local/share/icons/hicolor/${size}x${size}/apps/postillion.png"
+done
+if [[ -f "$HERE/postillion.svg" ]]; then
+  install -Dm644 "$HERE/postillion.svg" \
+    "$HOME/.local/share/icons/hicolor/scalable/apps/postillion.svg"
+fi
+# Tema önbelleği tazelenmezse yeni dosyalar görünmüyor.
+command -v gtk-update-icon-cache >/dev/null 2>&1 \
+  && gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
 command -v update-desktop-database >/dev/null 2>&1 \
   && update-desktop-database "$HOME/.local/share/applications" || true
 echo "Installed: $BIN"

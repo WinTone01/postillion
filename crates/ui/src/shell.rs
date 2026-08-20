@@ -181,17 +181,20 @@ pub enum SettingsSection {
     Appearance,
     Notifications,
     Shortcuts,
+    /// Eklentiler, marketplace'ler ve skill'ler — hepsi aynı zincirin halkası.
+    Extensions,
     Archived,
 }
 
 impl SettingsSection {
-    pub const ALL: [SettingsSection; 7] = [
+    pub const ALL: [SettingsSection; 8] = [
         SettingsSection::Devices,
         SettingsSection::Harnesses,
         SettingsSection::Agents,
         SettingsSection::Appearance,
         SettingsSection::Notifications,
         SettingsSection::Shortcuts,
+        SettingsSection::Extensions,
         SettingsSection::Archived,
     ];
 
@@ -205,6 +208,7 @@ impl SettingsSection {
             SettingsSection::Appearance => crate::i18n::t("Appearance"),
             SettingsSection::Notifications => crate::i18n::t("Notifications"),
             SettingsSection::Shortcuts => crate::i18n::t("Shortcuts"),
+            SettingsSection::Extensions => crate::i18n::t("Extensions"),
             SettingsSection::Archived => crate::i18n::t("Archived sessions"),
         }
     }
@@ -825,6 +829,7 @@ pub struct Shell {
     /// yüzden sekme kapanınca düşürülüyor — arka planda yoklamaya devam eden
     /// bir panel görünmeyen bir şey için saniyede bir RPC atardı.
     process_panels: std::collections::HashMap<String, Entity<crate::processes::ProcessPanel>>,
+    extensions_page: Option<Entity<crate::settings::extensions::ExtensionsPage>>,
     subagent_seq: u64,
     /// Ordered surface tabs per panel key (drag-reorderable; stale entries —
     /// closed terminals/diffs — are skipped at read time).
@@ -1095,6 +1100,7 @@ impl Shell {
             diff_seq: 0,
             subagent_tabs: std::collections::HashMap::new(),
             process_panels: std::collections::HashMap::new(),
+            extensions_page: None,
             subagent_seq: 0,
             right_tabs: std::collections::HashMap::new(),
             right_tab_drag: None,
@@ -2216,6 +2222,18 @@ impl Shell {
                     None => Empty.into_any_element(),
                 }
             }
+            SettingsSection::Extensions => {
+                if self.extensions_page.is_none() {
+                    let state = self.state.clone();
+                    self.extensions_page = Some(
+                        cx.new(|cx| crate::settings::extensions::ExtensionsPage::new(state, cx)),
+                    );
+                }
+                match &self.extensions_page {
+                    Some(page) => page.clone().into_any_element(),
+                    None => Empty.into_any_element(),
+                }
+            }
             SettingsSection::Archived => {
                 if self.archived_page.is_none() {
                     let state = self.state.clone();
@@ -3323,6 +3341,7 @@ impl Shell {
             SettingsSection::Appearance => icons::TUNING,
             SettingsSection::Notifications => icons::BELL,
             SettingsSection::Shortcuts => icons::KEYBOARD,
+            SettingsSection::Extensions => icons::WIDGET,
             SettingsSection::Archived => icons::ARCHIVE_MINIMALISTIC,
         };
         // Match the user's dragged sidebar width — the pane container clips to
