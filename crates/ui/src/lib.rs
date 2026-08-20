@@ -34,6 +34,7 @@ pub mod pickers;
 pub mod popover;
 pub mod processes;
 pub mod rail;
+pub mod screenshot;
 pub mod settings;
 pub mod shell;
 pub mod sound;
