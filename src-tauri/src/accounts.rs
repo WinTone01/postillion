@@ -203,13 +203,40 @@ pub fn capture_active() -> Result<Option<String>> {
     write_private(&dir.join(IDENTITY), &serde_json::to_vec_pretty(&Value::Object(stored))?)?;
 
     // Jeton.
+    //
+    // Yalnızca canlı dosyada gerçekten bir jeton varsa kopyalanıyor. Dosyanın
+    // var olması yetmiyor: `claude` bazı durumlarda `accessToken`'ı boş bırakan
+    // bir iskelet yazıyor ve bu fonksiyon her `list()` çağrısında çalıştığı
+    // için, koşulsuz kopyalama saklanmış sağlam jetonun üzerine boş bir dosya
+    // yazıp hesabı geri dönülemez biçimde kaybettiriyordu — ölçüldü, gerçek bir
+    // hesabın 108 karakterlik geçerli jetonu böyle silindi. Yedeklemenin
+    // hesabı yok etmesi, yedeklememekten çok daha kötü.
     let creds = paths::default_config_dir()?.join(CREDENTIALS);
-    if creds.exists() {
+    if has_token(&creds) {
         fs::copy(&creds, dir.join(CREDENTIALS))?;
         set_private(&dir.join(CREDENTIALS))?;
     }
 
     Ok(Some(slug))
+}
+
+/// Dosyada kullanılabilir bir erişim jetonu var mı.
+///
+/// Okunamayan, bozuk ya da `accessToken`'ı boş olan dosya "jeton yok" sayılıyor:
+/// üçü de saklanmış bir kopyanın üzerine yazılmayı hak etmiyor.
+fn has_token(path: &Path) -> bool {
+    let Ok(raw) = fs::read(path) else {
+        return false;
+    };
+    let Ok(parsed) = serde_json::from_slice::<Value>(&raw) else {
+        return false;
+    };
+
+    parsed
+        .get("claudeAiOauth")
+        .and_then(|oauth| oauth.get("accessToken"))
+        .and_then(Value::as_str)
+        .is_some_and(|token| !token.is_empty())
 }
 
 /// Sistem genelinde etkin hesabı değiştirir.
@@ -464,6 +491,45 @@ impl Drop for ConfigLock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Boş ya da bozuk bir canlı jeton dosyası saklanmış kopyayı ezmemeli.
+    ///
+    /// Bu tam olarak yaşanmış bir veri kaybı: `claude` `accessToken`'ı boş
+    /// bırakan bir dosya yazdı, `capture_active()` her listelemede onu
+    /// kopyaladı ve gerçek bir hesabın geçerli jetonu silindi. Hesabın geri
+    /// getirilmesi yeniden giriş gerektiriyor.
+    #[test]
+    fn bos_jeton_saklanmisi_ezmez() {
+        let dir = std::env::temp_dir().join(format!("po-token-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let path = dir.join("creds.json");
+
+        let cases: [(&str, bool); 6] = [
+            (r#"{"claudeAiOauth":{"accessToken":"gercek-jeton"}}"#, true),
+            // Kaybın sebebi buydu: alan var ama boş.
+            (r#"{"claudeAiOauth":{"accessToken":""}}"#, false),
+            (r#"{"claudeAiOauth":{}}"#, false),
+            (r#"{}"#, false),
+            // Yarım yazılmış dosya da güvenilmez.
+            (r#"{"claudeAiOauth":"#, false),
+            ("", false),
+        ];
+
+        for (contents, expected) in cases {
+            std::fs::write(&path, contents).unwrap();
+            assert_eq!(
+                has_token(&path),
+                expected,
+                "yanlış karar verildi: {contents:?}"
+            );
+        }
+
+        // Hiç olmayan dosya da kopyalanmamalı.
+        assert!(!has_token(&dir.join("yok.json")));
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn slug_epostadan_turetilir() {
