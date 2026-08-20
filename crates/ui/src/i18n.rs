@@ -186,6 +186,21 @@ fn turkish(source: &str) -> Option<&'static str> {
         "Select a chat to open a terminal" => "Terminal açmak için bir sohbet seçin",
         "Open a surface" => "Bir yüzey aç",
 
+        // ── uzantılar
+        "Extensions" => "Uzantılar",
+        "Installed" => "Kurulu",
+        "Available" => "Kurulabilir",
+        "Marketplaces" => "Marketplace'ler",
+        "Skills" => "Skill'ler",
+        "Install" => "Kur",
+        "Uninstall" => "Kaldır",
+        "Enable" => "Aç",
+        "Disable" => "Kapat",
+        "Working…" => "Çalışıyor…",
+        "Nothing here yet." => "Burada henüz bir şey yok.",
+        "No marketplaces added." => "Eklenmiş marketplace yok.",
+        "No skills installed." => "Kurulu skill yok.",
+
         // ── süreç paneli
         "Processes" => "Süreçler",
         "Background processes" => "Arka plan süreçleri",
