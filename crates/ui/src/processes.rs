@@ -11,7 +11,7 @@
 
 use std::time::Duration;
 
-use gpui::{AnyElement, App, Context, Entity, SharedString, Task, div, prelude::*, px};
+use gpui::{AnyElement, Context, Entity, SharedString, Task, div, prelude::*, px};
 use postillion_engine::processes::Proc;
 use postillion_rpc::methods;
 

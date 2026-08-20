@@ -1,0 +1,47 @@
+# systemd birimi — /etc/systemd/system/postillion-server.service
+#
+#   sudo cp deploy/postillion-server.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now postillion-server
+
+[Unit]
+Description=Postillion eşitleme sunucusu
+# Veritabanı aynı makinedeyse önce o açılsın; uzaktaysa bu satır zararsız.
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=postillion
+Group=postillion
+
+# Sırlar dosyadan okunuyor, birim dosyasından DEĞİL: birim dosyası
+# dünyaya okunur ve `systemctl cat` çıktısında görünür.
+#   DATABASE_URL=postgres://postillion:...@127.0.0.1/postillion
+#   POSTILLION_SERVER_TOKEN=...
+# Dosya `chmod 600`, sahibi root olmalı.
+EnvironmentFile=/etc/postillion/server.env
+
+# Yalnızca yerel arayüz: TLS'i ters vekil sonlandırıyor, sunucunun kendisi
+# doğrudan internete açılmıyor.
+Environment=BIND=127.0.0.1:8787
+
+ExecStart=/usr/local/bin/postillion-server
+Restart=always
+RestartSec=3
+
+# Sıkılaştırma: sunucunun ihtiyacı olan tek şey ağ ve kendi ikilisi.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
