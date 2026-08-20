@@ -431,6 +431,8 @@ pub struct Pickers {
     refs: Loadable<Vec<RepoRef>>,
     /// Cihazda tanımlı MCP sunucularının isimleri.
     mcp: Loadable<Vec<String>>,
+    /// Silme isteği yolda olan sunucu; satırı kilitler.
+    mcp_busy: Option<String>,
     /// Space id the `refs` slot belongs to (invalidated on space change).
     refs_space: Option<String>,
     /// Highlighted row in the open list (keyboard nav).
@@ -453,6 +455,7 @@ pub struct Pickers {
     /// harness/model loads — sharing `load_task` would abort one mid-flight.
     refs_task: Option<Task<()>>,
     mcp_task: Option<Task<()>>,
+    mcp_remove_task: Option<Task<()>>,
     /// In-flight mid-session `SwitchRef` (the ref being switched to).
     switching: Option<String>,
     switch_task: Option<Task<()>>,
@@ -588,6 +591,7 @@ impl Pickers {
             models: HashMap::new(),
             refs: Loadable::Idle,
             mcp: Loadable::Idle,
+            mcp_busy: None,
             refs_space: None,
             active: 0,
             model_scroll: gpui::ScrollHandle::new(),
@@ -598,6 +602,7 @@ impl Pickers {
             load_task: None,
             refs_task: None,
             mcp_task: None,
+            mcp_remove_task: None,
             switching: None,
             switch_task: None,
             switch_error: None,
@@ -1115,6 +1120,42 @@ impl Pickers {
         cx.notify();
     }
 
+    /// Bir sunucuyu cihazdan tamamen siler (`claude mcp remove`).
+    ///
+    /// Sohbete özel seçimden çıkarmakla aynı şey DEĞİL: bu, sunucuyu Claude
+    /// Code'un yapılandırmasından kaldırıyor ve her sohbeti etkiliyor. Bu
+    /// yüzden satırdaki aç/kapadan ayrı, ikinci bir kontrole bağlı.
+    fn remove_mcp_server(&mut self, name: String, cx: &mut Context<Self>) {
+        let Some(engine) = self.engine(cx) else {
+            return;
+        };
+        self.mcp_busy = Some(name.clone());
+        cx.notify();
+
+        self.mcp_task = Some(cx.spawn(async move |this, cx| {
+            let result = engine
+                .client()
+                .call(
+                    methods::REMOVE_MCP_SERVER,
+                    serde_json::json!({ "name": name }),
+                )
+                .await;
+            this.update(cx, |pickers, cx| {
+                pickers.mcp_busy = None;
+                match result {
+                    // Liste artık bayat: silinen sunucu hâlâ görünürdü.
+                    Ok(_) => {
+                        pickers.mcp = Loadable::Idle;
+                        pickers.ensure_mcp(true, cx);
+                    }
+                    Err(err) => pickers.mcp = Loadable::Error(err.to_string()),
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
     /// Sunucu listesi: her satır bir aç/kapa.
     fn render_mcp_popover(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::of(cx).clone();
@@ -1151,6 +1192,8 @@ impl Pickers {
                         .map_or(true, |list| list.iter().any(|n| n == name));
                     let label = SharedString::from(name.clone());
                     let for_click = name.clone();
+                    let for_remove = name.clone();
+                    let removing = self.mcp_busy.as_deref() == Some(name.as_str());
                     list = list.child(
                         popover::menu_row(&theme, active == index, format!("mcp-{index}"))
                             .id(("mcp-row", index))
@@ -1164,7 +1207,31 @@ impl Pickers {
                                         .size(px(12.0))
                                         .text_color(theme.accent),
                                 )
-                            }),
+                            })
+                            // Sunucuyu cihazdan tamamen kaldırır. Satıra
+                            // tıklamak yalnızca bu sohbette açıp kapatıyor;
+                            // silme her sohbeti etkilediği için ayrı bir
+                            // kontrol ve kendi tıklama alanı var.
+                            .child(
+                                div()
+                                    .id(("mcp-remove", index))
+                                    .px(px(4.0))
+                                    .cursor_pointer()
+                                    .text_color(if removing {
+                                        theme.text_faint
+                                    } else {
+                                        theme.danger.opacity(0.75)
+                                    })
+                                    .child(
+                                        crate::icons::icon(
+                                            crate::icons::TRASH_BIN_MINIMALISTIC,
+                                        )
+                                        .size(px(12.0)),
+                                    )
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.remove_mcp_server(for_remove.clone(), cx);
+                                    })),
+                            ),
                     );
                 }
                 list.into_any_element()

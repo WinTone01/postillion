@@ -178,3 +178,194 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 }
+
+// ── sunucu yönetimi ─────────────────────────────────────────────────────────
+//
+// Ekleme/silme `claude mcp` alt komutuna devrediliyor, `~/.claude.json`'a elle
+// yazılmıyor: dosyanın şeması Claude Code'un kendi malı ve sürümler arasında
+// değişebiliyor. CLI'ı çağırmak o sözleşmeyi sahibine bırakıyor.
+
+use std::process::Command;
+
+/// Sunucu adının komut satırında güvenli olduğunu doğrular.
+///
+/// Ad doğrudan argüman olarak geçiyor. `-` ile başlayan bir ad CLI tarafından
+/// BAYRAK olarak okunurdu; kalan karakter kümesi de Claude Code'un kabul
+/// ettiğiyle sınırlı tutuluyor ki hata mesajı bizden çıksın, komuttan değil.
+pub fn validate_name(name: &str) -> Result<(), String> {
+    if name.trim().is_empty() {
+        return Err("sunucu ismi boş olamaz".into());
+    }
+    if name.starts_with('-') {
+        return Err("sunucu ismi '-' ile başlayamaz".into());
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err("sunucu ismi yalnızca harf, rakam, '-', '_' ve '.' içerebilir".into());
+    }
+    Ok(())
+}
+
+/// `claude mcp add` argümanları — HTTP/SSE taşıması. Saf; test edilebilir.
+pub fn add_http_args(
+    name: &str,
+    url: &str,
+    transport: &str,
+    headers: &[String],
+) -> Result<Vec<String>, String> {
+    validate_name(name)?;
+    if !matches!(transport, "http" | "sse") {
+        return Err(format!("geçersiz taşıma: {transport}"));
+    }
+
+    let mut args = vec![
+        "mcp".to_string(),
+        "add".to_string(),
+        "--transport".to_string(),
+        transport.to_string(),
+        name.to_string(),
+        url.to_string(),
+    ];
+    for header in headers {
+        args.push("--header".into());
+        args.push(header.clone());
+    }
+    Ok(args)
+}
+
+/// `claude mcp add` argümanları — stdio taşıması.
+///
+/// Komut argümanları `--` sonrasına gidiyor: aksi halde `-v` gibi bir argüman
+/// `claude`'un kendi bayrağı sanılırdı.
+pub fn add_stdio_args(
+    name: &str,
+    command: &str,
+    command_args: &[String],
+    env: &[String],
+) -> Result<Vec<String>, String> {
+    validate_name(name)?;
+    if command.trim().is_empty() {
+        return Err("komut boş olamaz".into());
+    }
+
+    let mut args = vec!["mcp".to_string(), "add".to_string()];
+    for entry in env {
+        args.push("--env".into());
+        args.push(entry.clone());
+    }
+    args.push(name.to_string());
+    args.push("--".into());
+    args.push(command.to_string());
+    args.extend(command_args.iter().cloned());
+    Ok(args)
+}
+
+pub fn remove_args(name: &str) -> Result<Vec<String>, String> {
+    validate_name(name)?;
+    Ok(vec!["mcp".into(), "remove".into(), name.into()])
+}
+
+/// `claude` çalıştırır ve hata durumunda stderr'i taşır.
+pub fn run_claude(args: &[String]) -> Result<(), String> {
+    let exe = crate::claude::resolve_claude_executable()
+        .ok_or_else(|| "claude bulunamadı".to_string())?;
+    let output = Command::new(&exe)
+        .args(args)
+        .output()
+        .map_err(|e| format!("{} çalıştırılamadı: {e}", exe.display()))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+    // CLI'ın kendi mesajı kullanıcıya bizimkinden daha yararlı.
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if stderr.is_empty() {
+        format!("claude mcp başarısız (çıkış {:?})", output.status.code())
+    } else {
+        stderr
+    })
+}
+
+#[cfg(test)]
+mod manage_tests {
+    use super::*;
+
+    #[test]
+    fn bayrak_gibi_gorunen_ad_reddediliyor() {
+        // Ad doğrudan argüman: `--scope` gibi bir ad CLI'ı yanıltırdı.
+        assert!(validate_name("-scope").is_err());
+        assert!(validate_name("--transport").is_err());
+        assert!(validate_name("").is_err());
+        assert!(validate_name("   ").is_err());
+        // Boşluk ve kabuk karakterleri de dışarıda.
+        assert!(validate_name("iki kelime").is_err());
+        assert!(validate_name("rm;ls").is_err());
+        assert!(validate_name("$(whoami)").is_err());
+
+        assert!(validate_name("figbridge").is_ok());
+        assert!(validate_name("heroui-pro").is_ok());
+        assert!(validate_name("my_server.v2").is_ok());
+    }
+
+    #[test]
+    fn http_argumanlari_tasima_ve_basliklari_tasiyor() {
+        let args = add_http_args(
+            "ctx7",
+            "https://mcp.example/sse",
+            "sse",
+            &["Authorization: Bearer x".to_string()],
+        )
+        .unwrap();
+        assert_eq!(
+            args,
+            vec![
+                "mcp",
+                "add",
+                "--transport",
+                "sse",
+                "ctx7",
+                "https://mcp.example/sse",
+                "--header",
+                "Authorization: Bearer x",
+            ]
+        );
+
+        assert!(add_http_args("ctx7", "https://x", "stdio", &[]).is_err());
+    }
+
+    #[test]
+    fn stdio_argumanlari_komutu_ayiriciyla_veriyor() {
+        let args = add_stdio_args(
+            "local",
+            "npx",
+            &["-y".to_string(), "some-server".to_string()],
+            &["API_KEY=abc".to_string()],
+        )
+        .unwrap();
+        // `--` olmadan `-y` claude'un kendi bayrağı sanılırdı.
+        assert_eq!(
+            args,
+            vec![
+                "mcp",
+                "add",
+                "--env",
+                "API_KEY=abc",
+                "local",
+                "--",
+                "npx",
+                "-y",
+                "some-server",
+            ]
+        );
+
+        assert!(add_stdio_args("local", "   ", &[], &[]).is_err());
+    }
+
+    #[test]
+    fn silme_argumanlari_dogrulaniyor() {
+        assert_eq!(remove_args("figbridge").unwrap(), vec!["mcp", "remove", "figbridge"]);
+        assert!(remove_args("-x").is_err());
+    }
+}

@@ -910,6 +910,8 @@ fn forwardable(method: &str) -> bool {
             | methods::LIST_FOLDERS
             // MCP tanımları host cihazın `~/.claude.json`'ında yaşıyor.
             | methods::LIST_MCP_SERVERS
+            | methods::ADD_MCP_SERVER
+            | methods::REMOVE_MCP_SERVER
             // Süreç ağacı, ajanın koştuğu cihazın `/proc`'unda.
             | methods::LIST_PROCESSES
             | methods::KILL_PROCESS
@@ -1625,6 +1627,45 @@ impl RpcService for EngineRpc {
                     .await
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
                 RpcReply::value(&branches)
+            }
+            methods::ADD_MCP_SERVER => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct P {
+                    name: String,
+                    /// "http" | "sse" | "stdio"
+                    transport: String,
+                    /// URL (http/sse) ya da komut (stdio).
+                    target: String,
+                    #[serde(default)]
+                    headers: Vec<String>,
+                    #[serde(default)]
+                    env: Vec<String>,
+                    #[serde(default)]
+                    command_args: Vec<String>,
+                }
+                let p: P = parse_params(params)?;
+                use postillion_harness::claude::mcp;
+                let args = if p.transport == "stdio" {
+                    mcp::add_stdio_args(&p.name, &p.target, &p.command_args, &p.env)
+                } else {
+                    mcp::add_http_args(&p.name, &p.target, &p.transport, &p.headers)
+                }
+                .map_err(RpcError::Failed)?;
+                mcp::run_claude(&args).map_err(RpcError::Failed)?;
+                RpcReply::value(&serde_json::json!({}))
+            }
+            methods::REMOVE_MCP_SERVER => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct P {
+                    name: String,
+                }
+                let p: P = parse_params(params)?;
+                use postillion_harness::claude::mcp;
+                let args = mcp::remove_args(&p.name).map_err(RpcError::Failed)?;
+                mcp::run_claude(&args).map_err(RpcError::Failed)?;
+                RpcReply::value(&serde_json::json!({}))
             }
             methods::LIST_PROCESSES => {
                 #[derive(Deserialize)]
