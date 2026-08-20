@@ -3848,11 +3848,15 @@ impl Shell {
         ) = match workspace_scope {
             Some(WorkspaceScope::Local) => {
                 let line = if matches!(self.sync_flow, SyncFlow::RestartPending { .. }) {
-                    "Sync ready after restart"
+                    crate::i18n::t("Sync ready after restart")
                 } else {
-                    "Local only"
+                    crate::i18n::t("Local only")
                 };
-                (line.into(), None, "Stored on this device".into())
+                (
+                    line.into(),
+                    None,
+                    crate::i18n::t("Stored on this device").into(),
+                )
             }
             Some(WorkspaceScope::Development) => (
                 "Development".into(),
@@ -4974,12 +4978,12 @@ impl Shell {
                                 .mt(px(6.0))
                                 .text_size(px(13.0))
                                 .text_color(theme.text_muted.opacity(0.7))
-                                .child(SharedString::from(
+                                .child(SharedString::from(crate::i18n::t(
                                     "A project is a folder on one of your devices.",
-                                )),
+                                ))),
                         )
                         .child(
-                            popover::btn_primary(&theme_owned, "Add a project")
+                            popover::btn_primary(&theme_owned, crate::i18n::t("Add a project"))
                                 .id("onboarding-add-space")
                                 .mt(px(20.0))
                                 .on_click(cx.listener(|this, _, _, cx| this.open_add_space(cx))),

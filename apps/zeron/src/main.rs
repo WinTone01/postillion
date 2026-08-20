@@ -93,7 +93,32 @@ fn workos_client_id_from_env(edge_token: &Option<String>) -> Option<String> {
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+/// `ZERON_BACKEND=x11` verildiğinde pencere arka ucunu X11'e zorlar.
+///
+/// gpui arka ucu yalnızca ortama bakarak seçiyor: `WAYLAND_DISPLAY` doluysa
+/// koşulsuz Wayland, başka bir anahtar yok. Bazı kurulumlarda (ölçüldü: KDE
+/// Wayland + NVIDIA RTX 3060, sürücü Vulkan'ı sorunsuz veriyor) pencere
+/// oluşturuluyor ama hiç haritalanmıyor — süreç sağlıklı çalışıyor, GPU
+/// seçiliyor, tek bir hata satırı bile yok, ekranda hiçbir şey yok. Böyle bir
+/// makinede uygulamayı açmanın tek yolu XWayland'e düşmek.
+///
+/// Değişkeni burada, gpui'ye dokunmadan önce silmek `guess_compositor()`'un
+/// X11'i seçmesini sağlıyor. `wayland` değeri açıkça Wayland'da kalmak için;
+/// tanınmayan değer yok sayılıyor ve normal otomatik seçim işliyor.
+fn apply_backend_override() {
+    let Ok(backend) = std::env::var("ZERON_BACKEND") else {
+        return;
+    };
+    if !backend.eq_ignore_ascii_case("x11") {
+        return;
+    }
+    // SAFETY: tek iş parçacıklı başlangıç; gpui henüz hiçbir şey okumadı ve
+    // hiçbir iş parçacığı başlatılmadı.
+    unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
+}
+
 fn main() -> anyhow::Result<()> {
+    apply_backend_override();
     let cli = Cli::parse();
     // Long-running modes log at info, one-shot CLI commands at warn (RUST_LOG
     // overrides either).
