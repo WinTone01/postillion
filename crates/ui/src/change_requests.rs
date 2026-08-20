@@ -7,7 +7,7 @@
 use std::collections::{HashMap, HashSet};
 
 use gpui::{AnyElement, Context, Render, SharedString, Window, div, prelude::*, px};
-use zeron_proto::{ChangeRequestSummary, Chat, CheckoutChangeRequestStatus, Space};
+use postillion_proto::{ChangeRequestSummary, Chat, CheckoutChangeRequestStatus, Space};
 
 use crate::theme::Theme;
 
@@ -38,12 +38,12 @@ pub(crate) struct ChangeRequestBadgeModel {
 
 impl ChangeRequestBadgeModel {
     pub fn from_summary(summary: &ChangeRequestSummary) -> Self {
-        use zeron_proto::ChangeRequestState;
+        use postillion_proto::ChangeRequestState;
 
         let (state_label, tone) = match summary.state {
-            ChangeRequestState::Open => ("Open", ChangeRequestBadgeTone::Open),
-            ChangeRequestState::Merged => ("Merged", ChangeRequestBadgeTone::Merged),
-            ChangeRequestState::Closed => ("Closed", ChangeRequestBadgeTone::Closed),
+            ChangeRequestState::Open => (crate::i18n::t("Open"), ChangeRequestBadgeTone::Open),
+            ChangeRequestState::Merged => (crate::i18n::t("Merged"), ChangeRequestBadgeTone::Merged),
+            ChangeRequestState::Closed => (crate::i18n::t("Closed"), ChangeRequestBadgeTone::Closed),
         };
         Self {
             number: format!("#{}", summary.number).into(),
@@ -319,7 +319,7 @@ fn effective_chat_cwd<'a>(chat: &'a Chat, spaces: &'a [Space]) -> Option<&'a str
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone as _, Utc};
-    use zeron_proto::ChangeRequestState;
+    use postillion_proto::ChangeRequestState;
 
     use super::*;
 
@@ -366,7 +366,7 @@ mod tests {
             change_request: Some(ChangeRequestSummary {
                 provider: "github".into(),
                 number: 90,
-                title: "Add pull request badges".into(),
+                title: crate::i18n::t("Add pull request badges").into(),
                 url: "https://github.com/acme/zeron/pull/90".into(),
                 state: ChangeRequestState::Open,
                 base_ref: "main".into(),

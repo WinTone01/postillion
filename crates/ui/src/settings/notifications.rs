@@ -64,13 +64,13 @@ impl Render for NotificationsPage {
                             .min_w_0()
                             .flex()
                             .flex_col()
-                            .child(widgets::row_title(&theme, "Sounds"))
+                            .child(widgets::row_title(&theme, crate::i18n::t("Sounds")))
                             .child(widgets::meta_line(
                                 &theme,
                                 vec![
                                     div()
                                         .child(SharedString::from(
-                                            "Chime when a run finishes or an agent asks a question.",
+                                            crate::i18n::t("Chime when a run finishes or an agent asks a question."),
                                         ))
                                         .into_any_element(),
                                 ],
@@ -96,7 +96,7 @@ impl Render for NotificationsPage {
                             .min_w_0()
                             .flex()
                             .flex_col()
-                            .child(widgets::row_title(&theme, "Desktop notifications"))
+                            .child(widgets::row_title(&theme, crate::i18n::t("Desktop notifications")))
                             .child(widgets::meta_line(
                                 &theme,
                                 vec![
@@ -132,7 +132,7 @@ impl Render for NotificationsPage {
                             .min_w_0()
                             .flex()
                             .flex_col()
-                            .child(widgets::row_title(&theme, "Only when in the background"))
+                            .child(widgets::row_title(&theme, crate::i18n::t("Only when in the background")))
                             .child(widgets::meta_line(
                                 &theme,
                                 vec![
@@ -166,7 +166,7 @@ impl Render for NotificationsPage {
             .overflow_y_scroll()
             .child(
                 widgets::page_column()
-                    .child(widgets::page_header(&theme, "Notifications", None))
+                    .child(widgets::page_header(&theme, crate::i18n::t("Notifications"), None))
                     .child(
                         widgets::page_subtitle(
                             &theme,

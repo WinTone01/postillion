@@ -4,9 +4,9 @@
 //! Repos are device-local (paths differ per machine), so the known set is a plain
 //! JSON list (`{data_dir}/repos.json`) — no sync. Existing repos can live anywhere
 //! the user points us; cloned/created ones land in `{data_dir}/repos`. Worktrees are
-//! created under `~/.zeron/worktrees/<repoName>/<worktreeName>` (NOT the data
+//! created under `~/.postillion/worktrees/<repoName>/<worktreeName>` (NOT the data
 //! dir — worktrees are user-facing working checkouts), with an auto-generated name +
-//! matching `zeron/<name>` branch. `ZERON_WORKTREES_DIR` overrides the root.
+//! matching `zeron/<name>` branch. `POSTILLION_WORKTREES_DIR` overrides the root.
 //!
 //! All git access is via subprocess (`tokio::process`) — never libgit2.
 
@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use sha2::{Digest, Sha256};
 
-use zeron_proto::{
+use postillion_proto::{
     DriveEntry, FileSearchMatch, FolderEntry, FolderListing, GitHistoryCommit, GitHistoryPage,
     GitHistoryRef, GitHistoryRefKind, Repo, RepoRef, Worktree,
 };
@@ -76,13 +76,13 @@ pub(crate) fn home_dir() -> PathBuf {
 }
 
 /// Where new worktrees live. Deliberately NOT under the backend data dir —
-/// worktrees are user-facing working checkouts. `ZERON_WORKTREES_DIR` overrides
+/// worktrees are user-facing working checkouts. `POSTILLION_WORKTREES_DIR` overrides
 /// (test isolation); empty reads as unset.
 fn default_worktrees_root() -> PathBuf {
-    std::env::var_os("ZERON_WORKTREES_DIR")
+    std::env::var_os("POSTILLION_WORKTREES_DIR")
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| home_dir().join(".zeron").join("worktrees"))
+        .unwrap_or_else(|| home_dir().join(".postillion").join("worktrees"))
 }
 
 struct ReposInner {
@@ -99,7 +99,7 @@ pub struct Repos {
 
 impl Repos {
     /// `data_dir` holds `repos.json` + cloned/created repos; the worktree root
-    /// comes from `$ZERON_WORKTREES_DIR` or `~/.zeron/worktrees`.
+    /// comes from `$POSTILLION_WORKTREES_DIR` or `~/.postillion/worktrees`.
     pub fn new(data_dir: &Path, device_id: &str) -> Self {
         Self::with_worktrees_root(data_dir, device_id, default_worktrees_root())
     }

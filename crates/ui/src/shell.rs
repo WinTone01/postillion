@@ -22,9 +22,9 @@ use gpui::{
 };
 
 use gpui_tokio::Tokio;
-use zeron_engine::InstanceLock;
-use zeron_proto::{AuthState, WorkspaceScope};
-use zeron_rpc::methods;
+use postillion_engine::InstanceLock;
+use postillion_proto::{AuthState, WorkspaceScope};
+use postillion_rpc::methods;
 
 use crate::changes::{Changes, ChangesEvent};
 use crate::composer::{Composer, ComposerEvent, ComposerInput, ComposerInputEvent};
@@ -199,13 +199,13 @@ impl SettingsSection {
     /// `settingsTitle` — the same strings in both places).
     pub fn label(self) -> &'static str {
         match self {
-            SettingsSection::Devices => "Devices",
-            SettingsSection::Harnesses => "Agents",
-            SettingsSection::Agents => "Accounts",
-            SettingsSection::Appearance => "Appearance",
-            SettingsSection::Notifications => "Notifications",
-            SettingsSection::Shortcuts => "Shortcuts",
-            SettingsSection::Archived => "Archived sessions",
+            SettingsSection::Devices => crate::i18n::t("Devices"),
+            SettingsSection::Harnesses => crate::i18n::t("Agents"),
+            SettingsSection::Agents => crate::i18n::t("Accounts"),
+            SettingsSection::Appearance => crate::i18n::t("Appearance"),
+            SettingsSection::Notifications => crate::i18n::t("Notifications"),
+            SettingsSection::Shortcuts => crate::i18n::t("Shortcuts"),
+            SettingsSection::Archived => crate::i18n::t("Archived sessions"),
         }
     }
 }
@@ -865,7 +865,7 @@ pub struct Shell {
     space_boot_applied: bool,
     /// Last seen session status per chat — the chime trigger compares against
     /// it (a row's FIRST appearance never chimes, so boot stays silent).
-    sound_prev: std::collections::HashMap<String, zeron_proto::SessionStatus>,
+    sound_prev: std::collections::HashMap<String, postillion_proto::SessionStatus>,
     user_menu: popover::Popup<()>,
     /// Inline sidebar error strip (mutation failures); click dismisses.
     sidebar_notice: Option<SharedString>,
@@ -879,7 +879,7 @@ pub struct Shell {
     update_dismissed: Option<String>,
     /// How this binary was installed — decides the strip's click behavior.
     /// Cached: `detect_install` stats `current_exe` and this renders per frame.
-    install: zeron_update::InstallKind,
+    install: postillion_update::InstallKind,
     org: Option<OrgGateUi>,
     sync_flow: SyncFlow,
     mutate_task: Option<Task<()>>,
@@ -911,8 +911,8 @@ pub struct Shell {
     /// Last observed `window.is_window_active()` — rising edge fires a
     /// ProbeSync so a broadcast-deaf room heals as the user looks at the app.
     was_window_active: bool,
-    /// Dev/testing knobs (`ZERON_OPEN_DIALOG`, `ZERON_FORCE_GATE`,
-    /// `ZERON_DEMO_UPLOAD`) — see [`Shell::new`].
+    /// Dev/testing knobs (`POSTILLION_OPEN_DIALOG`, `POSTILLION_FORCE_GATE`,
+    /// `POSTILLION_DEMO_UPLOAD`) — see [`Shell::new`].
     debug_dialog: Option<String>,
     debug_gate: Option<GatePhase>,
     debug_upload: Option<String>,
@@ -1010,8 +1010,8 @@ impl Shell {
                             // same per-second refresh while degraded.
                             || matches!(
                                 s.connectivity.state,
-                                zeron_proto::ConnectivityState::Offline
-                                    | zeron_proto::ConnectivityState::Reconnecting
+                                postillion_proto::ConnectivityState::Offline
+                                    | postillion_proto::ConnectivityState::Reconnecting
                             )
                     };
                     if live {
@@ -1027,10 +1027,10 @@ impl Shell {
         let settings = UiSettings::load(&data_dir);
         // Bind the customizable shortcuts from the persisted keymap.
         apply_keymap(cx, &settings.keymap);
-        // Dev/testing knob: `ZERON_OPEN_ROUTE=settings[/<section>]` boots
+        // Dev/testing knob: `POSTILLION_OPEN_ROUTE=settings[/<section>]` boots
         // straight into a settings section — these pages have no deep link and
         // synthetic input can't reach them on headless compositors.
-        let route = match std::env::var("ZERON_OPEN_ROUTE").ok().as_deref() {
+        let route = match std::env::var("POSTILLION_OPEN_ROUTE").ok().as_deref() {
             Some("settings") | Some("settings/devices") => {
                 Route::Settings(SettingsSection::Devices)
             }
@@ -1047,21 +1047,21 @@ impl Shell {
             }
             _ => Route::Chat,
         };
-        // More capture knobs of the same kind: `ZERON_OPEN_DIALOG=rename|delete`
+        // More capture knobs of the same kind: `POSTILLION_OPEN_DIALOG=rename|delete`
         // opens that dialog for the first chat once chats land; `=model` pops
         // the combined harness/model menu once the shell is Ready;
-        // `ZERON_FORCE_GATE=signin|org|failed` renders that gate regardless of
+        // `POSTILLION_FORCE_GATE=signin|org|failed` renders that gate regardless of
         // real auth state (display-only — for styling passes).
-        let debug_dialog = std::env::var("ZERON_OPEN_DIALOG").ok();
-        // `ZERON_DEMO_UPLOAD=<pct>:<image path>` fabricates an in-flight image
+        let debug_dialog = std::env::var("POSTILLION_OPEN_DIALOG").ok();
+        // `POSTILLION_DEMO_UPLOAD=<pct>:<image path>` fabricates an in-flight image
         // send on the selected chat (echo bubble + frozen thumbnail progress
         // ring) — display-only; a real upload can't be paused for a capture.
-        let debug_upload = std::env::var("ZERON_DEMO_UPLOAD").ok();
-        let debug_gate = match std::env::var("ZERON_FORCE_GATE").ok().as_deref() {
+        let debug_upload = std::env::var("POSTILLION_DEMO_UPLOAD").ok();
+        let debug_gate = match std::env::var("POSTILLION_FORCE_GATE").ok().as_deref() {
             Some("signin") => Some(GatePhase::SignIn),
             Some("org") => Some(GatePhase::OrgGate),
             Some("failed") => Some(GatePhase::Failed(
-                "Could not reach the zeron engine on port 27901".into(),
+                "Could not reach the postillion engine on port 27901".into(),
             )),
             _ => None,
         };
@@ -1119,7 +1119,7 @@ impl Shell {
             update_flow: UpdateFlow::Idle,
             update_task: None,
             update_dismissed: None,
-            install: zeron_update::detect_install(),
+            install: postillion_update::detect_install(),
             org: None,
             sync_flow: SyncFlow::Idle,
             mutate_task: None,
@@ -1214,7 +1214,7 @@ impl Shell {
                 _ => {}
             }
         }
-        // Capture knob: `ZERON_DEMO_UPLOAD=<pct>:<image path>` — once a chat
+        // Capture knob: `POSTILLION_DEMO_UPLOAD=<pct>:<image path>` — once a chat
         // is selected, push a fake sending echo carrying that image as a
         // pending attachment and freeze upload progress at <pct>, so the
         // thumbnail progress ring can be styled/screenshotted (a real upload
@@ -1250,10 +1250,10 @@ impl Shell {
                     "Here is the screenshot of the bug.",
                     std::slice::from_ref(&pending_path),
                 );
-                let echo = zeron_doc::SessionMessageEntry {
+                let echo = postillion_doc::SessionMessageEntry {
                     id: "demo-upload-echo".into(),
-                    role: zeron_doc::MessageRole::User,
-                    parts: vec![zeron_doc::MessagePart::Text {
+                    role: postillion_doc::MessageRole::User,
+                    parts: vec![postillion_doc::MessagePart::Text {
                         id: "t0".into(),
                         text,
                     }],
@@ -1300,19 +1300,19 @@ impl Shell {
         // still ring.
         {
             let now = Utc::now();
-            type Ping = (String, zeron_proto::SessionStatus, bool, Option<String>);
+            type Ping = (String, postillion_proto::SessionStatus, bool, Option<String>);
             let sessions: Vec<Ping> = {
                 let state = state.read(cx);
                 state
                     .sessions
                     .iter()
                     .map(|s| {
-                        use zeron_proto::view::Indicator;
-                        let status = match zeron_proto::view::effective_indicator(Some(s), now) {
-                            Indicator::Working => zeron_proto::SessionStatus::Working,
-                            Indicator::AwaitingInput => zeron_proto::SessionStatus::AwaitingInput,
-                            Indicator::Errored => zeron_proto::SessionStatus::Errored,
-                            Indicator::None => zeron_proto::SessionStatus::Idle,
+                        use postillion_proto::view::Indicator;
+                        let status = match postillion_proto::view::effective_indicator(Some(s), now) {
+                            Indicator::Working => postillion_proto::SessionStatus::Working,
+                            Indicator::AwaitingInput => postillion_proto::SessionStatus::AwaitingInput,
+                            Indicator::Errored => postillion_proto::SessionStatus::Errored,
+                            Indicator::None => postillion_proto::SessionStatus::Idle,
                         };
                         let send_pending = state.send_pending(&s.chat_id, now);
                         let title = state
@@ -1341,10 +1341,10 @@ impl Shell {
                     if self.settings.notifications_enabled
                         && !(self.settings.notifications_background_only && app_focused)
                     {
-                        let title = title.unwrap_or_else(|| "New session".into());
+                        let title = title.unwrap_or_else(|| crate::i18n::t("New session").into());
                         let body = match sound {
-                            crate::sound::Sound::Done => "Run finished",
-                            crate::sound::Sound::Request => "Waiting on your input",
+                            crate::sound::Sound::Done => crate::i18n::t("Run finished"),
+                            crate::sound::Sound::Request => crate::i18n::t("Waiting on your input"),
                         };
                         crate::notify::post(&title, body);
                     }
@@ -1677,7 +1677,7 @@ impl Shell {
     /// (user request).
     fn add_commit_diff_surface(
         &mut self,
-        commit: zeron_proto::GitHistoryCommit,
+        commit: postillion_proto::GitHistoryCommit,
         cx: &mut Context<Self>,
     ) {
         let changes = cx.new(|cx| Changes::for_commit(self.state.clone(), commit, cx));
@@ -1829,7 +1829,7 @@ impl Shell {
                 Duration::from_secs(20),
             )
             .await;
-            let entries: Option<Vec<zeron_doc::SessionMessageEntry>> = reply.ok().and_then(|v| {
+            let entries: Option<Vec<postillion_doc::SessionMessageEntry>> = reply.ok().and_then(|v| {
                 let text = v.get("text")?.as_str()?.to_owned();
                 serde_json::from_str(&text).ok()
             });
@@ -2207,7 +2207,7 @@ impl Shell {
     /// Fire a Mutate op; failures surface in the sidebar notice strip.
     fn mutate(&mut self, params: serde_json::Value, cx: &mut Context<Self>) {
         let Some(engine) = self.state.read(cx).engine().cloned() else {
-            self.sidebar_notice = Some("Engine not connected".into());
+            self.sidebar_notice = Some(crate::i18n::t("Engine not connected").into());
             cx.notify();
             return;
         };
@@ -2232,7 +2232,7 @@ impl Shell {
             .find(|c| c.id == chat_id)
             .and_then(|c| c.title.clone())
             .unwrap_or_default();
-        let input = cx.new(|cx| ComposerInput::new("Session title", cx));
+        let input = cx.new(|cx| ComposerInput::new(crate::i18n::t("Session title"), cx));
         input.update(cx, |input, cx| input.set_text(current, cx));
         let events = cx.subscribe(&input, |this: &mut Shell, _, event, cx| {
             if matches!(event, ComposerInputEvent::Submitted) {
@@ -2312,7 +2312,7 @@ impl Shell {
             return;
         }
         let Some(engine) = self.state.read(cx).engine().cloned() else {
-            self.runtime_change_error = Some("Engine not connected".into());
+            self.runtime_change_error = Some(crate::i18n::t("Engine not connected").into());
             self.sync_flow = SyncFlow::SignedOutRestartRequired;
             cx.notify();
             return;
@@ -2452,7 +2452,7 @@ impl Shell {
             return;
         }
         let Some(engine) = self.state.read(cx).engine().cloned() else {
-            self.runtime_change_error = Some("Engine not connected".into());
+            self.runtime_change_error = Some(crate::i18n::t("Engine not connected").into());
             self.sync_flow = SyncFlow::RestartPending { notice_open: true };
             cx.notify();
             return;
@@ -2550,7 +2550,7 @@ impl Shell {
         }
         let Some(engine) = self.state.read(cx).engine().cloned() else {
             self.sync_flow = SyncFlow::RestartPending { notice_open: true };
-            self.runtime_change_error = Some("Engine not connected".into());
+            self.runtime_change_error = Some(crate::i18n::t("Engine not connected").into());
             cx.notify();
             return;
         };
@@ -2647,7 +2647,7 @@ impl Shell {
 
     fn quit_for_runtime_change(&mut self, cx: &mut Context<Self>) {
         let Some(engine) = self.state.read(cx).engine().cloned() else {
-            self.runtime_change_error = Some("Engine not connected".into());
+            self.runtime_change_error = Some(crate::i18n::t("Engine not connected").into());
             cx.notify();
             return;
         };
@@ -2681,7 +2681,7 @@ impl Shell {
                     Ok(_) => cx.quit(),
                     Err(err) => {
                         shell.runtime_change_error = Some(format!(
-                            "Could not stop the remote engine: {err}. Run `zeron daemon stop`, then quit and reopen Zeron."
+                            "Could not stop the remote engine: {err}. Run `postillion daemon stop`, then quit and reopen Zeron."
                         ).into());
                         cx.notify();
                     }
@@ -2736,7 +2736,7 @@ impl Shell {
         if self.org.is_some() {
             return;
         }
-        let name_input = cx.new(|cx| ComposerInput::new("Workspace name", cx));
+        let name_input = cx.new(|cx| ComposerInput::new(crate::i18n::t("Workspace name"), cx));
         let events = cx.subscribe(&name_input, |this: &mut Shell, _, event, cx| {
             if matches!(event, ComposerInputEvent::Submitted) {
                 this.create_org(cx);
@@ -2788,7 +2788,7 @@ impl Shell {
         }
         let name = org.name_input.read(cx).text().trim().to_string();
         if !org_name_valid(&name) {
-            org.error = Some("Enter a workspace name".into());
+            org.error = Some(crate::i18n::t("Enter a workspace name").into());
             cx.notify();
             return;
         }
@@ -2849,7 +2849,7 @@ impl Shell {
     /// Evaluate a width tween at "now" (manual drive — see [`WidthTween`]).
     /// Mid-flight: eased 200ms lerp, and `motion_active` is flagged so render
     /// schedules the next animation frame. Finished, stale, absent, or under
-    /// reduced motion: exactly `target`. Honors `ZERON_MOTION_SCALE`.
+    /// reduced motion: exactly `target`. Honors `POSTILLION_MOTION_SCALE`.
     fn eval_tween(&self, tween: Option<WidthTween>, target: f32) -> f32 {
         let Some(WidthTween { from, to, started }) = tween else {
             return target;
@@ -3403,9 +3403,9 @@ impl Shell {
         time_ago: SharedString,
         space_name: SharedString,
         branch: Option<SharedString>,
-        change_request: Option<zeron_proto::ChangeRequestSummary>,
-        harness: Option<zeron_proto::HarnessId>,
-        status: zeron_proto::ChatIndicator,
+        change_request: Option<postillion_proto::ChangeRequestSummary>,
+        harness: Option<postillion_proto::HarnessId>,
+        status: postillion_proto::ChatIndicator,
         selected: bool,
         archived: bool,
         theme: &Theme,
@@ -3438,16 +3438,16 @@ impl Shell {
             spaces::status_dot_color(status, theme)
         };
         let status_label: Option<&'static str> = if undelivered {
-            Some("Failed")
+            Some(crate::i18n::t("Failed"))
         } else if queued {
-            Some("Queued")
+            Some(crate::i18n::t("Queued"))
         } else {
             match status {
-                zeron_proto::ChatIndicator::Working => Some("Working"),
-                zeron_proto::ChatIndicator::AwaitingInput => Some("Input"),
-                zeron_proto::ChatIndicator::Errored => Some("Failed"),
-                zeron_proto::ChatIndicator::Completed => Some("Done"),
-                zeron_proto::ChatIndicator::Idle => None,
+                postillion_proto::ChatIndicator::Working => Some(crate::i18n::t("Working")),
+                postillion_proto::ChatIndicator::AwaitingInput => Some("Input"),
+                postillion_proto::ChatIndicator::Errored => Some(crate::i18n::t("Failed")),
+                postillion_proto::ChatIndicator::Completed => Some(crate::i18n::t("Done")),
+                postillion_proto::ChatIndicator::Idle => None,
             }
         };
         let queued = queued && !undelivered;
@@ -3484,9 +3484,9 @@ impl Shell {
                         .text_size(px(10.0))
                         .text_color(theme.text_muted)
                         .child(SharedString::from(if archived {
-                            "Unarchive"
+                            crate::i18n::t("Unarchive")
                         } else {
-                            "Archive"
+                            crate::i18n::t("Archive")
                         })),
                 )
                 .into_any_element()
@@ -3496,7 +3496,7 @@ impl Shell {
                     // Glyph slot: Done wears the check; every other status a
                     // dot in its color (the Working spinner lives at the
                     // row's bottom-right, not up here).
-                    let glyph: AnyElement = if status == zeron_proto::ChatIndicator::Completed {
+                    let glyph: AnyElement = if status == postillion_proto::ChatIndicator::Completed {
                         icon(icons::CHECK)
                             .size(px(11.0))
                             .flex_none()
@@ -3697,7 +3697,7 @@ impl Shell {
                     // bottom-right (the status word keeps its dot up top).
                     // Queued/Failed rows don't: a spinner would fake progress.
                     .when(
-                        status == zeron_proto::ChatIndicator::Working && !queued && !undelivered,
+                        status == postillion_proto::ChatIndicator::Working && !queued && !undelivered,
                         |el| {
                             el.child(loaders::mini_gradient_spinner(
                                 format!("chat-working-{id}"),
@@ -3729,12 +3729,12 @@ impl Shell {
     /// reconnecting; an amber dot only when the OS says offline. The
     /// transport error belongs in logs, not the sidebar.
     fn render_connection_pill(&self, theme: &Theme, cx: &mut Context<Self>) -> Option<AnyElement> {
-        use zeron_proto::ConnectivityState as S;
+        use postillion_proto::ConnectivityState as S;
         let conn = self.state.read(cx).connectivity.clone();
         let (label, glyph): (SharedString, AnyElement) = match conn.state {
             S::Disabled | S::Connected => return None,
             S::Offline => (
-                "Offline — sends are saved".into(),
+                crate::i18n::t("Offline — sends are saved").into(),
                 div()
                     .size(px(5.0))
                     .rounded_full()
@@ -3742,7 +3742,7 @@ impl Shell {
                     .into_any_element(),
             ),
             S::Reconnecting => (
-                "Reconnecting…".into(),
+                crate::i18n::t("Reconnecting…").into(),
                 loaders::mini_mono_spinner(
                     "connection-spinner",
                     2.0,
@@ -3978,7 +3978,7 @@ impl Shell {
     /// UpdateStatus stream reports a newer release. On a macOS bundle install
     /// it drives the whole flow — click to download, then click to restart into
     /// the staged bundle. Elsewhere (managed/source installs) it is advisory
-    /// (`zeron update`); click dismisses it for that version.
+    /// (`postillion update`); click dismisses it for that version.
     fn render_update_strip(&mut self, theme: &Theme, cx: &mut Context<Self>) -> Option<AnyElement> {
         let status = self.state.read(cx).update.clone()?;
         if !status.update_available {
@@ -3988,18 +3988,18 @@ impl Shell {
         if self.update_dismissed.as_deref() == Some(latest.as_str()) {
             return None;
         }
-        let mac_app = matches!(self.install, zeron_update::InstallKind::MacApp { .. });
+        let mac_app = matches!(self.install, postillion_update::InstallKind::MacApp { .. });
 
         let (label, clickable): (SharedString, bool) = if mac_app {
             match &self.update_flow {
                 UpdateFlow::Idle => (format!("Update available — v{latest}").into(), true),
                 UpdateFlow::Downloading => (format!("Downloading v{latest}…").into(), false),
-                UpdateFlow::Ready(_) => ("Update ready — restart to apply".into(), true),
+                UpdateFlow::Ready(_) => (crate::i18n::t("Update ready — restart to apply").into(), true),
                 UpdateFlow::Failed(message) => (format!("Update failed: {message}").into(), true),
             }
         } else {
             (
-                format!("Update available — v{latest} · run `zeron update`").into(),
+                format!("Update available — v{latest} · run `postillion update`").into(),
                 true,
             )
         };
@@ -4052,7 +4052,7 @@ impl Shell {
     /// Idle → download; Ready → swap + relaunch; Failed → retry; advisory
     /// installs → dismiss for this version.
     fn on_update_strip_click(&mut self, cx: &mut Context<Self>) {
-        if !matches!(self.install, zeron_update::InstallKind::MacApp { .. }) {
+        if !matches!(self.install, postillion_update::InstallKind::MacApp { .. }) {
             self.update_dismissed = self
                 .state
                 .read(cx)
@@ -4076,8 +4076,8 @@ impl Shell {
         let data_dir = self.data_dir.clone();
         self.update_flow = UpdateFlow::Downloading;
         let download = Tokio::spawn(cx, async move {
-            let manifest = zeron_update::fetch_latest(&edge_url).await?;
-            zeron_update::stage_mac_app(&edge_url, &manifest, &data_dir).await
+            let manifest = postillion_update::fetch_latest(&edge_url).await?;
+            postillion_update::stage_mac_app(&edge_url, &manifest, &data_dir).await
         });
         self.update_task = Some(cx.spawn(async move |this, cx| {
             let outcome = match download.await {
@@ -4104,12 +4104,12 @@ impl Shell {
     /// relauncher, and quit — the relauncher `open`s the new bundle once this
     /// process (and its engine lock / IPC port) is gone.
     fn apply_staged_update(&mut self, staged: PathBuf, cx: &mut Context<Self>) {
-        let zeron_update::InstallKind::MacApp { bundle } = self.install.clone() else {
+        let postillion_update::InstallKind::MacApp { bundle } = self.install.clone() else {
             return;
         };
-        match zeron_update::apply_mac_app(&staged, &bundle) {
+        match postillion_update::apply_mac_app(&staged, &bundle) {
             Ok(()) => {
-                zeron_update::relaunch_app_after_exit(&bundle);
+                postillion_update::relaunch_app_after_exit(&bundle);
                 cx.quit();
             }
             Err(err) => {
@@ -4336,11 +4336,11 @@ impl Shell {
             .engine()
             .is_some_and(|engine| matches!(engine.mode(), EngineMode::Remote { .. }));
         let runtime_change_label = if self.runtime_change_task.is_some() {
-            "Stopping engine…"
+            crate::i18n::t("Stopping engine…")
         } else if remote_engine {
-            "Stop daemon and quit"
+            crate::i18n::t("Stop daemon and quit")
         } else {
-            "Quit Zeron"
+            "Quit Postillion"
         };
 
         if self.sync_flow == SyncFlow::Enabling && needs_org {
@@ -4361,7 +4361,7 @@ impl Shell {
 
         let card = match self.sync_flow {
             SyncFlow::Enabling => popover::dialog_card(&theme)
-                .child(popover::dialog_title(&theme, "Enable sync"))
+                .child(popover::dialog_title(&theme, crate::i18n::t("Enable sync")))
                 .child(
                     div().mt(px(6.0)).child(popover::dialog_body(
                         &theme,
@@ -4376,7 +4376,7 @@ impl Shell {
                         .justify_end()
                         .gap(px(8.0))
                         .child(
-                            popover::btn_ghost(&theme, "Cancel", "sync-enable-cancel")
+                            popover::btn_ghost(&theme, crate::i18n::t("Cancel"), "sync-enable-cancel")
                                 .id("sync-enable-cancel")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.cancel_auth_setup(cx)
@@ -4392,7 +4392,7 @@ impl Shell {
                 )
                 .into_any_element(),
             SyncFlow::Canceling => popover::dialog_card(&theme)
-                .child(popover::dialog_title(&theme, "Canceling sync setup…"))
+                .child(popover::dialog_title(&theme, crate::i18n::t("Canceling sync setup…")))
                 .child(
                     div().mt(px(6.0)).child(popover::dialog_body(
                         &theme,
@@ -4409,14 +4409,14 @@ impl Shell {
                     )
                     .into(),
                     (Some(email), None) => format!(
-                        "You're signed in as {email}. Zeron can switch to your synced workspace now."
+                        "You're signed in as {email}. Postillion can switch to your synced workspace now."
                     )
                     .into(),
                     (None, Some(phrase)) => format!(
                         "Bring {phrase} from this device into your synced workspace, or start it fresh."
                     )
                     .into(),
-                    (None, None) => "Zeron can switch to your synced workspace now.".into(),
+                    (None, None) => "Postillion can switch to your synced workspace now.".into(),
                 };
                 let mut actions = div()
                     .mt(px(16.0))
@@ -4425,7 +4425,7 @@ impl Shell {
                     .justify_end()
                     .gap(px(8.0))
                     .child(
-                        popover::btn_ghost(&theme, "Later", "sync-switch-later")
+                        popover::btn_ghost(&theme, crate::i18n::t("Later"), "sync-switch-later")
                             .id("sync-switch-later")
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.postpone_sync_restart(cx)
@@ -4434,7 +4434,7 @@ impl Shell {
                 if has_local_work {
                     actions = actions
                         .child(
-                            popover::btn_ghost(&theme, "Start fresh", "sync-switch-fresh")
+                            popover::btn_ghost(&theme, crate::i18n::t("Start fresh"), "sync-switch-fresh")
                                 .id("sync-switch-fresh")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.start_synced_switch(false, cx)
@@ -4449,7 +4449,7 @@ impl Shell {
                         );
                 } else {
                     actions = actions.child(
-                        popover::btn_primary(&theme, "Switch now")
+                        popover::btn_primary(&theme, crate::i18n::t("Switch now"))
                             .id("sync-switch-now")
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.start_synced_switch(false, cx)
@@ -4457,7 +4457,7 @@ impl Shell {
                     );
                 }
                 popover::dialog_card(&theme)
-                    .child(popover::dialog_title(&theme, "Sync is ready"))
+                    .child(popover::dialog_title(&theme, crate::i18n::t("Sync is ready")))
                     .child(div().mt(px(6.0)).child(popover::dialog_body(&theme, body)))
                     .child(actions)
                     .into_any_element()
@@ -4465,7 +4465,7 @@ impl Shell {
             SyncFlow::Switching { import } => popover::dialog_card(&theme)
                 .child(popover::dialog_title(
                     &theme,
-                    "Switching to your synced workspace…",
+                    crate::i18n::t("Switching to your synced workspace…"),
                 ))
                 .child(div().mt(px(6.0)).child(popover::dialog_body(
                     &theme,
@@ -4525,7 +4525,7 @@ impl Shell {
             }
             SyncFlow::ImportDone { imported, skipped } => {
                 let body: SharedString = match (imported, skipped) {
-                    (0, 0) => "Your synced workspace is ready.".into(),
+                    (0, 0) => crate::i18n::t("Your synced workspace is ready.").into(),
                     (n, 0) => format!(
                         "{n} session{} moved into your synced workspace.",
                         if n == 1 { "" } else { "s" },
@@ -4538,7 +4538,7 @@ impl Shell {
                     .into(),
                 };
                 popover::dialog_card(&theme)
-                    .child(popover::dialog_title(&theme, "You're all set"))
+                    .child(popover::dialog_title(&theme, crate::i18n::t("You're all set")))
                     .child(div().mt(px(6.0)).child(popover::dialog_body(&theme, body)))
                     .child(
                         div()
@@ -4547,7 +4547,7 @@ impl Shell {
                             .flex_row()
                             .justify_end()
                             .child(
-                                popover::btn_primary(&theme, "Continue")
+                                popover::btn_primary(&theme, crate::i18n::t("Continue"))
                                     .id("sync-switch-done")
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.sync_flow = SyncFlow::Idle;
@@ -4581,7 +4581,7 @@ impl Shell {
                         .justify_end()
                         .gap(px(8.0))
                         .child(
-                            popover::btn_ghost(&theme, "Later", "import-failed-dismiss")
+                            popover::btn_ghost(&theme, crate::i18n::t("Later"), "import-failed-dismiss")
                                 .id("import-failed-dismiss")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.postpone_sync_restart(cx)
@@ -4599,7 +4599,7 @@ impl Shell {
             SyncFlow::RestartPending { notice_open: true } => popover::dialog_card(&theme)
                 .child(popover::dialog_title(
                     &theme,
-                    "Sync needs a restart",
+                    crate::i18n::t("Sync needs a restart"),
                 ))
                 .child(
                     div().mt(px(6.0)).child(popover::dialog_body(
@@ -4629,7 +4629,7 @@ impl Shell {
                         .justify_end()
                         .gap(px(8.0))
                         .child(
-                            popover::btn_ghost(&theme, "Later", "sync-restart-later")
+                            popover::btn_ghost(&theme, crate::i18n::t("Later"), "sync-restart-later")
                                 .id("sync-restart-later")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.postpone_sync_restart(cx)
@@ -4648,7 +4648,7 @@ impl Shell {
                 )
                 .into_any_element(),
             SyncFlow::SignOutConfirm => popover::dialog_card(&theme)
-                .child(popover::dialog_title(&theme, "Sign out?"))
+                .child(popover::dialog_title(&theme, crate::i18n::t("Sign out?")))
                 .child(
                     div().mt(px(6.0)).child(popover::dialog_body(
                         &theme,
@@ -4663,7 +4663,7 @@ impl Shell {
                         .justify_end()
                         .gap(px(8.0))
                         .child(
-                            popover::btn_ghost(&theme, "Cancel", "signout-cancel")
+                            popover::btn_ghost(&theme, crate::i18n::t("Cancel"), "signout-cancel")
                                 .id("signout-cancel")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.sync_flow = SyncFlow::Idle;
@@ -4671,7 +4671,7 @@ impl Shell {
                                 })),
                         )
                         .child(
-                            popover::btn_danger(&theme, "Sign out")
+                            popover::btn_danger(&theme, crate::i18n::t("Sign out"))
                                 .id("signout-confirm")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.confirm_sign_out(cx)
@@ -4680,7 +4680,7 @@ impl Shell {
                 )
                 .into_any_element(),
             SyncFlow::SigningOut => popover::dialog_card(&theme)
-                .child(popover::dialog_title(&theme, "Signing out…"))
+                .child(popover::dialog_title(&theme, crate::i18n::t("Signing out…")))
                 .child(
                     div().mt(px(6.0)).child(popover::dialog_body(
                         &theme,
@@ -4781,7 +4781,7 @@ impl Shell {
                         cx.notify();
                     }
                 }))
-                .child(popover::dialog_title(&theme, "Rename session"))
+                .child(popover::dialog_title(&theme, crate::i18n::t("Rename session")))
                 .child(
                     div()
                         .mt(px(12.0))
@@ -4795,7 +4795,7 @@ impl Shell {
                         .justify_end()
                         .gap(px(8.0))
                         .child(
-                            popover::btn_ghost(&theme, "Cancel", "rename-chat-cancel")
+                            popover::btn_ghost(&theme, crate::i18n::t("Cancel"), "rename-chat-cancel")
                                 .id("rename-chat-cancel")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.rename_dialog = None;
@@ -4803,7 +4803,7 @@ impl Shell {
                                 })),
                         )
                         .child(
-                            popover::btn_primary(&theme, "Rename")
+                            popover::btn_primary(&theme, crate::i18n::t("Rename"))
                                 .id("rename-chat-save")
                                 .on_click(
                                     cx.listener(|this, _, _, cx| this.submit_rename_chat(cx)),
@@ -4828,10 +4828,10 @@ impl Shell {
                     .iter()
                     .find(|c| c.id == chat_id)
                     .and_then(|c| c.title.clone())
-                    .unwrap_or_else(|| "New session".into()),
+                    .unwrap_or_else(|| crate::i18n::t("New session").into()),
             );
             let card = popover::dialog_card(&theme)
-                .child(popover::dialog_title(&theme, "Delete session?"))
+                .child(popover::dialog_title(&theme, crate::i18n::t("Delete session?")))
                 .child(div().mt(px(6.0)).child(popover::dialog_body(
                     &theme,
                     format!("\u{201C}{title}\u{201D} will be permanently deleted. This can\u{2019}t be undone."),
@@ -4844,7 +4844,7 @@ impl Shell {
                         .justify_end()
                         .gap(px(8.0))
                         .child(
-                            popover::btn_ghost(&theme, "Cancel", "delete-chat-cancel")
+                            popover::btn_ghost(&theme, crate::i18n::t("Cancel"), "delete-chat-cancel")
                                 .id("delete-chat-cancel")
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.delete_confirm = None;
@@ -4852,7 +4852,7 @@ impl Shell {
                                 })),
                         )
                         .child(
-                            popover::btn_danger(&theme, "Delete")
+                            popover::btn_danger(&theme, crate::i18n::t("Delete"))
                                 .id("delete-chat-confirm")
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.delete_chat(chat_id.clone(), cx)
@@ -4960,7 +4960,7 @@ impl Shell {
                         .flex_col()
                         .items_center()
                         .child(
-                            icon(icons::ZERON_LOGO)
+                            icon(icons::POSTILLION_LOGO)
                                 .w(px(41.9))
                                 .h(px(48.0))
                                 .text_color(theme.text.opacity(0.09)),
@@ -4979,7 +4979,7 @@ impl Shell {
                                 .text_size(px(13.0))
                                 .text_color(theme.text_muted.opacity(0.7))
                                 .child(SharedString::from(crate::i18n::t(
-                                    "A project is a folder on one of your devices.",
+                                    crate::i18n::t("A project is a folder on one of your devices."),
                                 ))),
                         )
                         .child(
@@ -4995,7 +4995,7 @@ impl Shell {
             // TARGET selectors (device + project — moved up from the
             // composer footer, user request) and the helper line.
             let helper: SharedString = if space_name.is_empty() {
-                "Send a message to start a new session.".into()
+                crate::i18n::t("Send a message to start a new session.").into()
             } else {
                 format!("Send a message to start a session in {space_name}.").into()
             };
@@ -5014,7 +5014,7 @@ impl Shell {
                         .flex_col()
                         .items_center()
                         .child(
-                            icon(icons::ZERON_LOGO)
+                            icon(icons::POSTILLION_LOGO)
                                 .w(px(41.9))
                                 .h(px(48.0))
                                 // 0.09 read as barely-there on the glass
@@ -5149,7 +5149,7 @@ impl Shell {
                         .justify_center()
                         .text_size(px(13.0))
                         .text_color(theme.text)
-                        .child("Drop images to attach"),
+                        .child(crate::i18n::t("Drop images to attach")),
                 )
             })
             .into_any_element()
@@ -5613,7 +5613,7 @@ impl Shell {
                             .text_size(px(11.5))
                             .text_color(muted)
                             .child(SharedString::from(
-                                "Choose what to show in the right panel.",
+                                crate::i18n::t("Choose what to show in the right panel."),
                             )),
                     )
                     .child(
@@ -5624,7 +5624,7 @@ impl Shell {
                             .flex_col()
                             .gap(px(8.0))
                             .child(
-                                row("surface-card-terminal", icons::TERMINAL, "Terminal").on_click(
+                                row("surface-card-terminal", icons::TERMINAL, crate::i18n::t("Terminal")).on_click(
                                     cx.listener(|this, _, _, cx| {
                                         this.add_terminal_surface(cx);
                                     }),
@@ -5634,7 +5634,7 @@ impl Shell {
                             // no longer gates on it (terminals work anywhere).
                             .when(self.space_git_detected(cx), |el| {
                                 el.child(
-                                    row("surface-card-git", icons::GIT_BRANCH, "Git").on_click(
+                                    row("surface-card-git", icons::GIT_BRANCH, crate::i18n::t("Git")).on_click(
                                         cx.listener(|this, _, _, cx| {
                                             this.add_diff_surface(cx);
                                         }),
@@ -5649,7 +5649,7 @@ impl Shell {
     fn render_signed_out_restart(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::of(cx).clone();
         let runtime_change_label = if self.runtime_change_task.is_some() {
-            "Stopping engine…"
+            crate::i18n::t("Stopping engine…")
         } else {
             "Retry local mode"
         };
@@ -5667,7 +5667,7 @@ impl Shell {
             .items_center()
             .text_center()
             .child(
-                icon(icons::ZERON_LOGO)
+                icon(icons::POSTILLION_LOGO)
                     .w(px(31.4))
                     .h(px(36.0))
                     .text_color(theme.text),
@@ -5826,7 +5826,7 @@ impl Shell {
                         .read(cx)
                         .sub_transcript(&tab.doc_id)
                         .last()
-                        .is_some_and(|e| e.status == Some(zeron_doc::MessageStatus::Streaming))
+                        .is_some_and(|e| e.status == Some(postillion_doc::MessageStatus::Streaming))
                 }),
                 _ => false,
             };
@@ -6171,7 +6171,7 @@ impl Shell {
                 )
                 .into_any_element(),
             // Login card (zeron App.tsx Gate): centered card on the grid —
-            // logo, "Log in to Zeron", copy, full-width white Log in button.
+            // logo, "Log in to Postillion", copy, full-width white Log in button.
             _ => div()
                 .w(px(360.0))
                 .px(px(32.0))
@@ -6186,7 +6186,7 @@ impl Shell {
                 .items_center()
                 .text_center()
                 .child(
-                    icon(icons::ZERON_LOGO)
+                    icon(icons::POSTILLION_LOGO)
                         .w(px(31.4))
                         .h(px(36.0))
                         .text_color(theme.text),
@@ -6197,7 +6197,7 @@ impl Shell {
                         .text_size(px(18.0))
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .text_color(theme.text)
-                        .child(SharedString::from(crate::i18n::t("Log in to Zeron"))),
+                        .child(SharedString::from(crate::i18n::t("Log in to Postillion"))),
                 )
                 .child(
                     div()
@@ -6372,7 +6372,7 @@ impl Shell {
             .flex()
             .flex_col()
             .child(
-                icon(icons::ZERON_LOGO)
+                icon(icons::POSTILLION_LOGO)
                     .w(px(24.4))
                     .h(px(28.0))
                     .text_color(theme.text),
@@ -6431,9 +6431,9 @@ impl Shell {
                             .hover(|s| s.opacity(0.9))
                             .on_click(cx.listener(|this, _, _, cx| this.create_org(cx)))
                             .child(SharedString::from(if submitting {
-                                "Creating…"
+                                crate::i18n::t("Creating…")
                             } else {
-                                "Create"
+                                crate::i18n::t("Create")
                             })),
                     ),
             )
@@ -6458,9 +6458,9 @@ impl Shell {
                         .hover(|s| s.text_color(theme.text))
                         .on_click(cx.listener(|this, _, _, cx| this.cancel_auth_setup(cx)))
                         .child(SharedString::from(if local_setup {
-                            "Cancel sync setup"
+                            crate::i18n::t("Cancel sync setup")
                         } else {
-                            "Use a different account"
+                            crate::i18n::t("Use a different account")
                         })),
                 ),
             );
@@ -6937,7 +6937,7 @@ impl Render for Shell {
                             .update(cx, |s, cx| s.mark_chat_seen(&chat_id, cx));
                     }
                 }
-                // Capture knob: `ZERON_OPEN_DIALOG=model` pops the combined
+                // Capture knob: `POSTILLION_OPEN_DIALOG=model` pops the combined
                 // harness/model menu (needs `window`, so it fires here rather
                 // than in `on_state_changed`).
                 if self.debug_dialog.as_deref() == Some("model") {
@@ -7157,7 +7157,7 @@ mod tests {
             edge_token: None,
             org_id: None,
             workos_client_id: Some("client_test".into()),
-            default_harness: zeron_proto::HarnessId::Mock,
+            default_harness: postillion_proto::HarnessId::Mock,
         };
         let synced = crate::state::EngineHandle::bootstrap(boot.clone())
             .await
@@ -7237,7 +7237,7 @@ mod tests {
     #[test]
     fn local_sign_in_offers_the_in_place_switch() {
         let signed_in = AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+            user: postillion_proto::UserProfile {
                 id: "user-1".into(),
                 email: "user@example.com".into(),
                 name: None,
@@ -7349,7 +7349,7 @@ mod tests {
     #[test]
     fn dismissed_import_failure_stays_reachable_on_a_synced_runtime() {
         let signed_in = AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+            user: postillion_proto::UserProfile {
                 id: "user-1".into(),
                 email: "user@example.com".into(),
                 name: None,
@@ -7392,7 +7392,7 @@ mod tests {
     #[test]
     fn switch_lifecycle_survives_the_runtime_replacement_window() {
         let signed_in = AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+            user: postillion_proto::UserProfile {
                 id: "user-1".into(),
                 email: "user@example.com".into(),
                 name: None,
@@ -7427,7 +7427,7 @@ mod tests {
     #[test]
     fn synced_sign_out_blocks_every_viewport_and_cannot_switch_accounts() {
         let signed_in_as_another_user = AuthState::SignedIn {
-            user: zeron_proto::UserProfile {
+            user: postillion_proto::UserProfile {
                 id: "user-2".into(),
                 email: "other@example.com".into(),
                 name: None,

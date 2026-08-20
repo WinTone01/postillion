@@ -13,8 +13,8 @@ use std::sync::{Arc, Mutex};
 
 use futures::future::BoxFuture;
 use loro::{ExportMode, LoroDoc, VersionVector};
-use zeron_sync::SyncError;
-use zeron_sync::chat_client::{ChatClient, ChatDocSink, CheckpointFetcher};
+use postillion_sync::SyncError;
+use postillion_sync::chat_client::{ChatClient, ChatDocSink, CheckpointFetcher};
 
 struct DocSink {
     doc: Mutex<LoroDoc>,

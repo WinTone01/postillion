@@ -46,7 +46,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use zeron_proto::{
+use postillion_proto::{
     AgentAccount, AgentAccountWarning, AgentAccountsSnapshot, AgentAuthKind, AgentLoginMode,
     AgentLoginPoll, AgentLoginStart, AgentLoginStatus, AgentUsageWindow, HarnessId,
 };
@@ -605,7 +605,7 @@ impl AgentAccounts {
             .root_dir()
             .join(format!(".login-{login_id}"));
         std::fs::create_dir_all(&home)?;
-        let mut cmd = zeron_harness::cursor::login_command(&home.join("auth.json"))
+        let mut cmd = postillion_harness::cursor::login_command(&home.join("auth.json"))
             .await
             .map_err(|e| {
                 let _ = std::fs::remove_dir_all(&home);

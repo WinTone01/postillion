@@ -9,7 +9,7 @@
 //! statuses are snake_case).
 
 use serde_json::Value;
-use zeron_proto::{AgentEvent, SlashCommand, TodoItem, ToolCall, ToolDiff};
+use postillion_proto::{AgentEvent, SlashCommand, TodoItem, ToolCall, ToolDiff};
 
 /// Byte cap applied to tool output text at the harness boundary. The doc-side
 /// fold applies its own (smaller) cap before anything persists; this one only
@@ -397,11 +397,11 @@ pub(crate) fn map_update(update: &Value) -> Vec<AgentEvent> {
             // update refresh the same chip (fold refreshes in place by id).
             vec![
                 AgentEvent::ToolCall {
-                    id: zeron_proto::LIVE_PLAN_TOOL_ID.into(),
+                    id: postillion_proto::LIVE_PLAN_TOOL_ID.into(),
                     call: ToolCall::Todo { items },
                 },
                 AgentEvent::ToolResult {
-                    id: zeron_proto::LIVE_PLAN_TOOL_ID.into(),
+                    id: postillion_proto::LIVE_PLAN_TOOL_ID.into(),
                     is_error: false,
                     output: None,
                     diff: None,
@@ -634,7 +634,7 @@ mod tests {
         assert_eq!(
             events[0],
             AgentEvent::ToolCall {
-                id: zeron_proto::LIVE_PLAN_TOOL_ID.into(),
+                id: postillion_proto::LIVE_PLAN_TOOL_ID.into(),
                 call: ToolCall::Todo {
                     items: vec![
                         TodoItem {

@@ -157,8 +157,8 @@ fn helper(mode: AppearanceMode, system: Appearance) -> SharedString {
             )
             .into()
         }
-        AppearanceMode::Light => "Always light, whatever the system is set to.".into(),
-        AppearanceMode::Dark => "Always dark, whatever the system is set to.".into(),
+        AppearanceMode::Light => crate::i18n::t("Always light, whatever the system is set to.").into(),
+        AppearanceMode::Dark => crate::i18n::t("Always dark, whatever the system is set to.").into(),
     }
 }
 
@@ -186,7 +186,7 @@ impl Render for AppearancePage {
             .overflow_y_scroll()
             .child(
                 widgets::page_column()
-                    .child(widgets::page_header(&theme, "Appearance", None))
+                    .child(widgets::page_header(&theme, crate::i18n::t("Appearance"), None))
                     .child(
                         widgets::page_subtitle(
                             &theme,
@@ -202,7 +202,7 @@ impl Render for AppearancePage {
                             .flex()
                             .flex_col()
                             .gap(px(12.0))
-                            .child(widgets::field_label(&theme, "Theme"))
+                            .child(widgets::field_label(&theme, crate::i18n::t("Theme")))
                             .child(widgets::option_card_row().children(cards)),
                     )
                     .child(

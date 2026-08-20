@@ -7,8 +7,8 @@ use std::time::Duration;
 use futures::StreamExt;
 use tokio::sync::{mpsc, oneshot};
 
-use zeron_harness::{CancellationToken, CursorHarness, Harness, RunControls, SteerMessage};
-use zeron_proto::{AgentEvent, DoneStatus, HarnessId, RunRequest, SandboxLevel, ToolCall};
+use postillion_harness::{CancellationToken, CursorHarness, Harness, RunControls, SteerMessage};
+use postillion_proto::{AgentEvent, DoneStatus, HarnessId, RunRequest, SandboxLevel, ToolCall};
 
 fn fixture_path() -> PathBuf {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

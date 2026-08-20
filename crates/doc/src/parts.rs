@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use zeron_proto::{AgentEvent, ToolCall, ToolDiff, UserInputQuestion};
+use postillion_proto::{AgentEvent, ToolCall, ToolDiff, UserInputQuestion};
 
 use crate::constants::MSG_INLINE_MAX;
 
@@ -377,7 +377,7 @@ pub fn fold_event_into_parts(out: &mut Vec<MessagePart>, event: &AgentEvent) {
         } => {
             let status = match event.as_ref() {
                 AgentEvent::Done { status, .. } => Some(match status {
-                    zeron_proto::DoneStatus::Errored => SubagentStatus::Failed,
+                    postillion_proto::DoneStatus::Errored => SubagentStatus::Failed,
                     _ => SubagentStatus::Done,
                 }),
                 // A steer RESURRECTS a settled chip — it announces more work
@@ -611,7 +611,7 @@ mod tests {
         fold_event_into_parts(
             &mut parts,
             &AgentEvent::SessionStarted {
-                harness: zeron_proto::HarnessId::Mock,
+                harness: postillion_proto::HarnessId::Mock,
                 model: "m".into(),
                 tools: vec![],
                 cwd: "/".into(),
@@ -897,7 +897,7 @@ mod tests {
 
     #[test]
     fn subagent_events_refresh_the_spawn_chip_in_place() {
-        use zeron_proto::DoneStatus;
+        use postillion_proto::DoneStatus;
         let mut parts = Vec::new();
         fold_event_into_parts(
             &mut parts,

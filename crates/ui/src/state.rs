@@ -28,13 +28,13 @@ use gpui_tokio::Tokio;
 use serde::de::DeserializeOwned;
 
 use crate::comments::DiffComment;
-use zeron_doc::{SessionMessageEntry, TranscriptDesync, TranscriptFrame};
-use zeron_engine::{Engine, EngineConfig, EngineRuntime, InstanceLock, rpc::AuthRpc};
-use zeron_proto::{
+use postillion_doc::{SessionMessageEntry, TranscriptDesync, TranscriptFrame};
+use postillion_engine::{Engine, EngineConfig, EngineRuntime, InstanceLock, rpc::AuthRpc};
+use postillion_proto::{
     AuthState, ChangeRequestSummary, Chat, ChatIndicator, CheckoutChangeRequestStatus, Device,
     EngineInfo, HarnessId, Session, Space, WorkspaceScope,
 };
-use zeron_rpc::{RpcClient, RpcError, RpcReply, RpcService, connect_ws, memory_client, methods};
+use postillion_rpc::{RpcClient, RpcError, RpcReply, RpcService, connect_ws, memory_client, methods};
 
 use crate::change_requests::{
     ChangeRequestClientState, ChangeRequestWatchKey, desired_watch_targets, watch_params,
@@ -47,7 +47,7 @@ use crate::change_requests::{
 /// Everything needed to reach (or start) an engine.
 #[derive(Debug, Clone)]
 pub struct EngineBootConfig {
-    /// Data directory for the embedded engine (`~/.zeron`).
+    /// Data directory for the embedded engine (`~/.postillion`).
     pub data_dir: PathBuf,
     /// Localhost IPC port to probe / serve.
     pub ipc_port: u16,
@@ -293,7 +293,7 @@ impl EngineHandle {
         //
         // Best-effort — losing the bind race with another engine costs other
         // viewports, not this one.
-        let ipc_task = match zeron_engine::serve_ipc(engine_config.ipc_port, service).await {
+        let ipc_task = match postillion_engine::serve_ipc(engine_config.ipc_port, service).await {
             Ok(task) => Some(task),
             Err(err) => {
                 tracing::warn!(
@@ -498,10 +498,10 @@ async fn query_engine_info(client: &RpcClient) -> Result<EngineInfo, RpcError> {
 // ---------------------------------------------------------------------------
 
 // The frontend-agnostic derivations (sort orders, staleness gating, sidebar
-// grouping, the boot gate, relative times) live in `zeron_proto::view`, pure
+// grouping, the boot gate, relative times) live in `postillion_proto::view`, pure
 // and with their own test suite. Re-exported here because every call site in
 // this crate reads them as `state::…`.
-pub use zeron_proto::view::{
+pub use postillion_proto::view::{
     ChatGroup, ConnectionStatus, GatePhase, Indicator, SESSION_STALE_MS, attention_rank,
     chat_location, display_status, effective_indicator, format_time_ago, gate_phase, group_chats,
     parse_auth_state, project_label, sort_active, sort_chats, sort_spaces, sort_tabs,
@@ -589,7 +589,7 @@ pub struct AppState {
     pub devices: Vec<Device>,
     /// Live edge posture (WatchConnectivity): drives the connection pill,
     /// composer honesty ("will queue"), and the Queued send badges.
-    pub connectivity: zeron_proto::Connectivity,
+    pub connectivity: postillion_proto::Connectivity,
     /// Sorted (see [`sort_spaces`]).
     pub spaces: Vec<Space>,
     /// Sorted (see [`sort_chats`]); includes archived rows — views filter.
@@ -632,7 +632,7 @@ pub struct AppState {
     /// the engine serves it — views degrade gracefully).
     pub local_device_id: Option<String>,
     /// Latest `UpdateStatus` frame — drives the sidebar update strip.
-    pub update: Option<zeron_update::UpdateStatus>,
+    pub update: Option<postillion_update::UpdateStatus>,
     /// Data directory (`ui-settings.json`, `composer-defaults.json`); set at
     /// bootstrap so child views can persist small preference files.
     pub data_dir: Option<PathBuf>,
@@ -665,7 +665,7 @@ impl AppState {
             workspace_scope: None,
             auth: None,
             devices: Vec::new(),
-            connectivity: zeron_proto::Connectivity::default(),
+            connectivity: postillion_proto::Connectivity::default(),
             spaces: Vec::new(),
             chats: Vec::new(),
             sessions: Vec::new(),
@@ -778,13 +778,13 @@ impl AppState {
     /// Optimistic local echo of a `setChatConfig` mutate: stamp the row now so
     /// the chips update on click; the next chats watch frame carries the same
     /// value once the engine applies the LWW write.
-    pub fn apply_chat_config(&mut self, chat_id: &str, config: zeron_proto::ChatConfig) {
+    pub fn apply_chat_config(&mut self, chat_id: &str, config: postillion_proto::ChatConfig) {
         if let Some(chat) = self.chats.iter_mut().find(|c| c.id == chat_id) {
             chat.config = Some(config);
         }
     }
 
-    pub fn apply_connectivity(&mut self, connectivity: zeron_proto::Connectivity) {
+    pub fn apply_connectivity(&mut self, connectivity: postillion_proto::Connectivity) {
         self.connectivity = connectivity;
     }
 
@@ -794,7 +794,7 @@ impl AppState {
     /// chats degrade when the OS says offline, when the chat's own edge room
     /// is down, or when the host device has gone presence-dark.
     pub fn chat_delivery_degraded(&self, chat_id: &str) -> bool {
-        use zeron_proto::ConnectivityState as S;
+        use postillion_proto::ConnectivityState as S;
         if self.connectivity.state == S::Disabled {
             return false;
         }
@@ -836,7 +836,7 @@ impl AppState {
             && let Some(device) = devices.iter_mut().find(|device| device.id == local_id)
             && device.name == "unknown-device"
         {
-            device.name = "Local".to_string();
+            device.name = crate::i18n::t("Local").to_string();
         }
         for device in &devices {
             self.change_requests
@@ -873,7 +873,7 @@ impl AppState {
             .map(|s| s.id.clone())
     }
 
-    pub fn apply_update(&mut self, status: zeron_update::UpdateStatus) {
+    pub fn apply_update(&mut self, status: postillion_update::UpdateStatus) {
         self.update = Some(status);
     }
 
@@ -890,7 +890,7 @@ impl AppState {
     }
 
     /// The signed-in user, if the engine reports one.
-    pub fn auth_user(&self) -> Option<&zeron_proto::UserProfile> {
+    pub fn auth_user(&self) -> Option<&postillion_proto::UserProfile> {
         match self.auth.as_ref()? {
             AuthState::SignedIn { user, .. } | AuthState::NeedsOrganization { user } => Some(user),
             AuthState::SignedOut => None,
@@ -914,7 +914,7 @@ impl AppState {
         &mut self,
         frame: TranscriptFrame,
     ) -> Result<(), TranscriptDesync> {
-        zeron_doc::apply_transcript_frame(&mut self.transcript, frame)?;
+        postillion_doc::apply_transcript_frame(&mut self.transcript, frame)?;
         if let Some(chat_id) = self.selected_chat.as_deref()
             && let Some(echoes) = self.echoes.get_mut(chat_id)
         {
@@ -1207,7 +1207,7 @@ impl AppState {
         let offline = !self.device_online(&space.device_id, now);
         let device = self
             .device_name(&space.device_id)
-            .unwrap_or("Unknown device");
+            .unwrap_or(crate::i18n::t("Unknown device"));
         (format!("@ {device}"), offline)
     }
 
@@ -1618,7 +1618,7 @@ fn spawn_chats_watch(cx: &mut Context<AppState>, handle: EngineHandle) -> Task<(
     })
 }
 
-pub use zeron_proto::version_triple;
+pub use postillion_proto::version_triple;
 
 fn spawn_change_request_watch(
     cx: &mut Context<AppState>,
@@ -1908,7 +1908,7 @@ fn spawn_subagent_watch(
                 let alive = this.update(cx, |state, cx| {
                     // A stale pump racing a snapshot/unwatch finds no key.
                     if let Some(rows) = state.sub_transcripts.get_mut(&doc_id) {
-                        if let Err(err) = zeron_doc::apply_transcript_frame(rows, frame) {
+                        if let Err(err) = postillion_doc::apply_transcript_frame(rows, frame) {
                             tracing::warn!(%doc_id, error = %err, "resubscribing subagent watch");
                             desync = true;
                         }
@@ -1935,10 +1935,10 @@ fn spawn_subagent_watch(
 mod tests {
     use super::*;
     use chrono::TimeDelta;
-    use zeron_engine::{EngineCore, default_registry};
+    use postillion_engine::{EngineCore, default_registry};
     // `SessionStatus` is only needed to build the fixtures below — the module
-    // itself derives everything through `zeron_proto::view`.
-    use zeron_proto::{SessionStatus, UserProfile};
+    // itself derives everything through `postillion_proto::view`.
+    use postillion_proto::{SessionStatus, UserProfile};
 
     /// A localhost port that was just free (bind :0, read, drop).
     async fn free_port() -> u16 {
@@ -2012,7 +2012,7 @@ mod tests {
     async fn remote_viewport_treats_legacy_daemon_as_ready() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
-        let server = tokio::spawn(zeron_rpc::serve_ws_listener(
+        let server = tokio::spawn(postillion_rpc::serve_ws_listener(
             listener,
             Arc::new(LegacyIdentityRpc),
         ));
@@ -2080,7 +2080,7 @@ mod tests {
     #[tokio::test]
     async fn bootstrap_reports_local_assembly_failure_before_returning_a_handle() {
         let dir = tempfile::tempdir().unwrap();
-        zeron_engine::EngineProfile::local(dir.path()).unwrap();
+        postillion_engine::EngineProfile::local(dir.path()).unwrap();
         std::fs::create_dir(dir.path().join("profiles")).unwrap();
         std::fs::write(dir.path().join("profiles/local"), b"not a directory").unwrap();
         let port = free_port().await;
@@ -2128,7 +2128,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let (state_tx, state_rx) = tokio::sync::watch::channel(DeferredEngineState::Waiting);
-        let server = tokio::spawn(zeron_rpc::serve_ws_listener(
+        let server = tokio::spawn(postillion_rpc::serve_ws_listener(
             listener,
             Arc::new(DeferredIdentityRpc {
                 engine_info: EngineInfo {
@@ -2402,7 +2402,7 @@ mod tests {
 
     #[tokio::test]
     async fn bootstrap_connects_when_daemon_is_listening() {
-        // Stand in for `zeron headless`: an engine served over the WS IPC port.
+        // Stand in for `postillion headless`: an engine served over the WS IPC port.
         let daemon_dir = tempfile::tempdir().unwrap();
         let core = EngineCore::assemble(
             daemon_dir.path(),
@@ -2413,7 +2413,7 @@ mod tests {
         .unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
-        tokio::spawn(zeron_rpc::serve_ws_listener(listener, core.rpc_service()));
+        tokio::spawn(postillion_rpc::serve_ws_listener(listener, core.rpc_service()));
 
         let ui_dir = tempfile::tempdir().unwrap();
         let handle = EngineHandle::bootstrap(EngineBootConfig {
@@ -2511,7 +2511,7 @@ mod tests {
     fn user_entry(id: &str) -> SessionMessageEntry {
         SessionMessageEntry {
             id: id.into(),
-            role: zeron_doc::MessageRole::User,
+            role: postillion_doc::MessageRole::User,
             parts: Vec::new(),
             created_at: 0,
             device_id: "dev".into(),
@@ -2855,12 +2855,12 @@ mod tests {
     fn apply_chat_config_stamps_the_row() {
         let mut state = AppState::new();
         state.apply_chats(vec![chat("a", 0, None), chat("b", 1, None)]);
-        let config = zeron_proto::ChatConfig {
+        let config = postillion_proto::ChatConfig {
             harness: HarnessId::ClaudeCode,
             model: Some("claude-fable-5".into()),
-            reasoning: Some(zeron_proto::ReasoningLevel::XHigh),
+            reasoning: Some(postillion_proto::ReasoningLevel::XHigh),
             model_options: serde_json::Map::new(),
-            sandbox: zeron_proto::SandboxLevel::WorkspaceWrite,
+            sandbox: postillion_proto::SandboxLevel::WorkspaceWrite,
             mcp_servers: None,
         };
         state.apply_chat_config("a", config.clone());
@@ -2880,12 +2880,12 @@ mod tests {
         // Unknown chat: no-op, no panic.
         state.apply_chat_config(
             "missing",
-            zeron_proto::ChatConfig {
+            postillion_proto::ChatConfig {
                 harness: HarnessId::ClaudeCode,
                 model: None,
                 reasoning: None,
                 model_options: serde_json::Map::new(),
-                sandbox: zeron_proto::SandboxLevel::WorkspaceWrite,
+                sandbox: postillion_proto::SandboxLevel::WorkspaceWrite,
                 mcp_servers: None,
             },
         );
@@ -2907,7 +2907,7 @@ mod tests {
         state.selected_chat = Some("c1".into());
         let echo = SessionMessageEntry {
             id: "m1".into(),
-            role: zeron_doc::MessageRole::User,
+            role: postillion_doc::MessageRole::User,
             parts: vec![],
             created_at: 0,
             device_id: "local".into(),
@@ -3198,7 +3198,7 @@ mod tests {
 
     #[test]
     fn delivery_degradation_and_queued_sends_tell_the_truth() {
-        use zeron_proto::{ChatConnectivity, ConnectivityState};
+        use postillion_proto::{ChatConnectivity, ConnectivityState};
         let now = Utc::now();
         let mut s = AppState::default();
         s.local_device_id = Some("local".into());

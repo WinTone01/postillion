@@ -36,7 +36,7 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
-use zeron_proto::{Chat, CheckoutDiff, DiffFileSummary};
+use postillion_proto::{Chat, CheckoutDiff, DiffFileSummary};
 
 use crate::EngineError;
 use crate::doc_host::EdgeConfig;

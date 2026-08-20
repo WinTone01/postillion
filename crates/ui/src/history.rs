@@ -12,8 +12,8 @@ use gpui::{
     PathBuilder, Render, SharedString, Subscription, Task, Window, canvas, container_query, div,
     list, point, prelude::*, px,
 };
-use zeron_proto::{GitHistoryCommit, GitHistoryPage, GitHistoryRef, GitHistoryRefKind};
-use zeron_rpc::methods;
+use postillion_proto::{GitHistoryCommit, GitHistoryPage, GitHistoryRef, GitHistoryRefKind};
+use postillion_rpc::methods;
 
 use crate::state::AppState;
 use crate::theme::Theme;
@@ -273,8 +273,8 @@ fn ref_icon(kind: GitHistoryRefKind) -> &'static str {
 
 fn ref_description(reference: &GitHistoryRef) -> SharedString {
     let kind = match reference.kind {
-        GitHistoryRefKind::Branch => "Branch",
-        GitHistoryRefKind::Remote => "Remote branch",
+        GitHistoryRefKind::Branch => crate::i18n::t("Branch"),
+        GitHistoryRefKind::Remote => crate::i18n::t("Remote branch"),
         GitHistoryRefKind::Tag => "Tag",
     };
     format!("{kind}: {}", reference.label).into()
@@ -435,7 +435,7 @@ impl Render for GitHistoryFetchButton {
                     } else {
                         theme.text_muted
                     })
-                    .child(if fetching { "Fetching…" } else { "Fetch all" }),
+                    .child(if fetching { crate::i18n::t("Fetching…") } else { crate::i18n::t("Fetch all") }),
             )
     }
 }
@@ -684,7 +684,7 @@ impl GitHistory {
                 history.loading = false;
                 match result.and_then(|value| {
                     serde_json::from_value::<GitHistoryPage>(value)
-                        .map_err(|error| zeron_rpc::RpcError::Failed(error.to_string()))
+                        .map_err(|error| postillion_rpc::RpcError::Failed(error.to_string()))
                 }) {
                     Ok(page) => {
                         let old_commit_count = history.commits.len();
@@ -999,11 +999,11 @@ impl GitHistory {
             let theme = Theme::of(cx).clone();
             let has_error = self.error.is_some();
             let label = if self.loading {
-                "Loading…"
+                crate::i18n::t("Loading…")
             } else if has_error {
-                "Retry"
+                crate::i18n::t("Retry")
             } else {
-                "Load more"
+                crate::i18n::t("Load more")
             };
             let button = div()
                 .id("history-load-older")
@@ -1137,7 +1137,7 @@ impl GitHistory {
                     .pr(px(8.0))
                     .text_color(theme.text_muted)
                     .child(SharedString::from(if commit.author_name.is_empty() {
-                        "Unknown".to_string()
+                        crate::i18n::t("Unknown").to_string()
                     } else {
                         commit.author_name
                     })),
@@ -1177,7 +1177,7 @@ impl GitHistory {
                         this.copy_sha(sha.clone(), cx)
                     }))
                     .child(SharedString::from(if copied {
-                        "Copied".to_string()
+                        crate::i18n::t("Copied").to_string()
                     } else {
                         commit.sha.chars().take(7).collect()
                     })),
@@ -1200,7 +1200,7 @@ impl Render for GitHistory {
                 .justify_center()
                 .text_size(px(12.0))
                 .text_color(theme.text_faint)
-                .child("No repository selected")
+                .child(crate::i18n::t("No repository selected"))
                 .into_any_element()
         } else if self.loading && self.commits.is_empty() {
             div()
@@ -1221,7 +1221,7 @@ impl Render for GitHistory {
                     div()
                         .text_size(px(12.0))
                         .text_color(theme.text_faint)
-                        .child("Loading history…"),
+                        .child(crate::i18n::t("Loading history…")),
                 )
                 .into_any_element()
         } else if self.commits.is_empty() {
@@ -1310,10 +1310,10 @@ impl Render for GitHistory {
                         .text_size(px(9.5))
                         .text_color(theme.text_faint)
                         .child(div().w(px(graph_column)).flex_none())
-                        .child(div().flex_1().min_w(px(80.0)).child("Commit"))
-                        .child(div().w(px(88.0)).flex_none().child("Author"))
-                        .child(div().w(px(88.0)).flex_none().child("Date"))
-                        .child(div().w(px(74.0)).flex_none().child("SHA")),
+                        .child(div().flex_1().min_w(px(80.0)).child(crate::i18n::t("Commit")))
+                        .child(div().w(px(88.0)).flex_none().child(crate::i18n::t("Author")))
+                        .child(div().w(px(88.0)).flex_none().child(crate::i18n::t("Date")))
+                        .child(div().w(px(74.0)).flex_none().child(crate::i18n::t("SHA"))),
                 )
             })
             .child(body)

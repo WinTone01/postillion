@@ -30,7 +30,7 @@ fn detect() -> Language {
     // otomatik algılama bunu doğru yapar — ama kullanıcı yalnızca BU
     // uygulamayı Türkçe isteyebilir ve bunun için sistem yerelini
     // değiştirmek zorunda kalmamalı.
-    if let Ok(explicit) = std::env::var("ZERON_LANG")
+    if let Ok(explicit) = std::env::var("POSTILLION_LANG")
         && !explicit.is_empty()
     {
         return from_locale(&explicit);
@@ -90,7 +90,7 @@ fn turkish(source: &str) -> Option<&'static str> {
         // ── kimlik / hesap
         "Add account" => "Hesap ekle",
         "Log in" => "Giriş yap",
-        "Log in to Zeron" => "Zeron'a giriş yap",
+        "Log in to Postillion" => "Postillion'a giriş yap",
         "Not signed in" => "Giriş yapılmadı",
         "Sign out" => "Çıkış yap",
         "Signed out" => "Çıkış yapıldı",
@@ -199,6 +199,216 @@ fn turkish(source: &str) -> Option<&'static str> {
         "switching…" => "geçiliyor…",
         "You" => "Siz",
 
+
+        // ── ayarlar
+        "Settings" => "Ayarlar",
+        "Accounts" => "Hesaplar",
+        "Agents" => "Ajanlar",
+        "Appearance" => "Görünüm",
+        "Theme" => "Tema",
+        "Dark" => "Koyu",
+        "Light" => "Açık",
+        "System" => "Sistem",
+        "Always dark, whatever the system is set to." => "Sistem ne olursa olsun daima koyu.",
+        "Always light, whatever the system is set to." => "Sistem ne olursa olsun daima açık.",
+        "Notifications" => "Bildirimler",
+        "Desktop notifications" => "Masaüstü bildirimleri",
+        "Sounds" => "Sesler",
+        "Chime when a run finishes or an agent asks a question." => {
+            "Koşu bittiğinde ya da ajan soru sorduğunda ses çal."
+        }
+        "Only when in the background" => "Yalnızca arka plandayken",
+        "Keyboard shortcuts" => "Klavye kısayolları",
+        "Shortcuts" => "Kısayollar",
+        "Shortcuts must be unique." => "Kısayollar benzersiz olmalı.",
+        "Press keys…" => "Tuşlara basın…",
+        "Device name" => "Cihaz adı",
+        "Rename device" => "Cihazı yeniden adlandır",
+        "Archived" => "Arşivlenmiş",
+        "Archived sessions" => "Arşivlenmiş oturumlar",
+        "Right-click a session in the sidebar to archive it." => {
+            "Arşivlemek için kenar çubuğunda bir oturuma sağ tıklayın."
+        }
+        "Unarchiving…" => "Arşivden çıkarılıyor…",
+
+        // ── oturum / sohbet
+        "New session" => "Yeni oturum",
+        "Session title" => "Oturum başlığı",
+        "Rename session" => "Oturumu yeniden adlandır",
+        "Untitled session" => "Başlıksız oturum",
+        "Delete session?" => "Oturum silinsin mi?",
+        "Send a message to start a new session." => "Yeni oturum başlatmak için bir mesaj gönderin.",
+        "Open a blank session canvas to start a new session." => {
+            "Yeni oturum için boş bir tuval açın."
+        }
+        "Do anything…" => "Ne isterseniz…",
+        "Working" => "Çalışıyor",
+        "Waiting on your input" => "Girdinizi bekliyor",
+        "Queued" => "Sırada",
+        "Done" => "Bitti",
+        "Failed" => "Başarısız",
+        "Complete" => "Tamamlandı",
+        "Run finished" => "Koşu bitti",
+        "Latest turn" => "Son tur",
+        "No changes this turn" => "Bu turda değişiklik yok",
+        "Loading…" => "Yükleniyor…",
+        "Load more" => "Daha fazla yükle",
+        "Reconnecting…" => "Yeniden bağlanılıyor…",
+        "Type your own answer, or pick an option above" => {
+            "Kendi cevabınızı yazın ya da yukarıdan seçin"
+        }
+        "This agent has no slash commands" => "Bu ajanın slash komutu yok",
+        "Couldn't load this agent's commands" => "Bu ajanın komutları yüklenemedi",
+        "The session's device is unreachable" => "Oturumun cihazına ulaşılamıyor",
+        "Engine not connected" => "Motor bağlı değil",
+        "Offline — sends are saved" => "Çevrimdışı — gönderiler saklanıyor",
+        "Offline — messages will send when you're back online." => {
+            "Çevrimdışı — çevrimiçi olunca mesajlar gönderilecek."
+        }
+        "Messages will send once the connection recovers." => {
+            "Bağlantı düzelince mesajlar gönderilecek."
+        }
+
+        // ── proje
+        "New session canvas" => "Yeni oturum tuvali",
+        "Project name" => "Proje adı",
+        "Rename project" => "Projeyi yeniden adlandır",
+        "Remove project?" => "Proje kaldırılsın mı?",
+        "No project" => "Proje yok",
+        "No projects match." => "Eşleşen proje yok.",
+        "No projects on this device." => "Bu cihazda proje yok.",
+        "No folders here" => "Burada klasör yok",
+        "No folders match" => "Eşleşen klasör yok",
+        "Workspace name" => "Çalışma alanı adı",
+        "Enter a workspace name" => "Bir çalışma alanı adı girin",
+
+        // ── git
+        "Branch" => "Dal",
+        "Branch changes" => "Dal değişiklikleri",
+        "No branch changes" => "Dal değişikliği yok",
+        "No branches" => "Dal yok",
+        "No matching branches" => "Eşleşen dal yok",
+        "Remote branch" => "Uzak dal",
+        "Working tree" => "Çalışma ağacı",
+        "Worktree" => "Çalışma ağacı",
+        "New worktree" => "Yeni çalışma ağacı",
+        "Local checkout" => "Yerel çıkış",
+        "Current checkout" => "Mevcut çıkış",
+        "Current worktree" => "Mevcut çalışma ağacı",
+        "No uncommitted changes" => "İşlenmemiş değişiklik yok",
+        "Empty commit" => "Boş işleme",
+        "New file" => "Yeni dosya",
+        "Deleted file" => "Silinmiş dosya",
+        "Binary file — contents not shown" => "İkili dosya — içerik gösterilmiyor",
+        "Fetch all" => "Hepsini getir",
+        "Fetching…" => "Getiriliyor…",
+        "History" => "Geçmiş",
+        "Merged" => "Birleştirildi",
+        "Closed" => "Kapatıldı",
+        "Comment" => "Yorum",
+        "Request a change…" => "Değişiklik iste…",
+        "Diff stream interrupted — retrying" => "Fark akışı kesildi — yeniden deneniyor",
+        "Show or hide changes for the current session." => {
+            "Bu oturumun değişikliklerini göster ya da gizle."
+        }
+
+        // ── arama
+        "Search…" => "Ara…",
+        "Search branches…" => "Dal ara…",
+        "Search devices…" => "Cihaz ara…",
+        "Search folders…" => "Klasör ara…",
+        "Search models…" => "Model ara…",
+        "Search projects…" => "Proje ara…",
+        "Search refs…" => "Referans ara…",
+        "No matching commands" => "Eşleşen komut yok",
+        "No matching files" => "Eşleşen dosya yok",
+        "No files available" => "Kullanılabilir dosya yok",
+        "File search failed" => "Dosya araması başarısız",
+
+        // ── model
+        "No models found" => "Model bulunamadı",
+        "No starred models yet — hit a row's star" => {
+            "Henüz yıldızlı model yok — bir satırın yıldızına basın"
+        }
+        "Reasoning" => "Akıl yürütme",
+        "Minimal" => "En az",
+        "Medium" => "Orta",
+        "High" => "Yüksek",
+        "Anthropic's coding agent, driven through the Claude Code CLI." => {
+            "Anthropic'in kodlama ajanı, Claude Code CLI üzerinden sürülüyor."
+        }
+
+        // ── hesap / eşitleme
+        "Add Claude account" => "Claude hesabı ekle",
+        "Use a different account" => "Farklı bir hesap kullan",
+        "Unknown account" => "Bilinmeyen hesap",
+        "Credentials unavailable" => "Kimlik bilgisi yok",
+        "Usage unavailable" => "Kullanım bilgisi yok",
+        "Verifying…" => "Doğrulanıyor…",
+        "Login failed" => "Giriş başarısız",
+        "Signing out…" => "Çıkış yapılıyor…",
+        "Sign out?" => "Çıkış yapılsın mı?",
+        "Paste the authorization code" => "Yetkilendirme kodunu yapıştırın",
+        "Reopen the authorization page" => "Yetkilendirme sayfasını yeniden aç",
+        "Reopen the sign-in page" => "Giriş sayfasını yeniden aç",
+        "Press Escape to cancel." => "İptal için Escape'e basın.",
+        "Sync is ready" => "Eşitleme hazır",
+        "Sync needs a restart" => "Eşitleme yeniden başlatma istiyor",
+        "Cancel sync setup" => "Eşitleme kurulumunu iptal et",
+        "Canceling sync setup…" => "Eşitleme kurulumu iptal ediliyor…",
+        "Switching to your synced workspace…" => "Eşitlenmiş çalışma alanınıza geçiliyor…",
+        "Your synced workspace is ready." => "Eşitlenmiş çalışma alanınız hazır.",
+        "You're all set" => "Her şey hazır",
+        "Unknown device" => "Bilinmeyen cihaz",
+        "Manage device names for this workspace." => {
+            "Bu çalışma alanının cihaz adlarını yönetin."
+        }
+
+        // ── genel eylemler
+        "Cancel" => "İptal",
+        "Close" => "Kapat",
+        "Create" => "Oluştur",
+        "Creating…" => "Oluşturuluyor…",
+        "Delete" => "Sil",
+        "Remove" => "Kaldır",
+        "Edit" => "Düzenle",
+        "Open" => "Aç",
+        "Copy" => "Kopyala",
+        "Paste" => "Yapıştır",
+        "Undo" => "Geri al",
+        "Redo" => "Yinele",
+        "Submit" => "Gönder",
+        "Continue" => "Devam",
+        "Next" => "İleri",
+        "Later" => "Sonra",
+        "Switch" => "Geç",
+        "Switch now" => "Şimdi geç",
+        "Switching…" => "Geçiliyor…",
+        "Start fresh" => "Sıfırdan başla",
+        "Navigate" => "Gezin",
+        "Unknown" => "Bilinmiyor",
+        "Local" => "Yerel",
+        "Attach" => "Ekle",
+        "Attached image" => "Eklenen görsel",
+        "Couldn't stage the attachment locally." => "Ek yerelde hazırlanamadı.",
+        "Couldn't upload the attachment — the device may be offline." => {
+            "Ek yüklenemedi — cihaz çevrimdışı olabilir."
+        }
+
+        // ── panel / gezinme
+        "Toggle left sidebar" => "Sol kenar çubuğunu aç/kapat",
+        "Toggle right sidebar" => "Sağ kenar çubuğunu aç/kapat",
+        "Toggle terminal" => "Terminali aç/kapat",
+        "Show or hide sessions and settings navigation." => {
+            "Oturum ve ayar gezinmesini göster ya da gizle."
+        }
+        "Show or hide the terminal for the current session." => {
+            "Bu oturumun terminalini göster ya da gizle."
+        }
+        "Choose what to show in the right panel." => "Sağ panelde ne görüneceğini seçin.",
+        "Update ready — restart to apply" => "Güncelleme hazır — uygulamak için yeniden başlatın",
+        "Stopping engine…" => "Motor durduruluyor…",
+        "Stop daemon and quit" => "Servisi durdur ve çık",
         _ => return None,
     })
 }

@@ -16,11 +16,11 @@ use gpui::{
 };
 use std::time::Duration;
 
-use zeron_proto::{
+use postillion_proto::{
     AgentAccount, AgentAccountsSnapshot, AgentLoginMode, AgentLoginPoll, AgentLoginStart,
     AgentLoginStatus, HarnessId,
 };
-use zeron_rpc::methods;
+use postillion_rpc::methods;
 
 use crate::composer::{ComposerInput, ComposerInputEvent};
 use crate::popover::{self, Loadable};
@@ -167,7 +167,7 @@ impl LoginFlow {
         match harness {
             HarnessId::Codex => "Add Codex account",
             HarnessId::Cursor => "Connect Cursor",
-            _ => "Add Claude account",
+            _ => crate::i18n::t("Add Claude account"),
         }
     }
 }
@@ -195,7 +195,7 @@ pub struct AccountsPage {
 impl AccountsPage {
     pub fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
         let observe = cx.observe(&state, |_, _, cx| cx.notify());
-        let code_input = cx.new(|cx| ComposerInput::new("Paste the authorization code", cx));
+        let code_input = cx.new(|cx| ComposerInput::new(crate::i18n::t("Paste the authorization code"), cx));
         let code_events = cx.subscribe(&code_input, |this: &mut Self, _, event, cx| {
             if matches!(event, ComposerInputEvent::Submitted) {
                 this.submit_code(cx);
@@ -370,7 +370,7 @@ impl AccountsPage {
                 .flex()
                 .flex_col()
                 .gap(px(2.0))
-                .child(popover::menu_heading(theme, "Devices"))
+                .child(popover::menu_heading(theme, crate::i18n::t("Devices")))
                 .children(devices.into_iter().enumerate().map(|(ix, d)| {
                     let is_active = Some(d.id.as_str()) == effective.as_deref();
                     let is_local = local_id.as_deref() == Some(d.id.as_str());
@@ -425,7 +425,7 @@ impl AccountsPage {
 
     fn load(&mut self, force_usage: bool, cx: &mut Context<Self>) {
         let Some(engine) = self.state.read(cx).engine().cloned() else {
-            self.snapshot = Loadable::Error("Engine not connected".into());
+            self.snapshot = Loadable::Error(crate::i18n::t("Engine not connected").into());
             return;
         };
         self.snapshot = Loadable::Loading;
@@ -500,7 +500,7 @@ impl AccountsPage {
             this.update(cx, |page, cx| {
                 match result.and_then(|value| {
                     serde_json::from_value::<AgentLoginStart>(value)
-                        .map_err(|e| zeron_rpc::RpcError::Failed(e.to_string()))
+                        .map_err(|e| postillion_rpc::RpcError::Failed(e.to_string()))
                 }) {
                     Ok(start) => {
                         cx.open_url(&start.url);
@@ -622,7 +622,7 @@ impl AccountsPage {
                             AgentLoginStatus::Error => {
                                 *error = Some(
                                     poll.message
-                                        .unwrap_or_else(|| "Login failed".to_string())
+                                        .unwrap_or_else(|| crate::i18n::t("Login failed").to_string())
                                         .into(),
                                 );
                                 cx.notify();
@@ -686,7 +686,7 @@ impl AccountsPage {
     /// quiet reset time.
     fn render_usage_meter(
         &self,
-        window: &zeron_proto::AgentUsageWindow,
+        window: &postillion_proto::AgentUsageWindow,
         theme: &Theme,
         now: DateTime<Utc>,
     ) -> AnyElement {
@@ -772,7 +772,7 @@ impl AccountsPage {
             .email
             .clone()
             .or_else(|| account.display_name.clone())
-            .unwrap_or_else(|| "Unknown account".into())
+            .unwrap_or_else(|| crate::i18n::t("Unknown account").into())
             .into();
         let initial: SharedString = email
             .chars()
@@ -827,7 +827,7 @@ impl AccountsPage {
                     el.child(
                         crate::popover::btn_primary(
                             theme,
-                            if is_busy { "Switching…" } else { "Switch" },
+                            if is_busy { crate::i18n::t("Switching…") } else { crate::i18n::t("Switch") },
                         )
                         .id(("account-switch", ix))
                         .px(px(8.0))
@@ -890,9 +890,9 @@ impl AccountsPage {
                                     .text_size(px(11.5))
                                     .text_color(theme.text_muted.opacity(0.6))
                                     .child(SharedString::from(if account.switchable {
-                                        "Usage unavailable"
+                                        crate::i18n::t("Usage unavailable")
                                     } else {
-                                        "Credentials unavailable"
+                                        crate::i18n::t("Credentials unavailable")
                                     })),
                             )
                         } else {
@@ -977,7 +977,7 @@ impl AccountsPage {
                     )))
                     .child(url_link(
                         "login-open-url",
-                        "Reopen the authorization page",
+                        crate::i18n::t("Reopen the authorization page"),
                         &start.url,
                         cx,
                     ))
@@ -1005,7 +1005,7 @@ impl AccountsPage {
                             .justify_end()
                             .gap(px(8.0))
                             .child(
-                                popover::btn_ghost(&theme, "Cancel", "login-cancel")
+                                popover::btn_ghost(&theme, crate::i18n::t("Cancel"), "login-cancel")
                                     .id("login-cancel")
                                     .on_click(cx.listener(|this, _, _, cx| this.cancel_login(cx))),
                             )
@@ -1013,9 +1013,9 @@ impl AccountsPage {
                                 popover::btn_primary(
                                     &theme,
                                     if submitting {
-                                        "Verifying…"
+                                        crate::i18n::t("Verifying…")
                                     } else {
-                                        "Add account"
+                                        crate::i18n::t("Add account")
                                     },
                                 )
                                 .id("login-submit-code")
@@ -1050,7 +1050,7 @@ impl AccountsPage {
                     .child(div().mt(px(8.0)).child(popover::dialog_body(&theme, body)))
                     .child(url_link(
                         "login-open-url-browser",
-                        "Reopen the sign-in page",
+                        crate::i18n::t("Reopen the sign-in page"),
                         &start.url,
                         cx,
                     ))
@@ -1092,7 +1092,7 @@ impl AccountsPage {
                         div().mt(px(16.0)).flex().flex_row().justify_end().child(
                             popover::btn_ghost(
                                 &theme,
-                                if has_error { "Close" } else { "Cancel" },
+                                if has_error { crate::i18n::t("Close") } else { crate::i18n::t("Cancel") },
                                 "login-cancel",
                             )
                             .id("login-cancel")
@@ -1121,7 +1121,7 @@ impl AccountsPage {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         use crate::motion;
-        let delta = motion::pulse_delta(&motion::ZERON_PULSE, cx.entity_id(), cx);
+        let delta = motion::pulse_delta(&motion::POSTILLION_PULSE, cx.entity_id(), cx);
         let ghost = |w: gpui::Length, h: f32, round_full: bool| {
             div()
                 .w(w)
@@ -1415,7 +1415,7 @@ impl Render for AccountsPage {
                             .flex_row()
                             .items_center()
                             .gap(px(10.0))
-                            .child(widgets::page_header(&theme, "Accounts", account_count))
+                            .child(widgets::page_header(&theme, crate::i18n::t("Accounts"), account_count))
                             .child(div().flex_1())
                             .child(
                                 // `text-[12.5px]` + leading 16px Refresh icon,

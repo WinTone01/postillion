@@ -24,7 +24,7 @@
 //! aynı üç seviye, aynı tema token'ları — iki ölçer aynı dili konuşuyor.
 
 use gpui::{Div, SharedString, div, prelude::*, px};
-pub use zeron_proto::{
+pub use postillion_proto::{
     AUTO_COMPACT_FRACTION, DEFAULT_CONTEXT_WINDOW, LONG_CONTEXT_WINDOW, compact_threshold,
     context_window,
 };

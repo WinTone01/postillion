@@ -15,7 +15,7 @@ use gpui::{
     Anchor, AnyElement, ElementId, IntoElement, Pixels, Point, SharedString, div, prelude::*, px,
 };
 
-use crate::motion::{self, ZERON_PULSE};
+use crate::motion::{self, POSTILLION_PULSE};
 use crate::theme::{Theme, hairline, ink};
 
 // ---------------------------------------------------------------------------
@@ -983,7 +983,7 @@ pub fn skeleton_rows(
     cx: &mut gpui::App,
 ) -> AnyElement {
     let wash = ink(0.04);
-    let delta = motion::pulse_delta(&ZERON_PULSE, view, cx);
+    let delta = motion::pulse_delta(&POSTILLION_PULSE, view, cx);
     div()
         .flex()
         .flex_col()
@@ -1108,7 +1108,7 @@ mod tests {
     fn tracked_upper_spaces_letters() {
         assert_eq!(tracked_upper("ab"), "A\u{200A}B");
         assert_eq!(
-            tracked_upper("Question"),
+            tracked_upper(crate::i18n::t("Question")),
             "Q\u{200A}U\u{200A}E\u{200A}S\u{200A}T\u{200A}I\u{200A}O\u{200A}N"
         );
         assert_eq!(tracked_upper(""), "");

@@ -23,8 +23,8 @@ use gpui::{
     Subscription, Task, Window, actions, div, prelude::*, px,
 };
 
-use zeron_proto::{TerminalEvent, TerminalSession};
-use zeron_rpc::methods;
+use postillion_proto::{TerminalEvent, TerminalSession};
+use postillion_rpc::methods;
 
 use crate::motion::{self, AnimationExt as _, TAB_SLIDE};
 use crate::settings::{TERMINAL_MAX_VH, TERMINAL_MIN_HEIGHT};

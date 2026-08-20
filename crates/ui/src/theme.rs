@@ -35,7 +35,7 @@
 use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use gpui::{App, Global, Hsla, SharedString, hsla};
-use zeron_syntax::HighlightKind;
+use postillion_syntax::HighlightKind;
 
 /// Which appearance the app is painting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

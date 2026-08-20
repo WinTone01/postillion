@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Sabit kalan çekirdek: kimlik değişse de konuşma yerinde duruyor. -->
+  <rect x="18" y="18" width="12" height="12" rx="3.5" fill="currentColor"/>
+  <!-- Çekirdeğin çevresinde takas eden iki yay: hesaplar değişiyor. -->
+  <g stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11.5 18.5A14 14 0 0 1 29.5 8.4"/>
+    <path d="M24.6 4.5l6.2 4.3-4.3 6.2"/>
+    <path d="M36.5 29.5A14 14 0 0 1 18.5 39.6"/>
+    <path d="M23.4 43.5l-6.2-4.3 4.3-6.2"/>
+  </g>
+</svg>

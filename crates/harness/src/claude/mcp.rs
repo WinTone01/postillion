@@ -82,7 +82,7 @@ pub fn write_config(chat_id: &str, selected: &[String], defined: &BTreeMap<Strin
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    let path = std::env::temp_dir().join(format!("zeron-mcp-{safe}.json"));
+    let path = std::env::temp_dir().join(format!("postillion-mcp-{safe}.json"));
 
     // Tanımlar API anahtarı taşıyabiliyor ve geçici dizin paylaşılan bir yer.
     // `create_new` + 0600: yalnızca bu kullanıcı okuyabilsin ve önceden var
@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn tanimlar_kullanici_ve_proje_kapsamindan_okunur() {
-        let dir = std::env::temp_dir().join(format!("zeron-mcp-defs-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("postillion-mcp-defs-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("config.json");
 

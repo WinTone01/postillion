@@ -24,12 +24,12 @@ use chrono::Utc;
 use futures::StreamExt;
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
-use zeron_doc::{
+use postillion_doc::{
     DocError, MessagePart, MessageRole, MessageStatus, STREAM_COMMIT_MS, SegmentWriter, SessionDoc,
     SessionMessageEntry, fold_event_into_parts, sanitize_tool_call,
 };
-use zeron_harness::{CancellationToken, Harness, RunControls, SteerMessage};
-use zeron_proto::{
+use postillion_harness::{CancellationToken, Harness, RunControls, SteerMessage};
+use postillion_proto::{
     AgentEvent, DoneStatus, HarnessId, RunRequest, Session, SessionStatus, UserInputAnswer,
     UserInputQuestion,
 };
@@ -218,7 +218,7 @@ impl SessionsEngine {
         lock(&self.inner.statuses).values().any(|s| {
             matches!(
                 s.status,
-                zeron_proto::SessionStatus::Working | zeron_proto::SessionStatus::AwaitingInput
+                postillion_proto::SessionStatus::Working | postillion_proto::SessionStatus::AwaitingInput
             )
         })
     }
@@ -673,7 +673,7 @@ impl SessionsEngine {
                             reasoning: None,
                             model_options: Default::default(),
                             cwd,
-                            sandbox: zeron_proto::SandboxLevel::WorkspaceWrite,
+                            sandbox: postillion_proto::SandboxLevel::WorkspaceWrite,
                             auto_approve: false,
                             attachments: Vec::new(),
                             resume: None,
@@ -1107,7 +1107,7 @@ impl SubagentSink {
         if let Err(err) = finished {
             tracing::warn!(doc = %self.doc_id, error = %err, "subagent sink finish failed");
         }
-        let entries = zeron_doc::join_continuation_entries(self.doc.read_entries().ok()?);
+        let entries = postillion_doc::join_continuation_entries(self.doc.read_entries().ok()?);
         serde_json::to_string(&entries).ok()
     }
 }
@@ -1272,7 +1272,7 @@ async fn drive_run(
     });
     // Sıkıştırma eşiği için modelin penceresi — `request` birazdan harness'e
     // taşınıyor, o yüzden burada okunuyor.
-    let compact_at = zeron_proto::compact_threshold(zeron_proto::context_window_for(
+    let compact_at = postillion_proto::compact_threshold(postillion_proto::context_window_for(
         request.model.as_deref(),
         &request.model_options,
     ));
@@ -1352,14 +1352,14 @@ async fn drive_run(
     // segment finalized Complete, status Idle, child and mailbox warm. A
     // false trip (the agent was quietly waiting on something invisible)
     // costs a status dip: the parked-resume path below re-arms Working the
-    // moment output flows again, and nothing is lost. `ZERON_TURN_QUIESCE_MS`
+    // moment output flows again, and nothing is lost. `POSTILLION_TURN_QUIESCE_MS`
     // overrides the window; 0 disables.
     // RETIRED for native drivers: a harness whose every turn shape ends with
     // a deterministic wire Done (claude/codex/cursor native) needs no
     // quiesce backstop — arming one only risks false parks on long silent
     // work. The env knob still forces a window on for diagnostics.
     let deterministic_turn_end = harness.deterministic_turn_end();
-    let quiesce_after: Option<std::time::Duration> = match std::env::var("ZERON_TURN_QUIESCE_MS")
+    let quiesce_after: Option<std::time::Duration> = match std::env::var("POSTILLION_TURN_QUIESCE_MS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
     {
@@ -1378,11 +1378,11 @@ async fn drive_run(
     // so the default 120s window read as 2min of stuck-Working after every
     // background notification (user report 2026-08-13). The in-flight
     // fold gate below still protects running tools; reasoning heartbeats
-    // push the window during real thinking. `ZERON_SELF_TURN_QUIESCE_MS`
+    // push the window during real thinking. `POSTILLION_SELF_TURN_QUIESCE_MS`
     // overrides; 0 falls back to the normal window. An explicit
-    // `ZERON_TURN_QUIESCE_MS=0` still disables the watchdog entirely.
+    // `POSTILLION_TURN_QUIESCE_MS=0` still disables the watchdog entirely.
     let self_quiesce_after: Option<std::time::Duration> =
-        match std::env::var("ZERON_SELF_TURN_QUIESCE_MS")
+        match std::env::var("POSTILLION_SELF_TURN_QUIESCE_MS")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
         {
@@ -1517,7 +1517,7 @@ async fn drive_run(
                 && steerable
                 && !folded.iter().any(|p| match p {
                     MessagePart::Tool { id, resolved: false, .. } => {
-                        id != zeron_proto::LIVE_PLAN_TOOL_ID
+                        id != postillion_proto::LIVE_PLAN_TOOL_ID
                     }
                     MessagePart::Input { resolved: false, .. } => true,
                     _ => false,
@@ -1596,7 +1596,7 @@ async fn drive_run(
                         }
                     }
                 }
-                zeron_doc::fold_event_into_parts(&mut folded, &event);
+                postillion_doc::fold_event_into_parts(&mut folded, &event);
                 if !dirty {
                     dirty = true;
                     flush_at = tokio::time::Instant::now()
@@ -1651,7 +1651,7 @@ async fn drive_run(
                     sink.push_user(&device_id, text);
                     continue;
                 }
-                zeron_doc::fold_event_into_parts(&mut sink.folded, sub_event);
+                postillion_doc::fold_event_into_parts(&mut sink.folded, sub_event);
                 sink.dirty = true;
                 if !chip_streaming && done {
                     // In-place chip refresh on lifecycle transitions only —
@@ -1687,7 +1687,7 @@ async fn drive_run(
                     {
                         host.upload_tool_sidecar(
                             &chat_id,
-                            zeron_doc::SidecarPayload {
+                            postillion_doc::SidecarPayload {
                                 part_id: doc_id,
                                 output: Some(json),
                                 diff: None,
@@ -1761,7 +1761,7 @@ async fn drive_run(
                 ) || matches!(
                     &event,
                     AgentEvent::ToolCall { id, .. }
-                        if id == zeron_proto::LIVE_PLAN_TOOL_ID || !seen_tools.contains(id)
+                        if id == postillion_proto::LIVE_PLAN_TOOL_ID || !seen_tools.contains(id)
                 ));
             if self_continued {
                 tracing::info!(
@@ -1830,8 +1830,8 @@ async fn drive_run(
             // treating its reappearance after a park/steer reset as a stale
             // echo dropped the todo list for the rest of the run — from the
             // first boundary on, plans never rendered again.
-            AgentEvent::ToolCall { id, .. } if id == zeron_proto::LIVE_PLAN_TOOL_ID => {}
-            AgentEvent::ToolResult { id, .. } if id == zeron_proto::LIVE_PLAN_TOOL_ID => {}
+            AgentEvent::ToolCall { id, .. } if id == postillion_proto::LIVE_PLAN_TOOL_ID => {}
+            AgentEvent::ToolResult { id, .. } if id == postillion_proto::LIVE_PLAN_TOOL_ID => {}
             AgentEvent::ToolCall { id, .. } => {
                 if !in_segment(&folded, id) && seen_tools.contains(id) {
                     continue;
@@ -1992,7 +1992,7 @@ async fn drive_run(
             // R2 sidecar PARKED (2026-08-10, product call): the fold's
             // summary/stats ARE the doc's whole record — no refs stamped, no
             // uploads. Full outputs survive only in the host's local run
-            // journal. To reintroduce: `zeron_doc::sidecar_payload(&event)`
+            // journal. To reintroduce: `postillion_doc::sidecar_payload(&event)`
             // → `apply_sidecar_refs` → `doc_host.upload_tool_sidecar`, all
             // still in place and tested.
         }
@@ -2126,7 +2126,7 @@ async fn drive_run(
         {
             host.upload_tool_sidecar(
                 &chat_id,
-                zeron_doc::SidecarPayload {
+                postillion_doc::SidecarPayload {
                     part_id: doc_id,
                     output: Some(json),
                     diff: None,

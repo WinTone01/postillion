@@ -4,6 +4,18 @@
 //! sarmalamak. İkincisi unutulduğunda hiçbir şey bozulmuyor — metin yalnızca
 //! Türkçe yerelde İngilizce kalıyor, ki bu gözden kaçması en kolay hata türü.
 //! Bu test o sessiz boşluğu gürültülü hale getiriyor.
+//!
+//! Tarama çağrı BİÇİMİNE bakmıyor, çünkü metin `SharedString::from(…)`,
+//! `.child(…)`, `label: …`, `menu_heading(theme, …)` ve bir `if` kolunda çıplak
+//! değişmez olarak da geçebiliyor; ilk sürüm yalnızca birini kontrol ediyordu
+//! ve elli kadar yeri gözden kaçırmıştı.
+//!
+//! İki şey kasıtlı olarak dışarıda:
+//!
+//! - **Yorumlar.** Doküman yorumları arayüz metnini sık sık alıntılıyor
+//!   ("Settings" başlığı gibi); onları sarmalamak anlamsız.
+//! - **Test modülleri.** Test verisi kullanıcıya gösterilmiyor ve sarmalamak
+//!   testleri yerele bağımlı yapardı — Türkçe bir makinede kırılırlardı.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -67,21 +79,49 @@ fn katalogdaki_dizeler_sarmalanmis() {
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
-        for key in &keys {
-            // Sarmalanmamış hâl: doğrudan tırnak içinde, `t(` olmadan.
-            let bare = format!("SharedString::from(\"{key}\")");
-            if text.contains(&bare) {
-                misses.push(format!(
-                    "{}: {key:?}",
-                    path.strip_prefix(&src).unwrap_or(&path).display()
-                ));
+
+        let mut in_tests = false;
+        for (number, line) in text.lines().enumerate() {
+            let trimmed = line.trim();
+
+            // Test modülünden dosya sonuna kadar her şey test verisi sayılıyor;
+            // `#[cfg(test)]` bu dosyalarda daima sondaki modülü açıyor.
+            if trimmed.starts_with("#[cfg(test)]") {
+                in_tests = true;
+            }
+            if in_tests || trimmed.starts_with("//") {
+                continue;
+            }
+
+            // Sarmalama satır sonuna taşabiliyor: uzun bir dize
+            // `crate::i18n::t(` ile açılıp bir sonraki satırda yazılıyor.
+            // Önceki satırın `t(` ile bitmesi de geçerli bir sarmalama.
+            let wrapped_above = number
+                .checked_sub(1)
+                .and_then(|prev| text.lines().nth(prev))
+                .is_some_and(|prev| prev.trim_end().ends_with("t("));
+
+            for key in &keys {
+                let quoted = format!("\"{key}\"");
+                if line.contains(&quoted)
+                    && !line.contains(&format!("t({quoted})"))
+                    && !wrapped_above
+                {
+                    misses.push(format!(
+                        "{}:{}  {}",
+                        path.strip_prefix(&src).unwrap_or(&path).display(),
+                        number + 1,
+                        trimmed
+                    ));
+                }
             }
         }
     }
 
     assert!(
         misses.is_empty(),
-        "katalogda karşılığı olan ama t() ile sarmalanmamış dizeler:\n  {}",
+        "katalogda karşılığı olan ama t() ile sarmalanmamış {} yer:\n  {}",
+        misses.len(),
         misses.join("\n  ")
     );
 }

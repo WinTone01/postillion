@@ -7,7 +7,7 @@
 //! short-lived `codex app-server` + `model/list` pagination can later be
 //! spliced in (same call t3code's Codex provider makes).
 
-use zeron_proto::{Model, ModelOption, ModelOptionChoice, ReasoningLevel, SandboxLevel};
+use postillion_proto::{Model, ModelOption, ModelOptionChoice, ReasoningLevel, SandboxLevel};
 
 /// The unified reasoning ladder Codex accepts (`minimal` is offered but clamped
 /// on the wire — see [`to_effort`]).

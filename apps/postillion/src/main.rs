@@ -1,5 +1,5 @@
-//! zeron — headed by default; `zeron headless` runs the engine alone. Both start
-//! local-only without credentials. `zeron login` and `zeron logout` select the
+//! zeron — headed by default; `postillion headless` runs the engine alone. Both start
+//! local-only without credentials. `postillion login` and `postillion logout` select the
 //! profile used by the next engine start without mutating a live runtime.
 
 mod auth_cli;
@@ -9,7 +9,7 @@ mod update_cli;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "zeron", about = "Multi-device controller for coding agents")]
+#[command(name = "postillion", about = "Multi-device controller for coding agents")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -28,7 +28,7 @@ enum Command {
     /// Live sync introspection from the running engine: per-room connection
     /// state, last pushed-frame/ack ages, rejoin/probe/resync counters.
     Sync,
-    /// Manage `zeron headless` as a background service (launchd / systemd --user).
+    /// Manage `postillion headless` as a background service (launchd / systemd --user).
     Daemon {
         #[command(subcommand)]
         command: DaemonCommand,
@@ -43,7 +43,7 @@ enum Command {
 
 #[derive(Subcommand)]
 enum DaemonCommand {
-    /// Install, enable, and start the service (captures ZERON_* env).
+    /// Install, enable, and start the service (captures POSTILLION_* env).
     Install,
     /// Stop and remove the service.
     Uninstall,
@@ -58,28 +58,28 @@ enum DaemonCommand {
 }
 
 /// Production edge (Cloudflare Worker + Durable Objects on the zeron.sh zone).
-/// `ZERON_EDGE_URL` overrides (local dev / self-hosting).
+/// `POSTILLION_EDGE_URL` overrides (local dev / self-hosting).
 const DEFAULT_EDGE_URL: &str = "https://edge.zeron.sh";
 
 /// Production WorkOS AuthKit client id — public knowledge (it appears in every
-/// authorize URL), so baking it in is safe. Overridden by `ZERON_WORKOS_CLIENT_ID`;
-/// set it to the empty string — or set a dev bearer via `ZERON_EDGE_TOKEN` — to
+/// authorize URL), so baking it in is safe. Overridden by `POSTILLION_WORKOS_CLIENT_ID`;
+/// set it to the empty string — or set a dev bearer via `POSTILLION_EDGE_TOKEN` — to
 /// force dev-mode auth instead.
 const DEFAULT_WORKOS_CLIENT_ID: &str = "client_01KWD0EAKZKD50YCQJNYSRE4BY";
 
 fn edge_url_from_env() -> String {
-    std::env::var("ZERON_EDGE_URL")
+    std::env::var("POSTILLION_EDGE_URL")
         .ok()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_EDGE_URL.into())
 }
 
 /// WorkOS client id resolution: explicit env wins (empty string = dev mode);
-/// otherwise a `ZERON_EDGE_TOKEN` dev bearer keeps dev mode (smoke tests,
+/// otherwise a `POSTILLION_EDGE_TOKEN` dev bearer keeps dev mode (smoke tests,
 /// local wrangler); otherwise the baked production client id makes optional
 /// sync available while a bare start remains local-only.
 fn workos_client_id_from_env(edge_token: &Option<String>) -> Option<String> {
-    match std::env::var("ZERON_WORKOS_CLIENT_ID") {
+    match std::env::var("POSTILLION_WORKOS_CLIENT_ID") {
         Ok(v) if v.trim().is_empty() => None,
         Ok(v) => Some(v),
         Err(_) if edge_token.is_some() => None,
@@ -93,7 +93,7 @@ fn workos_client_id_from_env(edge_token: &Option<String>) -> Option<String> {
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-/// `ZERON_BACKEND=x11` verildiğinde pencere arka ucunu X11'e zorlar.
+/// `POSTILLION_BACKEND=x11` verildiğinde pencere arka ucunu X11'e zorlar.
 ///
 /// gpui arka ucu yalnızca ortama bakarak seçiyor: `WAYLAND_DISPLAY` doluysa
 /// koşulsuz Wayland, başka bir anahtar yok. Bazı kurulumlarda (ölçüldü: KDE
@@ -106,7 +106,7 @@ static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 /// X11'i seçmesini sağlıyor. `wayland` değeri açıkça Wayland'da kalmak için;
 /// tanınmayan değer yok sayılıyor ve normal otomatik seçim işliyor.
 fn apply_backend_override() {
-    let Ok(backend) = std::env::var("ZERON_BACKEND") else {
+    let Ok(backend) = std::env::var("POSTILLION_BACKEND") else {
         return;
     };
     if !backend.eq_ignore_ascii_case("x11") {
@@ -171,7 +171,7 @@ fn main() -> anyhow::Result<()> {
         Some(Command::Headless) => {
             let runtime = tokio::runtime::Runtime::new()?;
             runtime.block_on(async {
-                let engine = zeron_engine::Engine::new(engine_config_from_env());
+                let engine = postillion_engine::Engine::new(engine_config_from_env());
                 engine.run().await
             })
         }
@@ -204,22 +204,22 @@ fn main() -> anyhow::Result<()> {
             DaemonCommand::Status => daemon::status(),
         },
         None => {
-            let edge_token = std::env::var("ZERON_EDGE_TOKEN").ok();
-            // Headed: the UI probes ZERON_IPC_PORT and connects to a running
+            let edge_token = std::env::var("POSTILLION_EDGE_TOKEN").ok();
+            // Headed: the UI probes POSTILLION_IPC_PORT and connects to a running
             // daemon, or embeds the engine in-process (ARCHITECTURE §1).
-            zeron_ui::run_app(zeron_ui::UiConfig {
-                data_dir: std::env::var_os("ZERON_DATA_DIR")
+            postillion_ui::run_app(postillion_ui::UiConfig {
+                data_dir: std::env::var_os("POSTILLION_DATA_DIR")
                     .map(std::path::PathBuf::from)
                     .unwrap_or_else(dirs_data_dir),
-                ipc_port: std::env::var("ZERON_IPC_PORT")
+                ipc_port: std::env::var("POSTILLION_IPC_PORT")
                     .ok()
                     .and_then(|p| p.parse().ok())
                     .unwrap_or(27654),
                 edge_url: edge_url_from_env(),
                 workos_client_id: workos_client_id_from_env(&edge_token),
                 edge_token,
-                org_id: std::env::var("ZERON_ORG_ID").ok(),
-                default_harness: zeron_ui::HarnessId::ClaudeCode,
+                org_id: std::env::var("POSTILLION_ORG_ID").ok(),
+                default_harness: postillion_ui::HarnessId::ClaudeCode,
             });
             Ok(())
         }
@@ -229,22 +229,22 @@ fn main() -> anyhow::Result<()> {
 /// The env-resolved engine configuration shared by `headless`, `login`,
 /// `logout`, and `status` — one resolution so the CLI auth commands always
 /// operate on the exact session the daemon will load.
-fn engine_config_from_env() -> zeron_engine::EngineConfig {
+fn engine_config_from_env() -> postillion_engine::EngineConfig {
     // Dev-mode bearer (no WorkOS): an explicit token enables sync.
-    let edge_token = std::env::var("ZERON_EDGE_TOKEN").ok();
-    zeron_engine::EngineConfig {
-        data_dir: std::env::var_os("ZERON_DATA_DIR")
+    let edge_token = std::env::var("POSTILLION_EDGE_TOKEN").ok();
+    postillion_engine::EngineConfig {
+        data_dir: std::env::var_os("POSTILLION_DATA_DIR")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(dirs_data_dir),
         edge_url: edge_url_from_env(),
-        ipc_port: std::env::var("ZERON_IPC_PORT")
+        ipc_port: std::env::var("POSTILLION_IPC_PORT")
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(27654),
         default_harness: harness_from_env(),
-        // WorkOS mode: the signed-in session's org wins; ZERON_ORG_ID (dev
+        // WorkOS mode: the signed-in session's org wins; POSTILLION_ORG_ID (dev
         // default "dev-org") scopes the workspace room otherwise.
-        org_id: std::env::var("ZERON_ORG_ID").ok(),
+        org_id: std::env::var("POSTILLION_ORG_ID").ok(),
         // Real auth against production by default; see
         // `workos_client_id_from_env` for the dev-mode escape hatches.
         workos_client_id: workos_client_id_from_env(&edge_token),
@@ -252,45 +252,59 @@ fn engine_config_from_env() -> zeron_engine::EngineConfig {
     }
 }
 
-/// `ZERON_HARNESS` (kebab-case id) picks the default harness for chats without a
+/// `POSTILLION_HARNESS` (kebab-case id) picks the default harness for chats without a
 /// config row — `mock` powers the e2e smoke; default `claude-code`.
-fn harness_from_env() -> zeron_engine::HarnessId {
-    match std::env::var("ZERON_HARNESS").as_deref().map(str::trim) {
-        Ok("mock") => zeron_engine::HarnessId::Mock,
-        Ok("codex") => zeron_engine::HarnessId::Codex,
-        Ok("cursor") => zeron_engine::HarnessId::Cursor,
-        Ok("grok") => zeron_engine::HarnessId::Grok,
-        Ok("hermes") => zeron_engine::HarnessId::Hermes,
-        Ok("pi") => zeron_engine::HarnessId::Pi,
-        _ => zeron_engine::HarnessId::ClaudeCode,
+fn harness_from_env() -> postillion_engine::HarnessId {
+    match std::env::var("POSTILLION_HARNESS").as_deref().map(str::trim) {
+        Ok("mock") => postillion_engine::HarnessId::Mock,
+        Ok("codex") => postillion_engine::HarnessId::Codex,
+        Ok("cursor") => postillion_engine::HarnessId::Cursor,
+        Ok("grok") => postillion_engine::HarnessId::Grok,
+        Ok("hermes") => postillion_engine::HarnessId::Hermes,
+        Ok("pi") => postillion_engine::HarnessId::Pi,
+        _ => postillion_engine::HarnessId::ClaudeCode,
     }
 }
 
 fn dirs_data_dir() -> std::path::PathBuf {
     let home = std::path::PathBuf::from(std::env::var_os("HOME").expect("HOME not set"));
-    let dir = home.join(".zeron");
-    // One-shot 0.2.0 migration: adopt the pre-rename data dir (sign-in,
-    // device identity, prefs) instead of starting fresh.
+    let dir = home.join(".postillion");
+    // One-shot migrations: adopt the pre-rename data dir (sign-in, device
+    // identity, saved account credentials, prefs) instead of starting fresh.
+    //
+    // Newest first. The chain matters — a machine that never ran the `.zeron`
+    // build still has `.comet-native` to inherit, and losing the agent-account
+    // slots would mean re-authenticating every saved login.
     if !dir.exists() {
-        let old = home.join(".comet-native");
-        if old.exists() && std::fs::rename(&old, &dir).is_ok() {
-            eprintln!("migrated data dir {} -> {}", old.display(), dir.display());
+        for previous in [".zeron", ".comet-native"] {
+            let old = home.join(previous);
+            if old.exists() {
+                match std::fs::rename(&old, &dir) {
+                    Ok(()) => eprintln!("veri dizini taşındı: {} -> {}", old.display(), dir.display()),
+                    Err(err) => eprintln!(
+                        "veri dizini taşınamadı ({} -> {}): {err}",
+                        old.display(),
+                        dir.display()
+                    ),
+                }
+                break;
+            }
         }
     }
     dir
 }
 
-/// `zeron sync`: dial the running engine's IPC and print per-room sync state.
+/// `postillion sync`: dial the running engine's IPC and print per-room sync state.
 /// The introspection surface every 2026-08 incident was missing — "is this
 /// device's workspace room actually receiving?" as a one-liner.
 async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
-    let client = zeron_rpc::connect_ws(&format!("ws://127.0.0.1:{ipc_port}"))
+    let client = postillion_rpc::connect_ws(&format!("ws://127.0.0.1:{ipc_port}"))
         .await
         .map_err(|e| {
             anyhow::anyhow!("no engine listening on 127.0.0.1:{ipc_port} ({e}) — is zeron running?")
         })?;
     let status = client
-        .call(zeron_rpc::methods::SYNC_STATUS, serde_json::json!({}))
+        .call(postillion_rpc::methods::SYNC_STATUS, serde_json::json!({}))
         .await
         .map_err(|e| anyhow::anyhow!("SyncStatus failed: {e}"))?;
     let now = status.get("nowMs").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -417,7 +431,7 @@ async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
 /// locked logs to `zeron-{mode}.{pid}.log` instead; the next lock-holding
 /// launch sweeps pid-suffixed files older than a week.
 fn open_log_file(mode: &str) -> Option<std::fs::File> {
-    let dir = std::env::var_os("ZERON_DATA_DIR")
+    let dir = std::env::var_os("POSTILLION_DATA_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(dirs_data_dir)
         .join("logs");
@@ -427,7 +441,7 @@ fn open_log_file(mode: &str) -> Option<std::fs::File> {
 /// Dir-parameterized body of [`open_log_file`] (unit-testable without env).
 fn open_log_file_in(dir: &std::path::Path, mode: &str) -> Option<std::fs::File> {
     std::fs::create_dir_all(dir).ok()?;
-    let path = dir.join(format!("zeron-{mode}.log"));
+    let path = dir.join(format!("postillion-{mode}.log"));
     #[cfg(unix)]
     {
         use std::os::unix::io::AsRawFd;
@@ -444,7 +458,7 @@ fn open_log_file_in(dir: &std::path::Path, mode: &str) -> Option<std::fs::File> 
         if rc != 0 {
             // A live process owns the canonical log — leave it alone.
             return std::fs::File::create(
-                dir.join(format!("zeron-{mode}.{}.log", std::process::id())),
+                dir.join(format!("postillion-{mode}.{}.log", std::process::id())),
             )
             .ok();
         }
@@ -453,7 +467,7 @@ fn open_log_file_in(dir: &std::path::Path, mode: &str) -> Option<std::fs::File> 
         // to rotate — the probe itself created the empty file.)
         drop(existing);
         if preexisting {
-            let _ = std::fs::rename(&path, dir.join(format!("zeron-{mode}.log.old")));
+            let _ = std::fs::rename(&path, dir.join(format!("postillion-{mode}.log.old")));
         }
         let file = std::fs::File::create(&path).ok()?;
         unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
@@ -462,7 +476,7 @@ fn open_log_file_in(dir: &std::path::Path, mode: &str) -> Option<std::fs::File> 
     }
     #[cfg(not(unix))]
     {
-        let _ = std::fs::rename(&path, dir.join(format!("zeron-{mode}.log.old")));
+        let _ = std::fs::rename(&path, dir.join(format!("postillion-{mode}.log.old")));
         std::fs::File::create(&path).ok()
     }
 }
@@ -477,14 +491,14 @@ mod log_file_tests {
         let dir = dir.path();
         // First launch owns the canonical file and keeps writing.
         let first = open_log_file_in(dir, "headed").expect("first log");
-        assert!(dir.join("zeron-headed.log").is_file());
+        assert!(dir.join("postillion-headed.log").is_file());
         // Second launch while the first is alive: canonical file untouched,
         // pid-suffixed overflow file instead (the 2026-08-04 clobber).
         let second = open_log_file_in(dir, "headed").expect("second log");
-        let pid_path = dir.join(format!("zeron-headed.{}.log", std::process::id()));
+        let pid_path = dir.join(format!("postillion-headed.{}.log", std::process::id()));
         assert!(pid_path.is_file(), "expected pid-suffixed overflow log");
         assert!(
-            !dir.join("zeron-headed.log.old").exists(),
+            !dir.join("postillion-headed.log.old").exists(),
             "live canonical log must not be rotated away"
         );
         drop(second);
@@ -492,7 +506,7 @@ mod log_file_tests {
         drop(first);
         let third = open_log_file_in(dir, "headed").expect("third log");
         assert!(
-            dir.join("zeron-headed.log.old").is_file(),
+            dir.join("postillion-headed.log.old").is_file(),
             "rotation resumes"
         );
         drop(third);
@@ -506,7 +520,7 @@ fn sweep_stale_pid_logs(dir: &std::path::Path, mode: &str) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
-    let prefix = format!("zeron-{mode}.");
+    let prefix = format!("postillion-{mode}.");
     let week = std::time::Duration::from_secs(7 * 24 * 60 * 60);
     for entry in entries.flatten() {
         let name = entry.file_name();

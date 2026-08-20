@@ -73,11 +73,11 @@ pub struct UiSettings {
     /// list. Kept for file compatibility; no longer read.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub space_order: Vec<String>,
-    /// Session notification chimes (done / awaiting-input). `ZERON_DISABLE_SOUND`
+    /// Session notification chimes (done / awaiting-input). `POSTILLION_DISABLE_SOUND`
     /// overrides.
     pub sound_enabled: bool,
     /// Desktop banner notifications on the same transitions.
-    /// `ZERON_DISABLE_NOTIFICATIONS` overrides.
+    /// `POSTILLION_DISABLE_NOTIFICATIONS` overrides.
     pub notifications_enabled: bool,
     /// Suppress the banner while a Zeron window is focused (the chime covers
     /// the foreground case).
@@ -144,10 +144,10 @@ impl ShortcutId {
     /// Row label (zeron lib/shortcuts.ts `SHORTCUT_DEFINITIONS`, verbatim).
     pub fn label(self) -> &'static str {
         match self {
-            ShortcutId::ToggleSidebar => "Toggle left sidebar",
-            ShortcutId::ToggleChanges => "Toggle right sidebar",
-            ShortcutId::ToggleTerminal => "Toggle terminal",
-            ShortcutId::NewSession => "New session",
+            ShortcutId::ToggleSidebar => crate::i18n::t("Toggle left sidebar"),
+            ShortcutId::ToggleChanges => crate::i18n::t("Toggle right sidebar"),
+            ShortcutId::ToggleTerminal => crate::i18n::t("Toggle terminal"),
+            ShortcutId::NewSession => crate::i18n::t("New session"),
         }
     }
 

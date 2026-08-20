@@ -72,7 +72,7 @@ impl Shell {
         let (title, target, harness, on_canvas): (
             SharedString,
             Option<SharedString>,
-            Option<zeron_proto::HarnessId>,
+            Option<postillion_proto::HarnessId>,
             bool,
         ) = {
             let state = self.state.read(cx);
@@ -86,10 +86,10 @@ impl Shell {
                         .unwrap_or_else(|| "~".to_string());
                     let device = state
                         .device_name(&chat.device_id)
-                        .unwrap_or("Unknown device");
+                        .unwrap_or(crate::i18n::t("Unknown device"));
                     (
                         SharedString::from(transcript::single_line(
-                            &chat.title.clone().unwrap_or_else(|| "New session".into()),
+                            &chat.title.clone().unwrap_or_else(|| crate::i18n::t("New session").into()),
                         )),
                         Some(SharedString::from(format!("{folder} @ {device}"))),
                         chat.config.as_ref().map(|c| c.harness),

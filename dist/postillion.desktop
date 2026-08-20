@@ -1,15 +1,15 @@
 [Desktop Entry]
 Type=Application
-Name=Zeron
-GenericName=Coding Agent Controller
-Comment=Multi-device controller for coding agents
-Exec=zeron
-TryExec=zeron
-Icon=zeron
+Name=Postillion
+GenericName=Kodlama Ajanı Denetleyicisi
+Comment=Claude Code için çok cihazlı denetleyici
+Exec=postillion
+TryExec=postillion
+Icon=postillion
 Terminal=false
 Categories=Development;Utility;
 Keywords=agent;claude;codex;ai;coding;
-StartupWMClass=zeron
+StartupWMClass=postillion
 # gpui'nin Linux'ta pencere etkinleştirmesi yok ("activate is not implemented
 # on Linux, ignoring the call"), dolayısıyla yeni pencere açık pencerelerin
 # ARKASINDA doğuyor: menüden başlatan kullanıcı hiçbir şey olmamış sanıyor,

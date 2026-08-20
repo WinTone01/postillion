@@ -1,4 +1,4 @@
-//! zeron-ui — the gpui viewport. Shell, sidebar, conversation, composer, terminal,
+//! postillion-ui — the gpui viewport. Shell, sidebar, conversation, composer, terminal,
 //! diff pane.
 //!
 //! Design: ARCHITECTURE.md §4; animation catalog docs/research/feature-inventory.md
@@ -78,7 +78,7 @@ fn register_fonts(cx: &App) {
 }
 
 pub use state::EngineBootConfig;
-pub use zeron_proto::HarnessId;
+pub use postillion_proto::HarnessId;
 
 /// Everything the headed binary passes in (config/env resolution lives in
 /// `apps/zeron`, not here).
@@ -248,7 +248,7 @@ fn open_main_window(state: gpui::Entity<state::AppState>, boot: EngineBootConfig
             // — if these two ever disagree, vibrancy dies on the first theme
             // change and never comes back.
             window_background: theme::Theme::of(cx).window_background_appearance(),
-            app_id: Some("zeron".into()),
+            app_id: Some("postillion".into()),
             ..Default::default()
         },
         move |window, cx| {
