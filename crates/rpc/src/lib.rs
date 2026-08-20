@@ -113,6 +113,10 @@ pub mod methods {
     pub const LIST_FOLDERS: &str = "ListFolders";
     /// Cihazdaki tanımlı MCP sunucuları — sohbete özel seçim için.
     pub const LIST_MCP_SERVERS: &str = "ListMcpServers";
+    /// MCP sunucusu ekler (`claude mcp add`).
+    pub const ADD_MCP_SERVER: &str = "AddMcpServer";
+    /// MCP sunucusu siler (`claude mcp remove`).
+    pub const REMOVE_MCP_SERVER: &str = "RemoveMcpServer";
     /// Sohbetin ajanının altında çalışan süreçler.
     pub const LIST_PROCESSES: &str = "ListProcesses";
     /// Bir alt süreci durdurur.
