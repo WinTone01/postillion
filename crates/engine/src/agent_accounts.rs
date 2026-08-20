@@ -1000,7 +1000,18 @@ impl AgentAccounts {
     /// Read the live Claude credentials. `None` payload + warning ⇒ we know a
     /// login exists but couldn't read the secret (Keychain denied us).
     async fn read_claude_credentials(&self) -> (Option<serde_json::Value>, Option<String>) {
-        if let Some(creds) = read_json(&self.inner.config.claude_creds_file()) {
+        // Dosyanın ayrıştırılabilir olması yetmiyor: `claude` bazen
+        // `accessToken`'ı BOŞ bırakan bir iskelet yazıyor. Onu geçerli bir
+        // okuma saymak, `snapshot_detected` üzerinden saklanmış sağlam jetonun
+        // üzerine boş bir slot yazıyor ve hesabı geri dönülemez biçimde
+        // kaybettiriyor — ölçüldü, gerçek bir hesabın 108 karakterlik geçerli
+        // jetonu tam olarak böyle silindi.
+        //
+        // `None` zaten "giriş var ama sırrı okuyamadık" demek ve o durumda
+        // anlık görüntü alınmıyor; boş jeton da tam olarak bu.
+        if let Some(creds) = read_json(&self.inner.config.claude_creds_file())
+            && has_access_token(&creds)
+        {
             return (Some(creds), None);
         }
         #[cfg(target_os = "macos")]
@@ -1726,9 +1737,47 @@ fn write_file_atomic(file: &Path, bytes: &[u8], secret: bool) -> Result<(), Engi
     Ok(())
 }
 
+/// Okunan Claude kimlik bilgisinde kullanılabilir bir erişim jetonu var mı.
+///
+/// Ayrı ve saf tutuluyor: yedeklemenin yedeklediği şeyi silmesi, hiç
+/// yedeklememekten çok daha kötü bir hata ve testle sabitlenmesi gerekiyor.
+fn has_access_token(credentials: &serde_json::Value) -> bool {
+    credentials
+        .get("claudeAiOauth")
+        .and_then(|oauth| oauth.get("accessToken"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|token| !token.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Boş ya da bozuk bir canlı jeton dosyası saklanmış slotu ezmemeli.
+    ///
+    /// Yaşanmış bir veri kaybı: `claude` `accessToken`'ı boş bırakan bir dosya
+    /// yazdı, her listeleme onu anlık görüntü olarak slota kopyaladı ve gerçek
+    /// bir hesabın geçerli jetonu silindi. Hesabı geri getirmek yeniden giriş
+    /// gerektiriyor, yani hata sessiz ve kalıcı.
+    #[test]
+    fn bos_jeton_gecerli_kimlik_sayilmaz() {
+        use serde_json::json;
+
+        assert!(has_access_token(
+            &json!({ "claudeAiOauth": { "accessToken": "gercek-jeton" } })
+        ));
+
+        // Kaybın sebebi tam olarak buydu: alan var ama boş.
+        assert!(!has_access_token(
+            &json!({ "claudeAiOauth": { "accessToken": "" } })
+        ));
+        assert!(!has_access_token(&json!({ "claudeAiOauth": {} })));
+        assert!(!has_access_token(&json!({})));
+        // Beklenmedik tip de güvenilmez sayılmalı.
+        assert!(!has_access_token(
+            &json!({ "claudeAiOauth": { "accessToken": 42 } })
+        ));
+    }
 
     #[test]
     fn plan_labels() {
