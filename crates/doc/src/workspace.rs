@@ -438,6 +438,12 @@ impl WorkspaceDoc {
         row.insert("status", status_str(session.status))?;
         set_opt_ms(&row, "startedAt", session.started_at)?;
         row.insert("updatedAt", session.updated_at.timestamp_millis())?;
+        // Ölçüm yoksa anahtar siliniyor, sıfır yazılmıyor: sıfır "bağlam boş"
+        // demek olurdu, oysa kastedilen "henüz ölçülmedi".
+        match session.context_tokens {
+            Some(tokens) => row.insert("contextTokens", tokens as i64)?,
+            None => row.delete("contextTokens")?,
+        }
         self.doc.commit();
         Ok(())
     }
@@ -684,6 +690,9 @@ pub(crate) struct RawSession {
     started_at: Option<i64>,
     #[serde(default)]
     updated_at: i64,
+    /// Alanı taşımayan eski satırlarda ve ölçüm bildirmeyen harness'lerde yok.
+    #[serde(default)]
+    context_tokens: Option<u64>,
 }
 
 impl From<RawSession> for Session {
@@ -694,6 +703,7 @@ impl From<RawSession> for Session {
             status: raw.status,
             started_at: raw.started_at.map(dt),
             updated_at: dt(raw.updated_at),
+            context_tokens: raw.context_tokens,
         }
     }
 }
@@ -765,6 +775,7 @@ mod tests {
             status,
             started_at: Some(ts(3_000)),
             updated_at: ts(3_500),
+            context_tokens: None,
         }
     }
 
@@ -803,6 +814,33 @@ mod tests {
         // No such row: false, nothing created.
         assert!(!ws.set_chat_config("nope", &config).unwrap());
         assert!(ws.chat("nope").unwrap().is_none());
+    }
+
+    /// Bağlam ölçümü CRDT'den sağ çıkmalı ve temizlenebilmeli.
+    ///
+    /// Ölçüm arayüzdeki göstergeyi ve otomatik sıkıştırma eşiğini besliyor; doc
+    /// katmanında kaybolursa gösterge boş kalır. Silme ayrıca test ediliyor
+    /// çünkü "ölçüm yok" ile "bağlam sıfır" farklı şeyler: sıfır yazmak
+    /// göstergeyi yanlış biçimde sakin gösterirdi.
+    #[test]
+    fn context_tokens_round_trips_and_clears() {
+        let ws = WorkspaceDoc::new();
+        ws.upsert_device(&device("dev-a", "laptop")).unwrap();
+        ws.upsert_chat(&chat("chat-1", "dev-a")).unwrap();
+
+        let mut measured = session("chat-1", "dev-a", SessionStatus::Working);
+        measured.context_tokens = Some(656_190);
+        ws.upsert_session(&measured).unwrap();
+        assert_eq!(
+            ws.read_sessions().unwrap()[0].context_tokens,
+            Some(656_190),
+            "ölçüm doc'tan geri okunamadı"
+        );
+
+        // Ölçümsüze dönüş anahtarı silmeli, sıfır bırakmamalı.
+        let cleared = session("chat-1", "dev-a", SessionStatus::Working);
+        ws.upsert_session(&cleared).unwrap();
+        assert_eq!(ws.read_sessions().unwrap()[0].context_tokens, None);
     }
 
     #[test]

@@ -787,6 +787,8 @@ impl Inner {
                     status,
                     started_at: None,
                     updated_at: now,
+                    // Ölçüm ilk turla geliyor; durum geçişi onu üretmiyor.
+                    context_tokens: None,
                 });
             // `started_at` is the elapsed-timer base and must only ever mean
             // "this turn". Entering Working from a settled state always
@@ -819,6 +821,34 @@ impl Inner {
         };
         // Mirror the transition into the workspace doc's session-status row so
         // remote devices' sidebars show this run (staleness-checked client-side).
+        if let Some(ws) = self.workspace() {
+            ws.record_session(&session);
+        }
+    }
+
+    /// Turun bağlam ölçüsünü oturuma yazar.
+    ///
+    /// Kasıtlı olarak `updated_at`'a dokunmuyor ve durum geçişi yapmıyor:
+    /// `updated_at` arayüzün bayatlık kapısı ("Working" göstergesi 45 sn sonra
+    /// düşüyor) ve bir ölçüm güncellemesi canlılık kanıtı değil. Oturum daha
+    /// hiç görülmemişse kayıt yaratılmıyor — ölçümün tek başına bir oturum
+    /// uydurması yanlış olurdu.
+    fn set_context_tokens(&self, chat_id: &str, tokens: u64) {
+        let session = {
+            let mut statuses = lock(&self.statuses);
+            let Some(entry) = statuses.get_mut(chat_id) else {
+                return;
+            };
+            if entry.context_tokens == Some(tokens) {
+                return;
+            }
+            entry.context_tokens = Some(tokens);
+            let session = entry.clone();
+            let mut list: Vec<Session> = statuses.values().cloned().collect();
+            list.sort_by(|a, b| a.chat_id.cmp(&b.chat_id));
+            self.sessions_tx.send_replace(list);
+            session
+        };
         if let Some(ws) = self.workspace() {
             ws.record_session(&session);
         }
@@ -1238,6 +1268,12 @@ async fn drive_run(
         resume: None,
         ..request.clone()
     });
+    // Sıkıştırma eşiği için modelin penceresi — `request` birazdan harness'e
+    // taşınıyor, o yüzden burada okunuyor.
+    let compact_at = zeron_proto::compact_threshold(zeron_proto::context_window_for(
+        request.model.as_deref(),
+        &request.model_options,
+    ));
     let mut stream = match harness.run(request, controls).await {
         Ok(stream) => stream,
         Err(err) => {
@@ -1353,6 +1389,11 @@ async fn drive_run(
             None => Some(std::time::Duration::from_secs(20)),
         };
     let mut self_continued_turn = false;
+    // Bağlam eşiği aşıldı; tur bitince `/compact` gönderilecek.
+    //
+    // Tur ORTASINDA sıkıştırmak çalışan bir turu bozardı, o yüzden ölçüm
+    // geldiğinde yalnızca işaretleniyor ve park anında gönderiliyor.
+    let mut compact_pending = false;
     // Spawn chips that have SETTLED (tagged Done seen). Content events for a
     // settled chip with no live sink are dropped — a straggler frame after
     // the freeze must not mint a new doc entry or wedge the transcript back
@@ -1920,6 +1961,22 @@ async fn drive_run(
             AgentEvent::InputResolved { .. } => {
                 inner.set_status(&chat_id, SessionStatus::Working, false);
             }
+            // Bağlam ölçüsü doc'a yazılmıyor (`Usage` bir harness passthrough)
+            // ama arayüzün göstermesi gerekiyor, o yüzden oturum kaydına
+            // iliştiriliyor. Sıfır "bilinmiyor" demek: önbellek muhasebesi
+            // bildirmeyen harness'ler orayı boş bırakıyor ve gösterge o zaman
+            // hiç çizilmemeli — sıfır bir ölçüm değil, ölçümün yokluğu.
+            AgentEvent::Usage { context_tokens, .. } if *context_tokens > 0 => {
+                inner.set_context_tokens(&chat_id, *context_tokens);
+
+                // `compact_at` modelin GERÇEK penceresinden türetildi: 200k'lık
+                // bir modelde 170k, 1M'lik bir modelde 850k. Sabit bir sayı
+                // uzun bağlamlı modellerde ödenmiş bağlamın çoğunu hiç
+                // kullanılmadan attırırdı.
+                if *context_tokens >= compact_at {
+                    compact_pending = true;
+                }
+            }
             _ => {}
         }
 
@@ -2001,6 +2058,38 @@ async fn drive_run(
             // harness PARKS instead of ending — child + mailbox stay warm for
             // the next routed dispatch; per-turn state resets for it.
             if *status == DoneStatus::Completed && steerable && !interrupted {
+                // Bağlam eşiği aştıysa park etmeden önce sıkıştır. Tur temiz
+                // bitti, oturum boşta ve süreç hâlâ sıcak — `/compact` için
+                // tek güvenli an bu.
+                //
+                // Kullanıcı mesajı olarak YAZILMIYOR: bu bir bakım komutu,
+                // konuşmanın parçası değil. `steer_tx` doc'a dokunmadan
+                // doğrudan sürece yazan kanal.
+                if compact_pending {
+                    compact_pending = false;
+                    let sent = lock(&inner.runs)
+                        .get(&chat_id)
+                        .filter(|h| h.run_id == run_id)
+                        .map(|h| h.steer_tx.clone())
+                        .is_some_and(|tx| {
+                            tx.try_send(SteerMessage {
+                                prompt: "/compact".to_string(),
+                                message_id: None,
+                            })
+                            .is_ok()
+                        });
+                    if sent {
+                        tracing::info!(chat = %chat_id, "bağlam eşiği aşıldı, sıkıştırılıyor");
+                        // Gönderildi: tur sürüyor sayılıyor, park etmiyoruz.
+                        folded.clear();
+                        dirty = false;
+                        entry_id = new_id();
+                        segment_started = now_ms();
+                        saw_session_started = true;
+                        self_continued_turn = false;
+                        continue;
+                    }
+                }
                 folded.clear();
                 dirty = false;
                 entry_id = new_id();

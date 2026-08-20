@@ -2296,11 +2296,27 @@ impl Pickers {
         };
 
         if let Some(chat) = &session {
+            // Bağlam ölçeri: turun ödediği bağlam. Git durumundan bağımsız —
+            // maliyet her projede aynı şekilde birikiyor, o yüzden git'siz bir
+            // projede footer'ın tamamen kaybolması ölçümü de gizlerdi.
+            let meter = self
+                .state
+                .read(cx)
+                .session_for(&chat.id)
+                .and_then(|s| s.context_tokens)
+                .map(|tokens| {
+                    let window =
+                        crate::context_meter::context_window(chat.config.as_ref());
+                    crate::context_meter::context_meter(tokens, window, &theme)
+                });
+
             // Sessions never move: read-only checkout-kind + ref labels,
             // LEFT-aligned, only when the session's project has git. The
             // target (project @ device) lives in the titlebar now.
             let Some(space) = space.as_ref().filter(|s| s.git_detected) else {
-                return None;
+                // Git yok: satır yalnızca ölçer varsa çiziliyor.
+                return meter
+                    .map(|meter| row().justify_end().child(meter).into_any_element());
             };
             let is_worktree = chat.cwd.as_deref().is_some_and(|cwd| cwd != space.path);
             let (icon_path, label) = if is_worktree {
@@ -2334,6 +2350,7 @@ impl Pickers {
                         &theme,
                     ))
                 })
+                .when_some(meter, |el, meter| el.child(meter))
                 .child(Self::footer_label(
                     crate::icons::GIT_BRANCH,
                     chat.branch
