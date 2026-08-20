@@ -2504,6 +2504,7 @@ mod tests {
             status,
             started_at: None,
             updated_at: now - TimeDelta::seconds(updated_secs_ago),
+            context_tokens: None,
         }
     }
 

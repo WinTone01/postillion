@@ -191,6 +191,16 @@ pub struct Session {
     pub status: SessionStatus,
     pub started_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
+    /// Son turda modele giden toplam bağlam.
+    ///
+    /// Maliyetin asıl sürücüsü: her tur bağlamın tamamını yeniden okuyor, yani
+    /// 600k'lık bir sohbette yazılan her mesaj 600k'lık bir okuma demek. Sayı
+    /// görünmeden konuşma oraya sessizce tırmanıyor.
+    ///
+    /// Henüz tur olmadıysa ya da harness önbellek muhasebesi bildirmiyorsa
+    /// (ACP, Codex, Cursor) `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -673,5 +683,113 @@ mod tests {
             serde_json::from_value::<GetCheckoutFileDiffTextRequest>(value).unwrap(),
             request
         );
+    }
+}
+
+// ── bağlam penceresi ────────────────────────────────────────────────────────
+//
+// Hem arayüz (ölçer rengi) hem engine (otomatik sıkıştırma eşiği) aynı sayıya
+// bakmak zorunda; ikisinin ayrı tanımı sessizce ayrışırdı.
+
+/// Uzun bağlam seçilmemişken modellerin penceresi.
+pub const DEFAULT_CONTEXT_WINDOW: u64 = 200_000;
+
+/// `[1m]` varyantının penceresi.
+pub const LONG_CONTEXT_WINDOW: u64 = 1_000_000;
+
+/// Pencerenin bu oranı aşılınca sıkıştırma tetikleniyor.
+///
+/// Yüksek tutuluyor. Erken sıkıştırmak ayrıntıyı gereksiz yere harcıyor:
+/// sıkıştırma bağlamı özete indiriyor ve özet daima bilgi kaybı. Amaç tasarruf
+/// için erken davranmak değil, pencereye toslamadan önce yer açmak — 1M'lik
+/// bir modelde 200k'da sıkıştırmak, ödenmiş bağlamın dörtte üçünü hiç
+/// kullanmadan atmak olurdu.
+pub const AUTO_COMPACT_FRACTION: f32 = 0.85;
+
+/// Sohbetin bağlam penceresi.
+///
+/// Uzun bağlam iki yerde görünüyor: model kimliğinin `[1m]` eki (sürece giden
+/// hâl, CLI'ın kendi yaptığı gibi) ve `contextWindow` model seçeneği (arayüzün
+/// yazdığı hâl). İkisi ayrı anlarda güncellenebildiği için ikisine de
+/// bakılıyor.
+pub fn context_window(config: Option<&ChatConfig>) -> u64 {
+    match config {
+        Some(config) => context_window_for(config.model.as_deref(), &config.model_options),
+        None => DEFAULT_CONTEXT_WINDOW,
+    }
+}
+
+/// [`context_window`]'un alan bazlı hâli.
+///
+/// `RunRequest` de aynı iki alanı taşıyor ama `ChatConfig` değil; engine
+/// eşiği ondan hesaplıyor, arayüz sohbet yapılandırmasından. Tek gövde.
+pub fn context_window_for(
+    model: Option<&str>,
+    model_options: &serde_json::Map<String, serde_json::Value>,
+) -> u64 {
+    let by_suffix = model.is_some_and(|model| model.contains("[1m]"));
+
+    let by_option = model_options
+        .get("contextWindow")
+        .and_then(|value| value.as_str())
+        .is_some_and(|choice| choice == "1m");
+
+    if by_suffix || by_option {
+        LONG_CONTEXT_WINDOW
+    } else {
+        DEFAULT_CONTEXT_WINDOW
+    }
+}
+
+/// Sıkıştırmanın tetiklendiği token sayısı.
+pub fn compact_threshold(window: u64) -> u64 {
+    (window as f32 * AUTO_COMPACT_FRACTION) as u64
+}
+
+#[cfg(test)]
+mod context_window_tests {
+    use super::*;
+
+    fn config(model: &str, options: &[(&str, &str)]) -> ChatConfig {
+        ChatConfig {
+            harness: HarnessId::ClaudeCode,
+            model: Some(model.into()),
+            reasoning: None,
+            model_options: options
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), serde_json::Value::String((*v).to_string())))
+                .collect(),
+            sandbox: SandboxLevel::ReadOnly,
+        }
+    }
+
+    #[test]
+    fn pencere_kimlikten_ve_secenekten_okunur() {
+        assert_eq!(context_window(None), DEFAULT_CONTEXT_WINDOW);
+        assert_eq!(
+            context_window(Some(&config("claude-sonnet-5", &[]))),
+            DEFAULT_CONTEXT_WINDOW
+        );
+        assert_eq!(
+            context_window(Some(&config("claude-sonnet-5[1m]", &[]))),
+            LONG_CONTEXT_WINDOW
+        );
+        assert_eq!(
+            context_window(Some(&config("claude-sonnet-5", &[("contextWindow", "1m")]))),
+            LONG_CONTEXT_WINDOW
+        );
+        assert_eq!(
+            context_window(Some(&config(
+                "claude-sonnet-5",
+                &[("contextWindow", "200k")]
+            ))),
+            DEFAULT_CONTEXT_WINDOW
+        );
+    }
+
+    #[test]
+    fn esik_pencereye_gore_olceklenir() {
+        assert_eq!(compact_threshold(DEFAULT_CONTEXT_WINDOW), 170_000);
+        assert_eq!(compact_threshold(LONG_CONTEXT_WINDOW), 850_000);
     }
 }

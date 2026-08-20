@@ -20,6 +20,7 @@ pub mod change_requests;
 pub mod changes;
 pub mod comments;
 pub mod composer;
+pub mod context_meter;
 pub mod edge_fade;
 pub mod frost;
 pub mod history;
