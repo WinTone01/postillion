@@ -1,0 +1,60 @@
+# Coolify için Docker Compose kaynağı.
+#
+# Coolify'da: Yeni Kaynak → Docker Compose, deponuzu seçin, "Compose dosyası"
+# olarak `deploy/docker-compose.yaml` verin. Derleme bağlamı depo kökü
+# (`context: ..`), çünkü sunucu birkaç crate'i birden derliyor.
+#
+# TLS'i ve alan adını Coolify'ın vekili yönetiyor — WebSocket yükseltmesi
+# dahil. Bu yüzden burada nginx yok.
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postillion
+      POSTGRES_USER: postillion
+      # Coolify `SERVICE_PASSWORD_` ile başlayan değişkenleri kendisi üretip
+      # panelde gösteriyor; parolayı bu dosyaya yazmıyoruz.
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+    volumes:
+      - postillion-db:/var/lib/postgresql/data
+    # `ports` YOK: veritabanı yalnızca compose ağından erişilebilir olmalı,
+    # internete açılmamalı.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postillion -d postillion"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Coolify bu değişkeni görünce servise bir alan adı atıyor ve 8787'e
+      # vekillik ediyor.
+      - SERVICE_FQDN_SERVER_8787
+      - DATABASE_URL=postgres://postillion:${SERVICE_PASSWORD_POSTGRES}@db:5432/postillion
+      # Cihazlarınızın kullanacağı jeton. Coolify üretiyor; değerini
+      # panelden okuyup istemcilere girin.
+      - POSTILLION_SERVER_TOKEN=${SERVICE_PASSWORD_POSTILLIONTOKEN}
+      - RUST_LOG=postillion_server=info,tower_http=warn
+    depends_on:
+      db:
+        # Şema ilk açılışta kuruluyor; veritabanı hazır olmadan başlarsa
+        # sunucu hemen düşerdi.
+        condition: service_healthy
+    expose:
+      - "8787"
+    healthcheck:
+      # İkili kendi kendini yokluyor; çalışma imajında kabuk da `curl` de yok.
+      test: ["CMD", "/usr/local/bin/postillion-server", "--health-check"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postillion-db:

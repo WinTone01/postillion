@@ -154,3 +154,28 @@ async fn jetonsuz_baglanti_reddediliyor() {
 
     assert!(result.is_err(), "jetonsuz bağlantı kabul edilmemeli");
 }
+
+#[tokio::test]
+async fn saglik_kontrolu_ayakta_olani_dogruluyor() {
+    let server = start().await;
+    // Docker bu yoklamaya bakıp konteyneri yeniden başlatıyor; yanlış
+    // olumsuz sağlıklı bir sunucuyu sürekli döngüye sokardı.
+    assert!(
+        postillion_server::health::check(&format!("0.0.0.0:{}", server.port)).await,
+        "ayakta olan sunucu sağlıklı görünmeli"
+    );
+}
+
+#[tokio::test]
+async fn saglik_kontrolu_kapali_olani_yakaliyor() {
+    // Dinleyen kimse olmayan bir port. Bağlantı reddi yoklamanın hata
+    // vermesini değil, `false` dönmesini sağlamalı.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+
+    assert!(
+        !postillion_server::health::check(&format!("0.0.0.0:{port}")).await,
+        "kapalı sunucu sağlıklı görünmemeli"
+    );
+}
