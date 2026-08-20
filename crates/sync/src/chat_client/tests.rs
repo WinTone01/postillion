@@ -1357,3 +1357,196 @@ async fn checkpointless_amnesty_refetches_from_zero() {
     drop(end);
     client.shutdown().await;
 }
+
+// ── Supabase taşıması ───────────────────────────────────────────────────────
+//
+// Buradaki testler GERÇEK istemciyi Supabase adaptörüne bağlıyor. Adaptörün
+// kendi testleri protokol mantığını izole sınıyor; asıl risk ise istemcinin
+// beklentileriyle adaptörün ürettikleri arasındaki fark, ve o ancak ikisi
+// birlikte koşturulunca görünür.
+
+/// Adaptörü bir `BinConnector` hâline getiren köprü: istemciden gelen her
+/// çerçeveyi `supabase::respond` ile cevaplıyor.
+struct SupabaseConnector {
+    store: Arc<dyn crate::supabase::ChatStore>,
+    chat_id: String,
+}
+
+impl BinConnector for SupabaseConnector {
+    fn connect(&self) -> BoxFuture<'static, Result<BinPipe, SyncError>> {
+        let store = self.store.clone();
+        let chat_id = self.chat_id.clone();
+        Box::pin(async move {
+            let (c2s_tx, mut c2s_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
+            let (s2c_tx, s2c_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
+
+            tokio::spawn(async move {
+                // Oturum bağlantı boyunca yaşıyor: cihaz kimliği yalnızca
+                // HELLO'da geliyor ve sonraki çerçeveler onu bekliyor.
+                let mut session = crate::supabase::Session::new();
+                while let Some(bytes) = c2s_rx.recv().await {
+                    let Some(frame) = decode(&bytes) else { continue };
+                    let replies = match session.respond(&*store, &chat_id, &frame).await {
+                        Ok(replies) => replies,
+                        Err(_) => break,
+                    };
+                    for reply in replies {
+                        if s2c_tx.send(reply).await.is_err() {
+                            return;
+                        }
+                    }
+                }
+            });
+
+            Ok(BinPipe {
+                tx: c2s_tx,
+                rx: s2c_rx,
+            })
+        })
+    }
+}
+
+/// Testlerin paylaştığı bellek içi depo (adaptör testlerindekinin ikizi).
+#[derive(Default)]
+struct SharedStore {
+    rows: Mutex<Vec<crate::supabase::Row>>,
+}
+
+impl crate::supabase::ChatStore for SharedStore {
+    fn state(
+        &self,
+        _chat: &str,
+    ) -> BoxFuture<'static, Result<crate::supabase::RoomState, SyncError>> {
+        let rows = lock(&self.rows).clone();
+        Box::pin(async move {
+            Ok(crate::supabase::RoomState {
+                head_seq: rows.last().map(|r| r.seq).unwrap_or(0),
+                row_count: rows.len() as u64,
+                row_bytes: rows.iter().map(|r| r.payload.len() as u64).sum(),
+                ..Default::default()
+            })
+        })
+    }
+
+    fn rows_after(
+        &self,
+        _chat: &str,
+        after: u64,
+        exclude: Option<String>,
+    ) -> BoxFuture<'static, Result<Vec<crate::supabase::Row>, SyncError>> {
+        let rows = lock(&self.rows).clone();
+        Box::pin(async move {
+            Ok(rows
+                .into_iter()
+                .filter(|r| r.seq > after)
+                .filter(|r| exclude.as_deref() != Some(r.device.as_str()))
+                .collect())
+        })
+    }
+
+    fn append(
+        &self,
+        _chat: &str,
+        device: String,
+        batch_id: String,
+        payload: Vec<u8>,
+    ) -> BoxFuture<'static, Result<(u64, bool), SyncError>> {
+        let mut rows = lock(&self.rows);
+        if let Some(existing) = rows.iter().find(|r| r.batch_id == batch_id) {
+            let seq = existing.seq;
+            return Box::pin(async move { Ok((seq, true)) });
+        }
+        let seq = rows.last().map(|r| r.seq).unwrap_or(0) + 1;
+        rows.push(crate::supabase::Row {
+            seq,
+            device,
+            batch_id,
+            payload,
+        });
+        Box::pin(async move { Ok((seq, false)) })
+    }
+}
+
+/// Depoda duran satırlar katılan istemciye uygulanmalı.
+///
+/// Bu, "başka bir cihaz yazdı, ben açtım ve geçmişi aldım" akışı — bulut
+/// yedeklemesinin tamamı bu tek davranışa dayanıyor.
+#[tokio::test(start_paused = true)]
+async fn supabase_deposundan_gecmis_yakalaniyor() {
+    let store = Arc::new(SharedStore::default());
+    // Başka bir cihazın daha önce yazdığı iki satır.
+    for (batch, payload) in [("b1", vec![0xaa]), ("b2", vec![0xbb])] {
+        crate::supabase::ChatStore::append(
+            &*store,
+            "c1",
+            "dev-b".into(),
+            batch.into(),
+            payload,
+        )
+        .await
+        .unwrap();
+    }
+
+    let sink = Arc::new(RecordingSink::default());
+    let (fetch, _) = fetcher(b"never");
+    let client = ChatClient::connect_with_tuned(
+        Arc::new(SupabaseConnector {
+            store: store.clone(),
+            chat_id: "c1".into(),
+        }),
+        sink.clone(),
+        fetch,
+        "dev-a",
+        0,
+        ChatTuning::default(),
+    )
+    .await
+    .expect("katılım başarılı olmalı");
+
+    assert_eq!(
+        *lock(&sink.rows),
+        vec![(vec![0xaa], 1), (vec![0xbb], 2)],
+        "iki uzak satır da sıra düzeninde uygulanmalı"
+    );
+    assert_eq!(client.stats().cursor, 2);
+    client.shutdown().await;
+}
+
+/// Yerel güncelleme depoya ulaşmalı.
+#[tokio::test(start_paused = true)]
+async fn yerel_guncelleme_supabase_deposuna_yaziliyor() {
+    let store = Arc::new(SharedStore::default());
+    let sink = Arc::new(RecordingSink::default());
+    let (fetch, _) = fetcher(b"never");
+
+    let client = ChatClient::connect_with_tuned(
+        Arc::new(SupabaseConnector {
+            store: store.clone(),
+            chat_id: "c1".into(),
+        }),
+        sink,
+        fetch,
+        "dev-a",
+        0,
+        ChatTuning::default(),
+    )
+    .await
+    .expect("katılım başarılı olmalı");
+
+    client.enqueue_update(vec![0xc0, 0xff, 0xee]);
+
+    // Gönderim kuyruktan çıkıp yazılana kadar bekle.
+    for _ in 0..200 {
+        if !lock(&store.rows).is_empty() {
+            break;
+        }
+        tokio::time::advance(std::time::Duration::from_millis(20)).await;
+        tokio::task::yield_now().await;
+    }
+
+    let rows = lock(&store.rows).clone();
+    assert_eq!(rows.len(), 1, "tek satır yazılmalı; görülen: {rows:?}");
+    assert_eq!(rows[0].payload, vec![0xc0, 0xff, 0xee], "yük bozulmamalı");
+    assert_eq!(rows[0].device, "dev-a");
+    client.shutdown().await;
+}
