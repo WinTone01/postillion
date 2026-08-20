@@ -126,6 +126,7 @@ impl ResolvedRunConfig {
             reasoning: self.reasoning,
             model_options: self.model_options.clone(),
             sandbox: SandboxLevel::WorkspaceWrite,
+            mcp_servers: None,
         })
     }
 }
@@ -403,6 +404,8 @@ pub enum PickerKind {
     /// New-session canvas only: the device project-less sessions run on (a
     /// project pick implies its own host and overrides this).
     Device,
+    /// Sohbete özel MCP sunucu seçimi (yalnızca açık oturumlarda).
+    Mcp,
 }
 
 pub struct Pickers {
@@ -426,6 +429,8 @@ pub struct Pickers {
     harnesses: Loadable<Vec<HarnessDescriptor>>,
     models: HashMap<HarnessId, Loadable<Vec<Model>>>,
     refs: Loadable<Vec<RepoRef>>,
+    /// Cihazda tanımlı MCP sunucularının isimleri.
+    mcp: Loadable<Vec<String>>,
     /// Space id the `refs` slot belongs to (invalidated on space change).
     refs_space: Option<String>,
     /// Highlighted row in the open list (keyboard nav).
@@ -447,6 +452,7 @@ pub struct Pickers {
     /// Own slot: the refs load runs concurrently with the eager
     /// harness/model loads — sharing `load_task` would abort one mid-flight.
     refs_task: Option<Task<()>>,
+    mcp_task: Option<Task<()>>,
     /// In-flight mid-session `SwitchRef` (the ref being switched to).
     switching: Option<String>,
     switch_task: Option<Task<()>>,
@@ -581,6 +587,7 @@ impl Pickers {
             harnesses: Loadable::Idle,
             models: HashMap::new(),
             refs: Loadable::Idle,
+            mcp: Loadable::Idle,
             refs_space: None,
             active: 0,
             model_scroll: gpui::ScrollHandle::new(),
@@ -590,6 +597,7 @@ impl Pickers {
             boot_focus_pending: boot_open.is_some(),
             load_task: None,
             refs_task: None,
+            mcp_task: None,
             switching: None,
             switch_task: None,
             switch_error: None,
@@ -830,6 +838,8 @@ impl Pickers {
                 CheckoutKind::NewWorktree => 1,
             },
             PickerKind::Branch => self.selected_ref_index(cx),
+            // MCP satırları çoklu seçim; vurgu ilk satırdan başlıyor.
+            PickerKind::Mcp => 0,
             PickerKind::HarnessModel | PickerKind::Traits => self.selected_model_index(cx),
             PickerKind::Space => self.selected_space_index(cx),
             PickerKind::Device => self.selected_device_index(cx),
@@ -885,6 +895,9 @@ impl Pickers {
                 self.ensure_harnesses(true, cx);
                 self.prefetch_models(cx);
             }
+            // Force: kullanıcı Claude tarafında sunucu eklemiş olabilir ve
+            // liste yalnızca burada tazeleniyor.
+            PickerKind::Mcp => self.ensure_mcp(true, cx),
             // Projects and devices are already synced state — nothing to load.
             PickerKind::Space | PickerKind::Device => {}
         }
@@ -1029,6 +1042,153 @@ impl Pickers {
     /// device (relay-forwarded when remote), keyed/invalidated by space id.
     /// Rows carry checkout state (`current`, `worktreePath`) so the picker can
     /// tag refs and the checkout-kind selector can offer worktree reuse.
+    /// Cihazda tanımlı MCP sunucularını yükler.
+    ///
+    /// Liste host cihazın `~/.claude.json`'ından geliyor ve yalnızca İSİMLER
+    /// taşınıyor — tanımlar API anahtarı içerebiliyor ve seçim için gerekmiyor.
+    fn ensure_mcp(&mut self, force: bool, cx: &mut Context<Self>) {
+        if matches!(self.mcp, Loadable::Loading) {
+            return;
+        }
+        // Zorlamasız çağrı yalnızca Idle'dan yükleniyor: bir Error açık
+        // yeniden denemeyi beklemeli, yoksa her render Error'ı Loading'e
+        // çevirip sonsuz iskelet ve RPC fırtınası üretir (ref listesinde
+        // yaşanmış hata).
+        if !force && !matches!(self.mcp, Loadable::Idle) {
+            return;
+        }
+        let Some(engine) = self.engine(cx) else {
+            return;
+        };
+        // Yüklü liste varken zorlanan tazeleme onu ekranda tutuyor.
+        if !(force && matches!(self.mcp, Loadable::Ready(_))) {
+            self.mcp = Loadable::Loading;
+        }
+        self.mcp_task = Some(cx.spawn(async move |this, cx| {
+            let result = engine
+                .client()
+                .call(methods::LIST_MCP_SERVERS, serde_json::Value::Object(Default::default()))
+                .await;
+            this.update(cx, |pickers, cx| {
+                pickers.mcp = match result {
+                    Ok(value) => match serde_json::from_value::<Vec<String>>(value) {
+                        Ok(names) => Loadable::Ready(names),
+                        Err(err) => Loadable::Error(err.to_string()),
+                    },
+                    Err(err) => Loadable::Error(err.to_string()),
+                };
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    /// Sohbetin seçili MCP sunucuları; `None` genel yapılandırma.
+    fn mcp_selection(&self, cx: &App) -> Option<Vec<String>> {
+        self.state
+            .read(cx)
+            .selected_chat_row()
+            .and_then(|c| c.config.as_ref())
+            .and_then(|c| c.mcp_servers.clone())
+    }
+
+    /// Footer rozetinin metni.
+    fn mcp_label(&self, cx: &App) -> SharedString {
+        match self.mcp_selection(cx) {
+            // Varsayılan: kullanıcının genel yapılandırması olduğu gibi.
+            None => SharedString::from("MCP: all"),
+            Some(list) if list.is_empty() => SharedString::from("MCP: none"),
+            Some(list) => SharedString::from(format!("MCP: {}", list.len())),
+        }
+    }
+
+    /// Bir sunucuyu açar/kapatır.
+    ///
+    /// İlk dokunuş `None`'dan (genel yapılandırma) açık listeye geçiriyor:
+    /// seçim yapıldığı anda küme mutlak hale geliyor, yoksa "yalnızca şunlar"
+    /// sözü tutulamazdı. Kapatılan son sunucu boş liste bırakıyor — "hiçbiri",
+    /// `None`'a geri dönüş değil.
+    fn toggle_mcp(&mut self, name: String, cx: &mut Context<Self>) {
+        let available = self.mcp.ready().cloned().unwrap_or_default();
+        let next = next_mcp_selection(self.mcp_selection(cx).as_deref(), &available, &name);
+        self.update_chat_config(cx, move |config| config.mcp_servers = Some(next));
+        cx.notify();
+    }
+
+    /// Sunucu listesi: her satır bir aç/kapa.
+    fn render_mcp_popover(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::of(cx).clone();
+        let selection = self.mcp_selection(cx);
+
+        let body: AnyElement = match &self.mcp {
+            Loadable::Loading | Loadable::Idle => {
+                popover::skeleton_rows("mcp-skeleton", &theme, 3, cx.entity_id(), cx)
+            }
+            Loadable::Error(message) => {
+                let message = message.clone();
+                self.retry_row("mcp-retry", &message, PickerKind::Mcp, &theme, cx)
+            }
+            Loadable::Ready(names) if names.is_empty() => div()
+                .p(px(Theme::SPACE_SM))
+                .text_size(px(12.0))
+                .text_color(theme.text_faint)
+                .child(SharedString::from("No MCP servers configured."))
+                .into_any_element(),
+            Loadable::Ready(names) => {
+                let names = names.clone();
+                let active = self.active;
+                let mut list = div()
+                    .id("mcp-list")
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.0))
+                    .max_h(px(224.0))
+                    .overflow_y_scroll();
+                for (index, name) in names.iter().enumerate() {
+                    // Seçim yokken hepsi açık: varsayılan davranış bu.
+                    let on = selection
+                        .as_ref()
+                        .map_or(true, |list| list.iter().any(|n| n == name));
+                    let label = SharedString::from(name.clone());
+                    let for_click = name.clone();
+                    list = list.child(
+                        popover::menu_row(&theme, active == index, format!("mcp-{index}"))
+                            .id(("mcp-row", index))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.toggle_mcp(for_click.clone(), cx);
+                            }))
+                            .child(div().flex_1().min_w_0().truncate().child(label))
+                            .when(on, |el| {
+                                el.child(
+                                    crate::icons::icon(crate::icons::CHECK)
+                                        .size(px(12.0))
+                                        .text_color(theme.accent),
+                                )
+                            }),
+                    );
+                }
+                list.into_any_element()
+            }
+        };
+
+        div()
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .px(px(Theme::SPACE_SM))
+                    .pt(px(6.0))
+                    .pb(px(4.0))
+                    .text_size(px(11.0))
+                    .text_color(theme.text_faint)
+                    .child(SharedString::from(
+                        "Each connected server's tool definitions ride every turn.",
+                    )),
+            )
+            .child(body)
+            .into_any_element()
+    }
+
     fn ensure_refs(&mut self, force: bool, cx: &mut Context<Self>) {
         let Some(space) = self.state.read(cx).selected_space_row().cloned() else {
             return;
@@ -1293,6 +1453,10 @@ impl Pickers {
             return; // harness unknown (catalog + chat row both missing) — nothing safe to write
         };
         // Preserve fields the pickers don't own.
+        //
+        // `resolved()` yapılandırmayı picker durumundan yeniden kuruyor ve o
+        // durum bu alanları taşımıyor; kopyalanmazlarsa model değiştirmek gibi
+        // ilgisiz bir işlem MCP seçimini sessizce siler.
         if let Some(existing) = self
             .state
             .read(cx)
@@ -1300,6 +1464,7 @@ impl Pickers {
             .and_then(|c| c.config.as_ref())
         {
             config.sandbox = existing.sandbox;
+            config.mcp_servers = existing.mcp_servers.clone();
         }
         change(&mut config);
         // Reasoning must stay concrete for whatever model the row now names —
@@ -1975,6 +2140,7 @@ impl Pickers {
                     Some(PickerKind::Traits) => 0, // merged into HarnessModel
                     Some(PickerKind::Space) => self.filtered_space_rows(cx).len(),
                     Some(PickerKind::Device) => self.filtered_device_rows(cx).len(),
+                    Some(PickerKind::Mcp) => self.mcp.ready().map_or(0, Vec::len),
                     None => 0,
                 };
                 let current = (self.active != NO_ACTIVE_ROW).then_some(self.active);
@@ -2027,6 +2193,7 @@ impl Pickers {
             PickerKind::Traits => "picker-traits",
             PickerKind::Space => "picker-space",
             PickerKind::Device => "picker-device",
+            PickerKind::Mcp => "picker-mcp",
         };
         let open = self.open_kind() == Some(kind);
         // Ghost pill (zeron composer/styles.tsx `pill`): `h-8 rounded-lg px-2.5
@@ -2310,13 +2477,47 @@ impl Pickers {
                     crate::context_meter::context_meter(tokens, window, &theme)
                 });
 
+            // MCP rozeti: sohbete özel sunucu seçimi. Liste açılışta değil
+            // rozet tıklanınca yükleniyor — her render'da RPC atmanın anlamı
+            // yok ve sunucu kümesi nadiren değişiyor.
+            self.ensure_mcp(false, cx);
+            let closing = self.open.closing_since();
+            let mut overlay: Option<(PickerKind, AnyElement)> =
+                if self.mounted_kind() == Some(PickerKind::Mcp) {
+                    let content = self.render_mcp_popover(cx);
+                    Some((PickerKind::Mcp, self.popover_frame(280.0, content, cx)))
+                } else {
+                    None
+                };
+            let mcp_chip = self.footer_chip(
+                PickerKind::Mcp,
+                "picker-mcp",
+                crate::icons::WIDGET,
+                self.mcp_label(cx),
+                &theme,
+                cx,
+            );
+
             // Sessions never move: read-only checkout-kind + ref labels,
             // LEFT-aligned, only when the session's project has git. The
             // target (project @ device) lives in the titlebar now.
             let Some(space) = space.as_ref().filter(|s| s.git_detected) else {
-                // Git yok: satır yalnızca ölçer varsa çiziliyor.
-                return meter
-                    .map(|meter| row().justify_end().child(meter).into_any_element());
+                // Git yok: satır yine de MCP rozetini ve varsa ölçeri taşıyor.
+                let right = div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(4.0))
+                    .min_w_0()
+                    .when_some(meter, |el, meter| el.child(meter))
+                    .child(attach_overlay_end(
+                        mcp_chip,
+                        &mut overlay,
+                        PickerKind::Mcp,
+                        "mcp-popover",
+                        closing,
+                    ));
+                return Some(row().justify_end().child(right).into_any_element());
             };
             let is_worktree = chat.cwd.as_deref().is_some_and(|cwd| cwd != space.path);
             let (icon_path, label) = if is_worktree {
@@ -2351,6 +2552,13 @@ impl Pickers {
                     ))
                 })
                 .when_some(meter, |el, meter| el.child(meter))
+                .child(attach_overlay(
+                    mcp_chip,
+                    &mut overlay,
+                    PickerKind::Mcp,
+                    "mcp-popover",
+                    closing,
+                ))
                 .child(Self::footer_label(
                     crate::icons::GIT_BRANCH,
                     chat.branch
@@ -2506,6 +2714,10 @@ impl Pickers {
                             this.harnesses = Loadable::Idle;
                             this.models.clear();
                             this.ensure_harnesses(false, cx);
+                        }
+                        PickerKind::Mcp => {
+                            this.mcp = Loadable::Idle;
+                            this.ensure_mcp(false, cx);
                         }
                         // Projects/devices load nothing; no retry surface exists.
                         PickerKind::Space | PickerKind::Device => {}
@@ -3562,7 +3774,8 @@ impl Render for Pickers {
             Some(PickerKind::Branch)
             | Some(PickerKind::Checkout)
             | Some(PickerKind::Space)
-            | Some(PickerKind::Device) => None,
+            | Some(PickerKind::Device)
+            | Some(PickerKind::Mcp) => None,
             Some(PickerKind::HarnessModel) => {
                 let content = self.render_harness_model_popover(cx);
                 Some((
@@ -3660,6 +3873,85 @@ impl Render for Pickers {
             .gap(px(Theme::SPACE_SM))
             .child(left)
             .child(right)
+    }
+}
+
+/// Bir sunucuyu açıp kapatınca yeni seçim. Saf.
+///
+/// `current` `None` iken küme "kullanıcının genel yapılandırması" demek ve
+/// pratikte hepsi açık; ilk dokunuş bu yüzden `available`'dan başlayıp seçimi
+/// MUTLAK hale getiriyor — aksi halde "yalnızca şunlar" sözü tutulamazdı.
+///
+/// Sonuç daima `available` sırasında: tıklama sırası listeyi karıştırmamalı.
+fn next_mcp_selection(current: Option<&[String]>, available: &[String], name: &str) -> Vec<String> {
+    let mut next: Vec<String> = match current {
+        Some(list) => list.to_vec(),
+        None => available.to_vec(),
+    };
+
+    match next.iter().position(|n| n == name) {
+        Some(at) => {
+            next.remove(at);
+        }
+        None => next.push(name.to_string()),
+    }
+
+    next.sort_by_key(|n| available.iter().position(|a| a == n).unwrap_or(usize::MAX));
+    next
+}
+
+#[cfg(test)]
+mod mcp_tests {
+    use super::next_mcp_selection;
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn ilk_dokunus_secimi_mutlak_yapiyor() {
+        let available = names(&["bir", "iki", "uc"]);
+        // Seçim yokken hepsi açık; "iki"yi kapatmak kalan ikisini sabitliyor.
+        assert_eq!(
+            next_mcp_selection(None, &available, "iki"),
+            names(&["bir", "uc"]),
+        );
+    }
+
+    #[test]
+    fn acma_kapama_simetrik_ve_sirali() {
+        let available = names(&["bir", "iki", "uc"]);
+        let selected = names(&["uc"]);
+
+        // Eklenen sunucu tıklama sırasına göre değil, listenin sırasına göre.
+        assert_eq!(
+            next_mcp_selection(Some(&selected), &available, "bir"),
+            names(&["bir", "uc"]),
+        );
+        // Kapatmak geri alıyor.
+        assert_eq!(
+            next_mcp_selection(Some(&names(&["bir", "uc"])), &available, "bir"),
+            names(&["uc"]),
+        );
+    }
+
+    #[test]
+    fn son_sunucu_kapaninca_bos_liste_kaliyor() {
+        let available = names(&["bir"]);
+        // Boş liste "hiçbiri" demek. `None`'a (genel yapılandırma) dönmek,
+        // kullanıcının kapattığı sunucuları sessizce geri açardı.
+        assert!(next_mcp_selection(Some(&names(&["bir"])), &available, "bir").is_empty());
+    }
+
+    #[test]
+    fn silinmis_sunucu_secimde_kalsa_da_sonda_duruyor() {
+        // Kullanıcı Claude tarafında bir sunucuyu silmiş olabilir; seçimde
+        // kalan adı sıralama düşürmemeli, yoksa panik ya da kayıp olurdu.
+        let available = names(&["bir"]);
+        assert_eq!(
+            next_mcp_selection(Some(&names(&["yok-artik"])), &available, "bir"),
+            names(&["bir", "yok-artik"]),
+        );
     }
 }
 

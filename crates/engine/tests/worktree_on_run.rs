@@ -119,6 +119,7 @@ fn run_payload(message_id: &str, repo_path: &str) -> SessionCommandPayload {
             auto_approve: true,
             attachments: Vec::new(),
             resume: None,
+            mcp_servers: None,
             worktree: Some(WorktreeSpec {
                 repo_path: repo_path.into(),
                 base: "main".into(),

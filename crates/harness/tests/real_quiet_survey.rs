@@ -70,6 +70,7 @@ async fn probe_once(harness: AcpHarness) -> ProbeOutcome {
         attachments: Vec::new(),
         worktree: None,
         resume: None,
+        mcp_servers: None,
     };
     let mut stream = match harness.run(req, controls).await {
         Ok(s) => s,

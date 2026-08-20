@@ -677,6 +677,7 @@ impl SessionsEngine {
                             auto_approve: false,
                             attachments: Vec::new(),
                             resume: None,
+                            mcp_servers: None,
                             worktree: None,
                         })
                     });
@@ -1266,6 +1267,7 @@ async fn drive_run(
     // the event loop) can take ownership.
     let mut retry_request = Some(RunRequest {
         resume: None,
+        mcp_servers: None,
         ..request.clone()
     });
     // Sıkıştırma eşiği için modelin penceresi — `request` birazdan harness'e

@@ -3084,6 +3084,7 @@ impl DocHost {
                         reasoning: request.reasoning,
                         model_options: request.model_options.clone(),
                         sandbox: request.sandbox,
+                        mcp_servers: request.mcp_servers.clone(),
                     };
                     if let Err(err) = ws.set_chat_config(chat_id, &config) {
                         tracing::warn!(chat = %chat_id, error = %err, "run-config backfill failed");
@@ -3291,6 +3292,9 @@ impl DocHost {
                 .as_ref()
                 .map(|c| c.model_options.clone())
                 .unwrap_or_default(),
+            // Seçim sohbetle birlikte yaşıyor: her koşuda yeniden uygulanıyor,
+            // yani uygulama kapanıp açılınca da unutulmuyor.
+            mcp_servers: config.as_ref().and_then(|c| c.mcp_servers.clone()),
             cwd: chat.cwd.unwrap_or_default(),
             sandbox: config
                 .as_ref()

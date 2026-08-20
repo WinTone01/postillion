@@ -743,6 +743,7 @@ mod tests {
                 reasoning: None,
                 model_options: Default::default(),
                 sandbox: SandboxLevel::WorkspaceWrite,
+                mcp_servers: None,
             }),
             last_message_preview: None,
             last_message_at: None,
@@ -793,6 +794,63 @@ mod tests {
     }
 
     #[test]
+    /// MCP seçimi sohbetle birlikte kalıcı olmalı.
+    ///
+    /// Üç durum ayrı ayrı anlam taşıyor ve karışmamalı: `None` "kullanıcının
+    /// genel yapılandırması", boş liste "hiçbir sunucu", dolu liste "yalnızca
+    /// bunlar". Boş listenin `None`'a çökmesi, kullanıcının kapattığı
+    /// sunucuları sessizce geri açardı.
+    #[test]
+    fn mcp_secimi_sohbetle_kalici() {
+        let ws = WorkspaceDoc::new();
+        ws.upsert_chat(&chat("chat-1", "dev-a")).unwrap();
+
+        let base = ChatConfig {
+            harness: HarnessId::ClaudeCode,
+            model: None,
+            reasoning: None,
+            model_options: serde_json::Map::new(),
+            sandbox: SandboxLevel::WorkspaceWrite,
+            mcp_servers: None,
+        };
+
+        let selected = ChatConfig {
+            mcp_servers: Some(vec!["figbridge".into(), "context7".into()]),
+            ..base.clone()
+        };
+        ws.set_chat_config("chat-1", &selected).unwrap();
+        assert_eq!(
+            ws.chat("chat-1").unwrap().unwrap().config,
+            Some(selected.clone())
+        );
+
+        let none_selected = ChatConfig {
+            mcp_servers: Some(Vec::new()),
+            ..base.clone()
+        };
+        ws.set_chat_config("chat-1", &none_selected).unwrap();
+        assert_eq!(
+            ws.chat("chat-1")
+                .unwrap()
+                .unwrap()
+                .config
+                .and_then(|c| c.mcp_servers),
+            Some(Vec::new()),
+            "boş seçim 'hiçbiri' demek; None'a çökmemeli"
+        );
+
+        ws.set_chat_config("chat-1", &base).unwrap();
+        assert_eq!(
+            ws.chat("chat-1")
+                .unwrap()
+                .unwrap()
+                .config
+                .and_then(|c| c.mcp_servers),
+            None,
+        );
+    }
+
+    #[test]
     fn set_chat_config_round_trips_and_ignores_missing_rows() {
         let ws = WorkspaceDoc::new();
         ws.upsert_chat(&chat("chat-1", "dev-a")).unwrap();
@@ -807,6 +865,7 @@ mod tests {
             reasoning: Some(zeron_proto::ReasoningLevel::XHigh),
             model_options: options,
             sandbox: SandboxLevel::WorkspaceWrite,
+            mcp_servers: None,
         };
         assert!(ws.set_chat_config("chat-1", &config).unwrap());
         let row = ws.chat("chat-1").unwrap().expect("row exists");

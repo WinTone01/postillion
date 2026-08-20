@@ -156,6 +156,7 @@ fn run_request(prompt: &str) -> RunRequest {
         attachments: Vec::new(),
         worktree: None,
         resume: None,
+        mcp_servers: None,
     }
 }
 
@@ -517,6 +518,7 @@ async fn chat_config_selects_the_run_harness() {
                 reasoning: None,
                 model_options: Default::default(),
                 sandbox: SandboxLevel::WorkspaceWrite,
+                mcp_servers: None,
             }),
             None,
         )

@@ -38,6 +38,7 @@ fn run_request(prompt: &str) -> RunRequest {
         attachments: Vec::new(),
         worktree: None,
         resume: None,
+        mcp_servers: None,
     }
 }
 
@@ -1751,6 +1752,7 @@ async fn real_claude_sees_uploaded_image_inline() {
         auto_approve: false,
         attachments: vec![path],
         resume: None,
+        mcp_servers: None,
         worktree: None,
     };
     core.doc_host
