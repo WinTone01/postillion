@@ -12,6 +12,10 @@ use futures::future::BoxFuture;
 pub enum SyncError {
     #[error("websocket: {0}")]
     WebSocket(String),
+    /// PostgREST/HTTP tarafı — WebSocket'ten ayrı tutuluyor çünkü kurtarma
+    /// yolu farklı: burada yeniden bağlanma yok, istek ya tutuyor ya tutmuyor.
+    #[error("http: {0}")]
+    Http(String),
     #[error("protocol: {0}")]
     Protocol(String),
     #[error("join refused: {0}")]
