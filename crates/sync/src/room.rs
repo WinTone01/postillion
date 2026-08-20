@@ -177,7 +177,7 @@ impl Session {
         frame_type::PRESENCE => Ok(Vec::new()),
 
         other => {
-            tracing::debug!(kind = other, "supabase: beklenmeyen çerçeve, yok sayıldı");
+            tracing::debug!(kind = other, "oda: beklenmeyen çerçeve, yok sayıldı");
             Ok(Vec::new())
         }
     }

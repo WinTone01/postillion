@@ -11,6 +11,7 @@ members = [
     "crates/ui",
     "crates/syntax",
     "apps/postillion",
+    "crates/server",
 ]
 
 [workspace.package]
@@ -92,6 +93,10 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # permanent RSS - measured as the top residency cause in docs/memory-plan.md.
 mimalloc = "0.1"
 anyhow = "1"
+# Kendi eşitleme sunucumuz (crates/server).
+axum = { version = "0.8", features = ["ws"] }
+tower-http = { version = "0.6", features = ["trace"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "macros"] }
 tempfile = "3"
 thiserror = "2"
 tracing = "0.1"
