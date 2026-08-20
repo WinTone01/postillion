@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Application
+Name=Postillion
+GenericName=Kodlama Ajanı Denetleyicisi
+Comment=Claude Code için çok cihazlı denetleyici
+Exec=postillion
+TryExec=postillion
+Icon=postillion
+Terminal=false
+Categories=Development;Utility;
+Keywords=agent;claude;codex;ai;coding;
+StartupWMClass=postillion
+# gpui'nin Linux'ta pencere etkinleştirmesi yok ("activate is not implemented
+# on Linux, ignoring the call"), dolayısıyla yeni pencere açık pencerelerin
+# ARKASINDA doğuyor: menüden başlatan kullanıcı hiçbir şey olmamış sanıyor,
+# oysa uygulama çalışıyor ve pencere görev çubuğunda duruyor.
+#
+# `StartupNotify=true` denendi ve İŞE YARAMADI: uygulama başlatma bildirimini
+# hiç tamamlamıyor, dolayısıyla pencere yöneticisinin eşleştirecek bir şeyi
+# olmuyor ve geriye yalnızca zaman aşımına kadar dönen meşgul imleci kalıyor.
+# Açıkça kapalı — çözüm gpui'nin Wayland/X11 pencere etkinleştirmesinde.
+StartupNotify=false
