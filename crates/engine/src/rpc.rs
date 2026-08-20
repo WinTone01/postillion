@@ -912,6 +912,17 @@ fn forwardable(method: &str) -> bool {
             | methods::LIST_MCP_SERVERS
             | methods::ADD_MCP_SERVER
             | methods::REMOVE_MCP_SERVER
+            // Katalog da host cihazın `claude` kurulumuna ait.
+            | methods::LIST_PLUGINS
+            | methods::LIST_AVAILABLE_PLUGINS
+            | methods::PLUGIN_INSTALL
+            | methods::PLUGIN_UNINSTALL
+            | methods::PLUGIN_SET_ENABLED
+            | methods::LIST_MARKETPLACES
+            | methods::MARKETPLACE_ADD
+            | methods::MARKETPLACE_REMOVE
+            | methods::LIST_SKILLS
+            | methods::SKILL_DELETE
             // Süreç ağacı, ajanın koştuğu cihazın `/proc`'unda.
             | methods::LIST_PROCESSES
             | methods::KILL_PROCESS
@@ -1627,6 +1638,49 @@ impl RpcService for EngineRpc {
                     .await
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
                 RpcReply::value(&branches)
+            }
+            methods::LIST_PLUGINS => {
+                use postillion_harness::claude::catalog_manage as cat;
+                RpcReply::value(&cat::list_plugins().map_err(RpcError::Failed)?)
+            }
+            methods::LIST_AVAILABLE_PLUGINS => {
+                use postillion_harness::claude::catalog_manage as cat;
+                RpcReply::value(&cat::list_available_plugins().map_err(RpcError::Failed)?)
+            }
+            methods::LIST_MARKETPLACES => {
+                use postillion_harness::claude::catalog_manage as cat;
+                RpcReply::value(&cat::list_marketplaces().map_err(RpcError::Failed)?)
+            }
+            methods::LIST_SKILLS => {
+                use postillion_harness::claude::catalog_manage as cat;
+                RpcReply::value(&cat::list_skills().map_err(RpcError::Failed)?)
+            }
+            methods::PLUGIN_INSTALL
+            | methods::PLUGIN_UNINSTALL
+            | methods::PLUGIN_SET_ENABLED
+            | methods::MARKETPLACE_ADD
+            | methods::MARKETPLACE_REMOVE
+            | methods::SKILL_DELETE => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct P {
+                    /// Eklenti kimliği, marketplace adı/kaynağı ya da skill adı.
+                    id: String,
+                    #[serde(default)]
+                    enabled: bool,
+                }
+                let p: P = parse_params(params)?;
+                use postillion_harness::claude::catalog_manage as cat;
+                let result = match method {
+                    methods::PLUGIN_INSTALL => cat::plugin_install(&p.id),
+                    methods::PLUGIN_UNINSTALL => cat::plugin_uninstall(&p.id),
+                    methods::PLUGIN_SET_ENABLED => cat::plugin_set_enabled(&p.id, p.enabled),
+                    methods::MARKETPLACE_ADD => cat::marketplace_add(&p.id),
+                    methods::MARKETPLACE_REMOVE => cat::marketplace_remove(&p.id),
+                    _ => cat::skill_delete(&p.id),
+                };
+                result.map_err(RpcError::Failed)?;
+                RpcReply::value(&serde_json::json!({}))
             }
             methods::ADD_MCP_SERVER => {
                 #[derive(Deserialize)]
