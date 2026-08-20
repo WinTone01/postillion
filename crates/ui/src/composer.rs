@@ -3748,6 +3748,43 @@ impl Composer {
         }));
     }
 
+    /// Bölge seçtirip görüntüyü ek olarak sahneler.
+    ///
+    /// Yakalama pencereyi gizlemeden yapılıyor: seçim aracı zaten kendi tam
+    /// ekran katmanını açıyor ve uygulamayı gizlemek KDE'de odağı geri
+    /// alamama riskini getiriyor.
+    ///
+    /// Araç çalışırken arayüz bloke olmamalı — seçim kullanıcı ne kadar
+    /// isterse o kadar sürüyor — o yüzden arka plan görevinde.
+    fn capture_screenshot(&mut self, cx: &mut Context<Self>) {
+        self.picker_task = Some(cx.spawn(async move |this, cx| {
+            let target = crate::screenshot::temp_target();
+            let capture = {
+                let target = target.clone();
+                cx.background_executor()
+                    .spawn(async move { crate::screenshot::capture_region(&target) })
+                    .await
+            };
+
+            this.update(cx, |composer, cx| {
+                match capture {
+                    // İptal bir hata değil: sessizce hiçbir şey olmuyor.
+                    Ok(false) => {}
+                    Ok(true) => composer.add_paths(vec![target.clone()], cx),
+                    Err(message) => {
+                        composer.failure = Some(message.into());
+                        composer.failure_key = Some(composer.current_key.clone());
+                        cx.notify();
+                    }
+                }
+                // Görüntü artık sahnelenmiş kopyada; diskteki geçici dosya
+                // gereksiz.
+                let _ = std::fs::remove_file(&target);
+            })
+            .ok();
+        }));
+    }
+
     fn sync_mention_controls(&mut self, cx: &mut Context<Self>) {
         let open = self.mention.token.is_some() || self.slash.token.is_some();
         let has_selection = if self.slash.token.is_some() {
@@ -5850,6 +5887,30 @@ impl Render for Composer {
                     .size(px(16.0))
                     .text_color(theme.text_muted),
             );
+        // Ekran görüntüsü — ataçın hemen yanında, aynı hayalet düğme dili.
+        let capture = div()
+            .id("composer-capture")
+            .ml(px(4.0))
+            .size(px(28.0))
+            .flex_none()
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded_full()
+            .cursor_pointer()
+            .bg(motion::hover_blend(
+                "composer-capture",
+                gpui::transparent_black(),
+                crate::theme::ink(0.10),
+            ))
+            .on_hover(motion::hover_listener("composer-capture"))
+            .on_click(cx.listener(|this, _, _, cx| this.capture_screenshot(cx)))
+            .child(
+                crate::icons::icon(crate::icons::WIDGET)
+                    .size(px(16.0))
+                    .text_color(theme.text_muted),
+            );
+
         // Staged-thumbnail strip (attachment-ui.tsx AttachmentStrip), above
         // the input inside the pill in both modes.
         let strip = self.render_attachment_strip(&theme, cx);
@@ -5924,6 +5985,7 @@ impl Render for Composer {
                         .pb(px(10.0))
                         .child(div().flex_1().min_w_0().child(self.pickers.clone()))
                         .child(attach)
+                        .child(capture)
                         .child(send_button),
                 )
         } else {
@@ -5979,6 +6041,7 @@ impl Render for Composer {
                                 .top(px(-cluster_dy))
                                 .child(div().flex_none().child(self.pickers.clone()))
                                 .child(attach)
+                                .child(capture)
                                 .child(send_button),
                         ),
                 )
