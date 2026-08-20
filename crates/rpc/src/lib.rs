@@ -113,6 +113,17 @@ pub mod methods {
     pub const LIST_FOLDERS: &str = "ListFolders";
     /// Cihazdaki tanımlı MCP sunucuları — sohbete özel seçim için.
     pub const LIST_MCP_SERVERS: &str = "ListMcpServers";
+    /// Eklenti / marketplace / skill kataloğu.
+    pub const LIST_PLUGINS: &str = "ListPlugins";
+    pub const LIST_AVAILABLE_PLUGINS: &str = "ListAvailablePlugins";
+    pub const PLUGIN_INSTALL: &str = "PluginInstall";
+    pub const PLUGIN_UNINSTALL: &str = "PluginUninstall";
+    pub const PLUGIN_SET_ENABLED: &str = "PluginSetEnabled";
+    pub const LIST_MARKETPLACES: &str = "ListMarketplaces";
+    pub const MARKETPLACE_ADD: &str = "MarketplaceAdd";
+    pub const MARKETPLACE_REMOVE: &str = "MarketplaceRemove";
+    pub const LIST_SKILLS: &str = "ListSkills";
+    pub const SKILL_DELETE: &str = "SkillDelete";
     /// MCP sunucusu ekler (`claude mcp add`).
     pub const ADD_MCP_SERVER: &str = "AddMcpServer";
     /// MCP sunucusu siler (`claude mcp remove`).
