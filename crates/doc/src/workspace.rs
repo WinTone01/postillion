@@ -793,7 +793,6 @@ mod tests {
         a.doc().import(&b_update).expect("import into a");
     }
 
-    #[test]
     /// MCP seçimi sohbetle birlikte kalıcı olmalı.
     ///
     /// Üç durum ayrı ayrı anlam taşıyor ve karışmamalı: `None` "kullanıcının

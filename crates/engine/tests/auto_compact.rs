@@ -9,7 +9,7 @@
 //! 1M'lik bir modelde 200k'da sıkıştırmak, kullanıcının ödediği bağlamın
 //! dörtte üçünü hiç kullanmadan atmak olurdu.
 
-use std::sync::{Arc, Once};
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -25,23 +25,6 @@ use zeron_proto::{
 };
 
 const CHAT: &str = "chat-auto-compact";
-/// Normal window: far beyond the test horizon — any park inside the test
-/// window must have come through the self-continued path.
-const QUIESCE_MS: u64 = 600_000;
-/// Short window under test.
-const SELF_QUIESCE_MS: u64 = 400;
-
-fn init_env() {
-    static ONCE: Once = Once::new();
-    ONCE.call_once(|| {
-        // SAFETY: called before any engine (and thus any reader of the vars)
-        // exists in this test process.
-        unsafe {
-            std::env::set_var("ZERON_TURN_QUIESCE_MS", QUIESCE_MS.to_string());
-            std::env::set_var("ZERON_SELF_TURN_QUIESCE_MS", SELF_QUIESCE_MS.to_string());
-        }
-    });
-}
 
 fn run_request(prompt: &str) -> RunRequest {
     RunRequest {
@@ -82,111 +65,6 @@ fn session_started() -> AgentEvent {
 
 fn text(t: &str) -> AgentEvent {
     AgentEvent::TextDelta { text: t.into() }
-}
-
-/// Feed-by-hand harness (see `turn_quiesce.rs`): the test pushes events
-/// through a channel; accepted steers confirm with a `Steered` boundary.
-struct FeedHarness {
-    main_prompt: String,
-    feed: Mutex<Option<mpsc::UnboundedReceiver<AgentEvent>>>,
-}
-
-#[async_trait]
-impl Harness for FeedHarness {
-    fn id(&self) -> HarnessId {
-        HarnessId::Mock
-    }
-    fn display_name(&self) -> &str {
-        "Feed"
-    }
-    fn supports_steering(&self) -> bool {
-        true
-    }
-    fn steering_mode(&self) -> SteeringMode {
-        SteeringMode::StepBoundary
-    }
-    fn reasoning_levels(&self) -> &[ReasoningLevel] {
-        &[ReasoningLevel::Medium]
-    }
-    async fn models(&self) -> Result<Vec<Model>, HarnessError> {
-        Ok(vec![])
-    }
-    async fn run(
-        &self,
-        request: RunRequest,
-        mut controls: RunControls,
-    ) -> Result<BoxStream<'static, Result<AgentEvent, HarnessError>>, HarnessError> {
-        if request.prompt != self.main_prompt {
-            let events = vec![Ok(done(DoneStatus::Completed))];
-            return Ok(futures::stream::iter(events).boxed());
-        }
-        let mut feed = self
-            .feed
-            .lock()
-            .await
-            .take()
-            .expect("FeedHarness serves the main dispatch once per test");
-        let (tx, rx) = mpsc::channel::<Result<AgentEvent, HarnessError>>(64);
-        tokio::spawn(async move {
-            let mut steering_open = true;
-            loop {
-                tokio::select! {
-                    biased;
-                    steer = controls.steering.recv(), if steering_open => match steer {
-                        Some(_) => {
-                            let boundary = AgentEvent::Steered {
-                                assistant_message_id: None,
-                                next_assistant_message_id: None,
-                            };
-                            if tx.send(Ok(boundary)).await.is_err() {
-                                return;
-                            }
-                        }
-                        None => steering_open = false,
-                    },
-                    event = feed.recv() => match event {
-                        Some(event) => {
-                            if tx.send(Ok(event)).await.is_err() {
-                                return;
-                            }
-                        }
-                        None => return,
-                    },
-                }
-            }
-        });
-        Ok(futures::stream::unfold(rx, |mut rx| async move {
-            rx.recv().await.map(|event| (event, rx))
-        })
-        .boxed())
-    }
-}
-
-struct Rig {
-    core: EngineCore,
-    feed: mpsc::UnboundedSender<AgentEvent>,
-    _dir: tempfile::TempDir,
-}
-
-fn assemble(main_prompt: &str) -> Rig {
-    let (feed, rx) = mpsc::unbounded_channel();
-    let registry = HarnessRegistry::new();
-    registry.register(Arc::new(FeedHarness {
-        main_prompt: main_prompt.into(),
-        feed: Mutex::new(Some(rx)),
-    }));
-    let dir = tempfile::tempdir().unwrap();
-    let core = EngineCore::assemble(dir.path(), Arc::new(registry), HarnessId::Mock, None)
-        .expect("engine core assembles");
-    Rig {
-        core,
-        feed,
-        _dir: dir,
-    }
-}
-
-fn status(core: &EngineCore) -> Option<SessionStatus> {
-    core.sessions.session_status(CHAT).map(|s| s.status)
 }
 
 async fn wait_for<F>(mut predicate: F, what: &str)
