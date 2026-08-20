@@ -38,12 +38,36 @@ cat >"$STAGE/install.sh" <<'INSTALL'
 # Install Zeron into ~/.local (no root needed).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-install -Dm755 "$HERE/zeron" "$HOME/.local/bin/zeron"
-install -Dm644 "$HERE/zeron.desktop" "$HOME/.local/share/applications/zeron.desktop"
+BIN="$HOME/.local/bin/zeron"
+install -Dm755 "$HERE/zeron" "$BIN"
+
+# The desktop entry names the binary by ABSOLUTE path. A bare `Exec=zeron`
+# needs ~/.local/bin on the PATH of the DESKTOP SESSION, which is a different
+# environment from the user's shell — adding the directory in a shell rc file
+# (the usual advice, and what the installer used to print) does not put it
+# there, so the launcher silently refused to start.
+#
+# ZERON_DESKTOP_ENV bakes environment into the launcher for machines that need
+# it, e.g. ZERON_DESKTOP_ENV="ZERON_BACKEND=x11" where gpui's Wayland path
+# leaves the window unmapped. Empty by default: nothing is forced.
+if [[ -n "${ZERON_DESKTOP_ENV:-}" ]]; then
+  EXEC_LINE="env ${ZERON_DESKTOP_ENV} $BIN"
+else
+  EXEC_LINE="$BIN"
+fi
+
+sed -e "s|^Exec=.*|Exec=$EXEC_LINE|" -e "s|^TryExec=.*|TryExec=$BIN|" \
+  "$HERE/zeron.desktop" > "$HOME/.local/share/applications/zeron.desktop.tmp"
+install -Dm644 "$HOME/.local/share/applications/zeron.desktop.tmp" \
+  "$HOME/.local/share/applications/zeron.desktop"
+rm -f "$HOME/.local/share/applications/zeron.desktop.tmp"
+
 install -Dm644 "$HERE/zeron.png" "$HOME/.local/share/icons/hicolor/1024x1024/apps/zeron.png"
 command -v update-desktop-database >/dev/null 2>&1 \
   && update-desktop-database "$HOME/.local/share/applications" || true
-echo "Installed. Make sure ~/.local/bin is on your PATH."
+echo "Installed: $BIN"
+[[ -n "${ZERON_DESKTOP_ENV:-}" ]] && echo "Launcher environment: ${ZERON_DESKTOP_ENV}"
+true
 INSTALL
 chmod 755 "$STAGE/install.sh"
 
