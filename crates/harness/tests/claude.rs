@@ -72,6 +72,7 @@ fn controls(
         }),
         steering: steer_rx,
         interrupt: token.clone(),
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
     };
     (controls, steer_tx, token)
 }
@@ -308,6 +309,7 @@ async fn ask_user_question_round_trips_through_the_control_channel() {
         }),
         steering: steer_rx,
         interrupt: token.clone(),
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
     };
     let events = run_to_end(&harness(), request("scenario:askuser"), controls).await;
 

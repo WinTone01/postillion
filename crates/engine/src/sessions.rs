@@ -71,6 +71,9 @@ struct RunHandle {
     run_id: String,
     steerable: bool,
     steer_tx: mpsc::Sender<SteerMessage>,
+    /// Ajanın çocuğunun pid'i; süreç ağacının kökü. Harness spawn edince
+    /// dolduruyor, sıfır "çocuk yok".
+    child_pid: std::sync::Arc<std::sync::atomic::AtomicU32>,
     /// Harness-level cancellation (protocol interrupt + child teardown).
     interrupt_token: CancellationToken,
     /// Engine-level cancel: arms the run task's grace deadline so a harness that
@@ -224,6 +227,37 @@ impl SessionsEngine {
     }
 
     /// The last request dispatched for a chat (steer→new-turn fallback).
+    /// Sohbetin ajanının altında çalışan süreçler.
+    ///
+    /// `Bash` araç çağrıları ajanın torunları oluyor; koşu yoksa ya da çocuk
+    /// henüz doğmadıysa liste boş. Panel bunu yokluyor.
+    pub fn processes(&self, chat_id: &str) -> Vec<crate::processes::Proc> {
+        let Some(root) = self.child_pid(chat_id) else {
+            return Vec::new();
+        };
+        crate::processes::descendants(root)
+    }
+
+    /// Bir alt süreci durdurur; `force` ile SIGKILL.
+    ///
+    /// Soydan olma kontrolü [`crate::processes::kill`] içinde ve sinyalden
+    /// ÖNCE: pid arayüzden geliyor ve arada süreç ölüp numarası başkasına
+    /// verilmiş olabilir.
+    pub fn kill_process(&self, chat_id: &str, pid: u32, force: bool) -> Result<(), EngineError> {
+        let root = self
+            .child_pid(chat_id)
+            .ok_or_else(|| EngineError::Other("bu sohbette çalışan bir ajan yok".into()))?;
+        crate::processes::kill(root, pid, force)
+    }
+
+    fn child_pid(&self, chat_id: &str) -> Option<u32> {
+        let pid = lock(&self.inner.runs)
+            .get(chat_id)?
+            .child_pid
+            .load(std::sync::atomic::Ordering::Relaxed);
+        (pid > 0).then_some(pid)
+    }
+
     pub fn last_request(&self, chat_id: &str) -> Option<RunRequest> {
         lock(&self.inner.last_requests).get(chat_id).cloned()
     }
@@ -397,10 +431,14 @@ impl SessionsEngine {
             })
         };
         let interrupt_token = CancellationToken::new();
+        // Harness spawn edince buraya yazıyor; süreç paneli kökü buradan
+        // okuyor. Sıfır "çocuk yok" demek.
+        let child_pid = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let controls = RunControls {
             request_input,
             steering: steer_rx,
             interrupt: interrupt_token.clone(),
+            child_pid: child_pid.clone(),
         };
 
         lock(&self.inner.runs).insert(
@@ -410,6 +448,7 @@ impl SessionsEngine {
                 steerable: harness.supports_steering(),
                 steer_tx,
                 interrupt_token,
+                child_pid,
                 cancel: cancel_tx,
                 engine_tx,
                 pending_inputs,

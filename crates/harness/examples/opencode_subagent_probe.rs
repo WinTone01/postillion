@@ -38,6 +38,7 @@ async fn main() {
         }),
         steering,
         interrupt: CancellationToken::new(),
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
     };
     // Optional second arg overrides the prompt (e.g. the mock rig's
     // "TWO subagents" variant exercising concurrent binding).

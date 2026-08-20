@@ -910,6 +910,9 @@ fn forwardable(method: &str) -> bool {
             | methods::LIST_FOLDERS
             // MCP tanımları host cihazın `~/.claude.json`'ında yaşıyor.
             | methods::LIST_MCP_SERVERS
+            // Süreç ağacı, ajanın koştuğu cihazın `/proc`'unda.
+            | methods::LIST_PROCESSES
+            | methods::KILL_PROCESS
             | methods::LIST_DRIVES
             | methods::SEARCH_FILES
             | methods::CREATE_WORKTREE
@@ -1622,6 +1625,30 @@ impl RpcService for EngineRpc {
                     .await
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
                 RpcReply::value(&branches)
+            }
+            methods::LIST_PROCESSES => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct P {
+                    chat_id: String,
+                }
+                let p: P = parse_params(params)?;
+                RpcReply::value(&self.sessions.processes(&p.chat_id))
+            }
+            methods::KILL_PROCESS => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct P {
+                    chat_id: String,
+                    pid: u32,
+                    #[serde(default)]
+                    force: bool,
+                }
+                let p: P = parse_params(params)?;
+                self.sessions
+                    .kill_process(&p.chat_id, p.pid, p.force)
+                    .map_err(|e| RpcError::Failed(e.to_string()))?;
+                RpcReply::value(&serde_json::json!({}))
             }
             methods::LIST_MCP_SERVERS => {
                 // Tanımlar API anahtarı taşıyabiliyor; yalnızca İSİMLER

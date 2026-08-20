@@ -46,6 +46,8 @@ use futures::StreamExt;
 use futures::stream::BoxStream;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use std::sync::atomic::Ordering;
+
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::mpsc;
 
@@ -637,8 +639,14 @@ async fn run_session(session: Session) {
         request_input,
         mut steering,
         interrupt,
+        child_pid,
     } = controls;
     let request_input = Arc::new(request_input);
+
+    // Süreç ağacı paneli buradan besleniyor: `Bash` araç çağrıları bu
+    // çocuğun altında doğuyor ve engine onları ancak kökü bilerek bulabiliyor.
+    // Yayınlamak spawn'dan sonra, akış başlamadan önce.
+    child_pid.store(child.id().unwrap_or(0), Ordering::Relaxed);
 
     let mut norm = Normalizer::new();
     let mut steering_open = true;

@@ -186,6 +186,13 @@ fn turkish(source: &str) -> Option<&'static str> {
         "Select a chat to open a terminal" => "Terminal açmak için bir sohbet seçin",
         "Open a surface" => "Bir yüzey aç",
 
+        // ── süreç paneli
+        "Processes" => "Süreçler",
+        "Background processes" => "Arka plan süreçleri",
+        "Nothing running under the agent right now." => "Şu an ajanın altında çalışan bir şey yok.",
+        "Stop" => "Durdur",
+        "Stopping…" => "Durduruluyor…",
+
         // ── genel
         "Settings" => "Ayarlar",
         "Back" => "Geri",

@@ -71,6 +71,7 @@ fn controls(
         }),
         steering: steer_rx,
         interrupt: token.clone(),
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
     };
     (controls, steer_tx, token)
 }
@@ -391,6 +392,7 @@ async fn approvals_round_trip_as_input_requests() {
         }),
         steering: steer_rx,
         interrupt: token.clone(),
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
     };
     let mut req = request("scenario:approve");
     req.auto_approve = false;

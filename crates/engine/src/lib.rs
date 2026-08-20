@@ -24,6 +24,7 @@ pub mod doc_host;
 pub mod instance_lock;
 pub mod local_import;
 pub mod profile;
+pub mod processes;
 pub mod registry;
 pub mod repos;
 pub mod rpc;

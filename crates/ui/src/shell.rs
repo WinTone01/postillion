@@ -230,6 +230,9 @@ pub enum RightSurface {
     /// A subagent's transcript, read-only (per-subagent viz) — the handle
     /// keys [`Shell::subagent_tabs`].
     Subagent(u64),
+    /// Ajanın altında çalışan süreçler. Sohbet başına tek panel — liste
+    /// zaten tek bir süreç ağacı, ikinci bir sekmenin göstereceği şey yok.
+    Processes,
 }
 
 /// Per-chat panel open flags (zeron parity: `sessionPanels` — the terminal and
@@ -818,6 +821,10 @@ pub struct Shell {
     /// Subagent transcript surfaces by id — each tab a read-only
     /// [`Transcript`] pinned to its subagent doc.
     subagent_tabs: std::collections::HashMap<u64, SubagentTab>,
+    /// Sohbet başına süreç paneli. Panel yoklama görevini kendisi taşıyor, o
+    /// yüzden sekme kapanınca düşürülüyor — arka planda yoklamaya devam eden
+    /// bir panel görünmeyen bir şey için saniyede bir RPC atardı.
+    process_panels: std::collections::HashMap<String, Entity<crate::processes::ProcessPanel>>,
     subagent_seq: u64,
     /// Ordered surface tabs per panel key (drag-reorderable; stale entries —
     /// closed terminals/diffs — are skipped at read time).
@@ -1087,6 +1094,7 @@ impl Shell {
             diff_subs: std::collections::HashMap::new(),
             diff_seq: 0,
             subagent_tabs: std::collections::HashMap::new(),
+            process_panels: std::collections::HashMap::new(),
             subagent_seq: 0,
             right_tabs: std::collections::HashMap::new(),
             right_tab_drag: None,
@@ -1583,6 +1591,9 @@ impl Shell {
                     .subagent_tabs
                     .get(id)
                     .map(|tab| (*surface, tab.title.clone())),
+                RightSurface::Processes => {
+                    Some((*surface, crate::i18n::t("Processes").into()))
+                }
                 RightSurface::Picker => None,
             })
             .collect()
@@ -1660,6 +1671,8 @@ impl Shell {
             // The tab's feed (watch or snapshot) runs from open to close —
             // activation needs no revalidation.
             RightSurface::Subagent(_) => {}
+            // Panel kendi yoklamasını sürüyor; etkinleşmek bir şey istemiyor.
+            RightSurface::Processes => {}
             RightSurface::Picker => {}
         }
         cx.notify();
@@ -1718,6 +1731,16 @@ impl Shell {
                 .push(RightSurface::Terminal(tab));
             self.set_right_active(RightSurface::Terminal(tab), cx);
         }
+    }
+
+    /// Süreç panelini açar; zaten açıksa ona geçiyor.
+    fn add_process_surface(&mut self, cx: &mut Context<Self>) {
+        let key = self.panel_key(cx);
+        let tabs = self.right_tabs.entry(key).or_default();
+        if !tabs.contains(&RightSurface::Processes) {
+            tabs.push(RightSurface::Processes);
+        }
+        self.set_right_active(RightSurface::Processes, cx);
     }
 
     /// Spawn-chip events from the primary transcript AND from subagent-tab
@@ -1864,6 +1887,10 @@ impl Shell {
             RightSurface::Terminal(tab) => {
                 let panel = self.right_terminal_panel(cx);
                 panel.update(cx, |panel, cx| panel.close_tab_by_key(tab, window, cx));
+            }
+            // Paneli düşürmek yoklama görevini de düşürüyor.
+            RightSurface::Processes => {
+                self.process_panels.remove(&key);
             }
             RightSurface::Subagent(id) => {
                 // Unwatch drops the watch task — that cancels the engine-side
@@ -5456,6 +5483,24 @@ impl Shell {
                     panel.update(cx, |panel, cx| panel.select_tab_by_key(tab, cx));
                     panel.into_any_element()
                 }
+                RightSurface::Processes => {
+                    // Panel sohbete bağlı ve yoklamasını kendisi sürüyor, o
+                    // yüzden ilk gösterimde kuruluyor ve sekme kapanana kadar
+                    // yaşıyor.
+                    let key = self.panel_key(cx);
+                    let chat_id = self.active_chat.clone();
+                    let state = self.state.clone();
+                    let panel = self
+                        .process_panels
+                        .entry(key)
+                        .or_insert_with(|| {
+                            cx.new(|cx| {
+                                crate::processes::ProcessPanel::new(state, chat_id, cx)
+                            })
+                        })
+                        .clone();
+                    panel.into_any_element()
+                }
                 RightSurface::Subagent(id) if self.subagent_tabs.contains_key(&id) => {
                     let transcript = self
                         .subagent_tabs
@@ -5631,6 +5676,16 @@ impl Shell {
                                         this.add_terminal_surface(cx);
                                     }),
                                 ),
+                            )
+                            .child(
+                                row(
+                                    "surface-card-processes",
+                                    icons::TUNING,
+                                    crate::i18n::t("Processes"),
+                                )
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.add_process_surface(cx);
+                                })),
                             )
                             // Git only where there IS git — the pane itself
                             // no longer gates on it (terminals work anywhere).
