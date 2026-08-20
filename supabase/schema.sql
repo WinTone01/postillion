@@ -234,3 +234,33 @@ as $$
     from chat_checkpoints c
    where c.chat_id = p_chat_id;
 $$;
+
+-- ── izinler ─────────────────────────────────────────────────────────────────
+--
+-- Proje kurulurken "Automatically expose new tables" KAPALI olmalı: açık
+-- bırakmak her yeni tabloyu otomatik yayınlıyor ve bir gün eklenen bir tablo
+-- kimse fark etmeden dışarı açılabiliyor. Kapalıyken erişim buradan, açıkça
+-- veriliyor.
+--
+-- Yalnızca `authenticated` yetkilendiriliyor, `anon` DEĞİL. Bu bilinçli:
+-- oturum açmamış bir çağrı tabloya hiç ulaşamıyor, RLS'e bile gelmeden
+-- reddediliyor. Böylece `anon` anahtarının tek başına hiçbir şey açmadığı
+-- iki katmanla garanti altında.
+
+grant usage on schema public to authenticated;
+
+grant select, insert, update, delete on chat_rows        to authenticated;
+grant select, insert, update, delete on chat_checkpoints to authenticated;
+grant select, insert, update, delete on devices          to authenticated;
+
+-- `chat_rows.seq` kimlik sütunu: ekleme sırası diziyi de kullanıyor.
+grant usage, select on all sequences in schema public to authenticated;
+
+-- Fonksiyonlar `security invoker`, yani çağıranın haklarıyla çalışıyor ve
+-- RLS aynen uygulanıyor. Çalıştırma hakkı yine de açıkça verilmeli.
+grant execute on function chat_state(text)                        to authenticated;
+grant execute on function chat_trim(text, bigint)                 to authenticated;
+grant execute on function chat_append(text, text, text, text)     to authenticated;
+grant execute on function chat_rows_after(text, bigint, text)     to authenticated;
+grant execute on function chat_checkpoint_put(text, bigint, text) to authenticated;
+grant execute on function chat_checkpoint_get(text)               to authenticated;

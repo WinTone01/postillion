@@ -2,6 +2,16 @@
 
 Postillion'ın bulut eşitlemesini kendi Supabase projenizde çalıştırmak için.
 
+## 0. Proje kurulum seçenekleri
+
+| seçenek | olmalı | neden |
+|---|---|---|
+| Enable Data API | **açık** | PostgREST bizim taşımamız; kapalıysa hiçbir şey çalışmaz |
+| Automatically expose new tables | **kapalı** | Supabase'in kendi önerisi. Açık bırakmak ileride eklenen her tabloyu kimse fark etmeden yayınlar. `schema.sql` erişimi açıkça veriyor |
+| Enable automatic RLS | **açık** | Şema RLS'i zaten kendi tabloları için açıyor; bu, ileride eklenecek tabloların da korumasız kalmamasını garantiliyor |
+
+Bölge olarak size en yakınını seçin — her mesaj bir gidiş dönüş.
+
 ## 1. Şemayı uygulayın
 
 Projenizin **SQL Editor**'ünde `schema.sql` dosyasının tamamını çalıştırın.
