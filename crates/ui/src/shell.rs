@@ -4997,7 +4997,9 @@ impl Shell {
             let helper: SharedString = if space_name.is_empty() {
                 crate::i18n::t("Send a message to start a new session.").into()
             } else {
-                format!("Send a message to start a session in {space_name}.").into()
+                crate::i18n::t("Send a message to start a session in {space}.")
+                    .replace("{space}", &space_name)
+                    .into()
             };
             let pickers = self.composer.read(cx).pickers().clone();
             let selectors = pickers.update(cx, |p, cx| p.render_target_selectors(cx));
