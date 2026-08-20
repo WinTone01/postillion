@@ -923,6 +923,7 @@ fn forwardable(method: &str) -> bool {
             | methods::MARKETPLACE_REMOVE
             | methods::LIST_SKILLS
             | methods::SKILL_DELETE
+            | methods::SKILL_CREATE
             // Süreç ağacı, ajanın koştuğu cihazın `/proc`'unda.
             | methods::LIST_PROCESSES
             | methods::KILL_PROCESS
@@ -1639,6 +1640,20 @@ impl RpcService for EngineRpc {
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
                 RpcReply::value(&branches)
             }
+            methods::SKILL_CREATE => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct P {
+                    name: String,
+                    #[serde(default)]
+                    description: Option<String>,
+                }
+                let p: P = parse_params(params)?;
+                use postillion_harness::claude::catalog_manage as cat;
+                cat::skill_create(&p.name, p.description.as_deref())
+                    .map_err(RpcError::Failed)?;
+                RpcReply::value(&serde_json::json!({}))
+            }
             methods::LIST_PLUGINS => {
                 use postillion_harness::claude::catalog_manage as cat;
                 RpcReply::value(&cat::list_plugins().map_err(RpcError::Failed)?)
@@ -1713,6 +1728,11 @@ impl RpcService for EngineRpc {
                 #[derive(Deserialize)]
                 #[serde(rename_all = "camelCase")]
                 struct P {
+                    /// Katalog sayfası bu eylemi kimlik alan diğerleriyle aynı
+                    /// yoldan çağırıyor ve `id` gönderiyor; takma ad ikisini de
+                    /// kabul ediyor ki çağrı yeri ayrı bir dal açmak zorunda
+                    /// kalmasın.
+                    #[serde(alias = "id")]
                     name: String,
                 }
                 let p: P = parse_params(params)?;

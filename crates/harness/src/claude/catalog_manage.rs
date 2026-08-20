@@ -263,6 +263,27 @@ pub fn parse_skills(raw: &Value) -> Vec<Skill> {
         .unwrap_or_default()
 }
 
+/// Yeni bir skill iskeleti oluşturur (`claude plugin init --with skills`).
+///
+/// Açıklama isteğe bağlı; boş verilirse bayrak hiç geçilmiyor ki CLI kendi
+/// varsayılanını kullansın.
+pub fn skill_create(name: &str, description: Option<&str>) -> Result<(), String> {
+    validate_id(name)?;
+
+    let mut args = vec!["plugin".to_string(), "init".to_string()];
+    if let Some(text) = description {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            args.push("--description".into());
+            args.push(trimmed.to_string());
+        }
+    }
+    args.push("--with".into());
+    args.push("skills".into());
+    args.push(name.to_string());
+    run_claude(&args)
+}
+
 pub fn skill_delete(name: &str) -> Result<(), String> {
     validate_id(name)?;
     run_claude(&["skill".into(), "delete".into(), name.into()])
