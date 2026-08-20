@@ -238,6 +238,12 @@ fn turkish(source: &str) -> Option<&'static str> {
         "Untitled session" => "Başlıksız oturum",
         "Delete session?" => "Oturum silinsin mi?",
         "Send a message to start a new session." => "Yeni oturum başlatmak için bir mesaj gönderin.",
+        // Yer tutuculu: çağıran `{space}`'i proje adıyla değiştiriyor. Anahtar
+        // kaynak metnin kendisi olduğu için biçimlendirme ÖNCESİ çevriliyor —
+        // sonrasında olsaydı her proje adı ayrı bir anahtar olurdu.
+        "Send a message to start a session in {space}." => {
+            "{space} projesinde oturum başlatmak için bir mesaj gönderin."
+        }
         "Open a blank session canvas to start a new session." => {
             "Yeni oturum için boş bir tuval açın."
         }
