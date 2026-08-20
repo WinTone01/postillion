@@ -2555,7 +2555,7 @@ impl Changes {
                         .flex_none()
                         .text_size(px(10.0))
                         .text_color(theme.text_faint)
-                        .child(SharedString::from("BIN")),
+                        .child(SharedString::from(crate::i18n::t("BIN"))),
                 )
             })
             .when(adds > 0 || !file.binary, |el| {
@@ -3051,7 +3051,7 @@ impl Changes {
                             .rounded(px(4.0))
                             .bg(theme.warning.opacity(0.08))
                             .text_color(theme.warning.opacity(0.75))
-                            .child(SharedString::from("Partial snapshot")),
+                            .child(SharedString::from(crate::i18n::t("Partial snapshot"))),
                     )
                 })
                 .into_any_element(),
@@ -3607,7 +3607,7 @@ impl Render for Changes {
             .map(|message| {
                 if message.contains("no turn recorded") {
                     (
-                        SharedString::from("No turn recorded yet — send a message first"),
+                        SharedString::from(crate::i18n::t("No turn recorded yet — send a message first")),
                         false,
                     )
                 } else if message.contains("unknown method") {
@@ -3657,7 +3657,7 @@ impl Render for Changes {
                         div()
                             .text_size(px(12.0))
                             .text_color(theme.text_faint)
-                            .child(SharedString::from("Preparing diff…")),
+                            .child(SharedString::from(crate::i18n::t("Preparing diff…"))),
                     )
                     .into_any_element(),
                 DiffPhase::Clean => div()

@@ -1097,7 +1097,7 @@ fn render_code_block(
                 .size(px(12.0))
                 .text_color(theme.text_muted),
             )
-            .when(copied, |el| el.child(SharedString::from("Copied")))
+            .when(copied, |el| el.child(SharedString::from(crate::i18n::t("Copied"))))
     });
     div()
         .rounded(px(10.0))

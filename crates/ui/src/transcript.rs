@@ -2932,7 +2932,7 @@ impl Transcript {
                         .text_color(theme.danger)
                         .cursor_pointer()
                         .on_click(cx.listener(|this, _, _, cx| this.retry_send(cx)))
-                        .child(SharedString::from("Not delivered — click to retry"))
+                        .child(SharedString::from(crate::i18n::t("Not delivered — click to retry")))
                         .into_any_element(),
                 );
             }
@@ -3970,7 +3970,7 @@ fn error_chip(message: SharedString, theme: &Theme) -> AnyElement {
                         .flex_none()
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .text_color(red_300.opacity(0.8))
-                        .child(SharedString::from("Error")),
+                        .child(SharedString::from(crate::i18n::t("Error"))),
                 )
                 .child(
                     div()
@@ -4033,7 +4033,7 @@ fn input_chip(header: SharedString, resolved: bool, theme: &Theme) -> AnyElement
                         .flex_none()
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .text_color(theme.text_muted)
-                        .child(SharedString::from("Question")),
+                        .child(SharedString::from(crate::i18n::t("Question"))),
                 )
                 .child(
                     div()

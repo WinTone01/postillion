@@ -295,7 +295,7 @@ impl AccountsPage {
         let trigger_label: SharedString = selected
             .as_ref()
             .map(|d| d.name.clone().into())
-            .unwrap_or_else(|| SharedString::from("This device"));
+            .unwrap_or_else(|| SharedString::from(crate::i18n::t("This device")));
         let emerald = theme.success;
         let open = self.device_menu.is_open();
 
@@ -398,7 +398,7 @@ impl AccountsPage {
                                     .flex_none()
                                     .text_size(px(10.5))
                                     .text_color(theme.text_muted.opacity(0.35))
-                                    .child(SharedString::from("You")),
+                                    .child(SharedString::from(crate::i18n::t("You"))),
                             )
                         })
                         .child(
@@ -1074,7 +1074,7 @@ impl AccountsPage {
                                         .text_size(px(12.5))
                                         .text_color(theme.text_muted.opacity(0.7))
                                         .child(message.clone().unwrap_or_else(|| {
-                                            SharedString::from("Waiting for the browser…")
+                                            SharedString::from(crate::i18n::t("Waiting for the browser…"))
                                         })),
                                 ),
                         )
@@ -1304,7 +1304,7 @@ impl Render for AccountsPage {
                                 .mt(px(4.0))
                                 .text_size(px(11.5))
                                 .text_color(theme.text_muted)
-                                .child(SharedString::from("Click to retry")),
+                                .child(SharedString::from(crate::i18n::t("Click to retry"))),
                         )
                         .into_any_element(),
                 ]
@@ -1388,7 +1388,7 @@ impl Render for AccountsPage {
                                                     .size(px(16.0))
                                                     .text_color(theme.text_muted),
                                             )
-                                            .child(SharedString::from("Add account")),
+                                            .child(SharedString::from(crate::i18n::t("Add account"))),
                                     ),
                             )
                             .children(
@@ -1435,7 +1435,7 @@ impl Render for AccountsPage {
                                             .size(px(16.0))
                                             .text_color(theme.text_muted),
                                     )
-                                    .child(SharedString::from("Refresh")),
+                                    .child(SharedString::from(crate::i18n::t("Refresh"))),
                             )
                             .child(self.render_device_switcher(&theme, cx)),
                     )

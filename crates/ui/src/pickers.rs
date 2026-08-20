@@ -1096,8 +1096,8 @@ impl Pickers {
     fn mcp_label(&self, cx: &App) -> SharedString {
         match self.mcp_selection(cx) {
             // Varsayılan: kullanıcının genel yapılandırması olduğu gibi.
-            None => SharedString::from("MCP: all"),
-            Some(list) if list.is_empty() => SharedString::from("MCP: none"),
+            None => SharedString::from(crate::i18n::t("MCP: all")),
+            Some(list) if list.is_empty() => SharedString::from(crate::i18n::t("MCP: none")),
             Some(list) => SharedString::from(format!("MCP: {}", list.len())),
         }
     }
@@ -1132,7 +1132,7 @@ impl Pickers {
                 .p(px(Theme::SPACE_SM))
                 .text_size(px(12.0))
                 .text_color(theme.text_faint)
-                .child(SharedString::from("No MCP servers configured."))
+                .child(SharedString::from(crate::i18n::t("No MCP servers configured.")))
                 .into_any_element(),
             Loadable::Ready(names) => {
                 let names = names.clone();
@@ -1772,7 +1772,7 @@ impl Pickers {
     /// created off it (t3code `getBranchTriggerLabel`); the bare name otherwise.
     fn ref_label(&self) -> SharedString {
         match (self.config.checkout, self.effective_ref_name()) {
-            (_, None) => SharedString::from("Select ref"),
+            (_, None) => SharedString::from(crate::i18n::t("Select ref")),
             (CheckoutKind::NewWorktree, Some(name)) => SharedString::from(format!("From {name}")),
             (CheckoutKind::Local, Some(name)) => SharedString::from(name),
         }
@@ -1923,7 +1923,7 @@ impl Pickers {
                     .p(px(Theme::SPACE_SM))
                     .text_size(px(12.0))
                     .text_color(theme.text_faint)
-                    .child(SharedString::from("No devices match."))
+                    .child(SharedString::from(crate::i18n::t("No devices match.")))
                     .into_any_element()
             } else {
                 div()
@@ -1958,7 +1958,7 @@ impl Pickers {
                                         .flex_none()
                                         .text_size(px(10.0))
                                         .text_color(theme.text_muted.opacity(0.45))
-                                        .child(SharedString::from("You")),
+                                        .child(SharedString::from(crate::i18n::t("You"))),
                                 )
                             })
                             // Disconnected glyph, not the word (user request).
@@ -2053,7 +2053,7 @@ impl Pickers {
                     .flex_1()
                     .min_w_0()
                     .truncate()
-                    .child(SharedString::from("New project…")),
+                    .child(SharedString::from(crate::i18n::t("New project…"))),
             );
         div()
             .flex()
@@ -2564,7 +2564,7 @@ impl Pickers {
                     chat.branch
                         .clone()
                         .map(SharedString::from)
-                        .unwrap_or_else(|| SharedString::from("No ref")),
+                        .unwrap_or_else(|| SharedString::from(crate::i18n::t("No ref"))),
                     &theme,
                 ));
             return Some(row().child(left).child(right).into_any_element());
@@ -2722,7 +2722,7 @@ impl Pickers {
                         // Projects/devices load nothing; no retry surface exists.
                         PickerKind::Space | PickerKind::Device => {}
                     }))
-                    .child(SharedString::from("Retry")),
+                    .child(SharedString::from(crate::i18n::t("Retry"))),
             )
             .into_any_element()
     }
@@ -2737,7 +2737,7 @@ impl Pickers {
                 .p(px(Theme::SPACE_SM))
                 .text_size(px(12.0))
                 .text_color(theme.text_faint)
-                .child(SharedString::from("No project selected"))
+                .child(SharedString::from(crate::i18n::t("No project selected")))
                 .into_any_element();
         }
         let rows = self.filtered_ref_rows(cx);
@@ -2765,7 +2765,7 @@ impl Pickers {
                     .p(px(Theme::SPACE_SM))
                     .text_size(px(12.0))
                     .text_color(theme.text_faint)
-                    .child(SharedString::from("No refs found."))
+                    .child(SharedString::from(crate::i18n::t("No refs found.")))
                     .into_any_element(),
                 Loadable::Ready(_) => {
                     let active = self.active;
@@ -2809,7 +2809,7 @@ impl Pickers {
                                             .flex_none()
                                             .text_size(px(10.0))
                                             .text_color(theme.text_muted.opacity(0.6))
-                                            .child(SharedString::from("switching…")),
+                                            .child(SharedString::from(crate::i18n::t("switching…"))),
                                     )
                                 })
                                 .when_some(tag, |el, tag| {
@@ -3421,7 +3421,7 @@ fn default_badge(theme: &Theme) -> gpui::Div {
         .text_size(px(10.0))
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .text_color(theme.text_muted.opacity(0.6))
-        .child(SharedString::from("Default"))
+        .child(SharedString::from(crate::i18n::t("Default")))
 }
 
 /// Brand mark + optional tint for a harness (the Claude mark keeps its brand
@@ -3763,7 +3763,7 @@ impl Render for Pickers {
         let traits_label: SharedString = traits_set
             .clone()
             .map(SharedString::from)
-            .unwrap_or_else(|| SharedString::from("Traits"));
+            .unwrap_or_else(|| SharedString::from(crate::i18n::t("Traits")));
 
         // Render the open popover's body first (mutable borrow), then the
         // chips. Branch/Checkout render in the composer FOOTER row (see

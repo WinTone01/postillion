@@ -314,7 +314,7 @@ impl Shell {
                         Some((tag.into(), offline)),
                     )
                 }
-                None => (SharedString::from("All projects"), None),
+                None => (SharedString::from(crate::i18n::t("All projects")), None),
             }
         };
         let open = self.spaces_menu.is_open();
@@ -482,7 +482,7 @@ impl Shell {
             rows.iter()
                 .map(|row| match row {
                     SpacesMenuRow::All => {
-                        (row.clone(), SharedString::from("All projects"), None, false)
+                        (row.clone(), SharedString::from(crate::i18n::t("All projects")), None, false)
                     }
                     SpacesMenuRow::Space(id) => match state.space_row(id) {
                         Some(space) => {
@@ -497,7 +497,7 @@ impl Shell {
                         None => (row.clone(), SharedString::from("?"), None, false),
                     },
                     SpacesMenuRow::AddSpace => {
-                        (row.clone(), SharedString::from("New project…"), None, false)
+                        (row.clone(), SharedString::from(crate::i18n::t("New project…")), None, false)
                     }
                 })
                 .collect()
@@ -815,7 +815,7 @@ impl Shell {
                             div()
                                 .text_size(px(10.0))
                                 .text_color(theme.text_muted)
-                                .child(SharedString::from("Unarchive")),
+                                .child(SharedString::from(crate::i18n::t("Unarchive"))),
                         )
                         .into_any_element()
                 } else {
@@ -1610,9 +1610,9 @@ impl Shell {
                         .size(px(11.0))
                         .text_color(theme.on_solid.opacity(0.8)),
                 )
-                .child(SharedString::from("Enter"))
+                .child(SharedString::from(crate::i18n::t("Enter")))
             })
-            .when(submit_busy, |el| el.child(SharedString::from("Adding…")));
+            .when(submit_busy, |el| el.child(SharedString::from(crate::i18n::t("Adding…"))));
         // Header and footer sit a shade DEEPER than the body (the shared
         // recessed-band tone) — the bands frame the folder list, which stays
         // on the brighter tint.
@@ -1657,7 +1657,7 @@ impl Shell {
                         this.add_space = None;
                         cx.notify();
                     }))
-                    .child(SharedString::from("esc")),
+                    .child(SharedString::from(crate::i18n::t("esc"))),
             );
 
         // ── breadcrumbs ("MacBook Pro / Projects / zeron"): the quiet mono
@@ -1856,7 +1856,7 @@ impl Shell {
                             let path = this.add_space.as_ref().and_then(|f| f.browser_path.clone());
                             this.load_space_folders(path, cx);
                         }))
-                        .child(SharedString::from("Retry")),
+                        .child(SharedString::from(crate::i18n::t("Retry"))),
                 )
                 .into_any_element()
         } else if rows.is_empty() {
@@ -1941,7 +1941,7 @@ impl Shell {
             .then(|| {
                 std::iter::once((
                     LocationRow::Home,
-                    SharedString::from("Home"),
+                    SharedString::from(crate::i18n::t("Home")),
                     icons::HOME,
                     None,
                 ))
@@ -1977,7 +1977,7 @@ impl Shell {
                     .text_size(px(11.0))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(theme.text_muted.opacity(0.6))
-                    .child(SharedString::from("Devices")),
+                    .child(SharedString::from(crate::i18n::t("Devices"))),
             )
             .children(devices.into_iter().enumerate().map(|(ix, dev)| {
                 let is_active = device.as_ref().is_some_and(|d| d.id == dev.id);
@@ -2057,7 +2057,7 @@ impl Shell {
                             .text_size(px(11.0))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(theme.text_muted.opacity(0.6))
-                            .child(SharedString::from("Locations")),
+                            .child(SharedString::from(crate::i18n::t("Locations"))),
                     )
                     .children(location_rows.into_iter().enumerate().map(
                         |(ix, (row, name, glyph, path))| {
@@ -2305,7 +2305,7 @@ impl Shell {
                             this.open_rename_space(rename_id.clone(), cx)
                         }))
                         .child(icon(icons::PEN).size(px(16.0)).text_color(theme.text_muted))
-                        .child(SharedString::from("Rename…")),
+                        .child(SharedString::from(crate::i18n::t("Rename…"))),
                 )
                 .child(popover::menu_separator())
                 .child(
@@ -2322,7 +2322,7 @@ impl Shell {
                                 .size(px(16.0))
                                 .text_color(theme.danger),
                         )
-                        .child(SharedString::from("Remove…")),
+                        .child(SharedString::from(crate::i18n::t("Remove…"))),
                 )
                 .into_any_element();
             overlays.push(popover::menu_at(

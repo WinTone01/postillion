@@ -1228,7 +1228,7 @@ impl Render for GitHistory {
             let message = self
                 .error
                 .clone()
-                .unwrap_or_else(|| SharedString::from("No commits found"));
+                .unwrap_or_else(|| SharedString::from(crate::i18n::t("No commits found")));
             div()
                 .flex_1()
                 .flex()
