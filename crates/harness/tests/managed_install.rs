@@ -32,6 +32,7 @@ async fn managed_install_reaches_session_started() {
         request_input: Box::new(|_| tokio::sync::oneshot::channel().1),
         steering,
         interrupt: interrupt.clone(),
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
     };
     let request = RunRequest {
         prompt: "say the word ok and stop".into(),

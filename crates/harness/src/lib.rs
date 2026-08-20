@@ -12,6 +12,9 @@
 //! CLIs themselves settle eagerly, manufacturing done-status bugs the
 //! native wires don't have (decision record: docs/research/acp.md).
 
+use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
+
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use tokio::sync::{mpsc, oneshot};
@@ -54,6 +57,14 @@ pub struct RunControls {
     /// interrupt, then escalates to SIGTERM/SIGKILL on the child after a grace
     /// period. The run's stream ends with `Done { status: Interrupted }`.
     pub interrupt: CancellationToken,
+    /// The agent child's pid, published by the harness once it spawns.
+    ///
+    /// The engine needs it to enumerate what the agent started underneath
+    /// itself — `Bash` tool calls become grandchildren, and a long or wedged
+    /// command was otherwise invisible behind a bare "working" indicator.
+    /// Zero means "no child" (not yet spawned, already reaped, or a harness
+    /// that runs in-process).
+    pub child_pid: Arc<AtomicU32>,
 }
 
 #[async_trait]

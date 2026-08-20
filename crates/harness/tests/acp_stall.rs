@@ -42,6 +42,7 @@ async fn silent_agent_errors_via_the_prompt_stall_watchdog() {
         }),
         steering: steer_rx,
         interrupt: token.clone(),
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
     };
     let request = RunRequest {
         prompt: "scenario:prompt-stall".into(),
@@ -107,6 +108,7 @@ async fn opencode_stall_hint_names_the_provider() {
         }),
         steering: steer_rx,
         interrupt: token.clone(),
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
     };
     let request = RunRequest {
         prompt: "scenario:prompt-stall".into(),

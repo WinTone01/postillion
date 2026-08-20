@@ -230,6 +230,8 @@ async fn collect_text(
 ) -> Result<String, EngineError> {
     let (steer_tx, steer_rx) = tokio::sync::mpsc::channel::<SteerMessage>(1);
     let controls = RunControls {
+        // Başlık üretimi kısa ömürlü ve panele girmiyor.
+        child_pid: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
         request_input: Box::new(|_questions: Vec<UserInputQuestion>| {
             let (tx, rx) = tokio::sync::oneshot::channel::<Vec<UserInputAnswer>>();
             let _ = tx.send(Vec::new());
