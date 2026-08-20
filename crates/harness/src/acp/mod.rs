@@ -1566,6 +1566,9 @@ fn usage_from_response(res: &Result<Value, HarnessError>) -> Option<AgentEvent> 
     (input.is_some() || output.is_some()).then(|| AgentEvent::Usage {
         input_tokens: input.unwrap_or(0),
         output_tokens: output.unwrap_or(0),
+        // ACP önbellek kalemlerini ayırmıyor; sıfır "bilinmiyor" demek ve
+        // bağlam göstergesi ölçüm gelmeden görünmüyor.
+        context_tokens: 0,
     })
 }
 
