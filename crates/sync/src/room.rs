@@ -1,21 +1,19 @@
-//! Supabase'i sohbet odası olarak konuşturan adaptör.
+//! Sohbet odasının SUNUCU tarafı protokol mantığı.
 //!
 //! Cloudflare'deki `ChatRoom` bir CRDT sunucusu değil, saf röle: kaynağında
 //! tek bir `LoroDoc` yok, anlık görüntüyü istemci üretiyor ve satırlar opak
-//! bayt olarak akıyor. Yani sunucunun yaptığı iş "ekle, oku, dağıt" — ve bu,
-//! Postgres'in zaten yaptığı şey.
+//! bayt olarak akıyor. Sunucunun işi "ekle, oku, dağıt".
 //!
-//! Bu modül o rölenin yerine geçiyor **ama istemciyi değiştirmeden**:
-//! [`crate::chat_client::ChatClient`]'ın 1500 satırlık yeniden bağlanma,
-//! tekilleştirme ve kuyruk mantığı olduğu gibi kalıyor; buradaki adaptör
-//! yalnızca aynı çerçeveleri üretiyor. Protokolü yeniden yazmak yerine
-//! taşımayı değiştirmek, o mantığın testleriyle birlikte korunması demek.
+//! Bu modül o mantığın kendisi ve `postillion-server` tarafından kullanılıyor.
+//! İstemciyle **aynı crate'te** durması bilinçli: codec (`chat_frames`) tek
+//! yerde kalıyor ve iki uç arasında protokol kayması imkânsız hale geliyor.
+//! Aynı protokolün TypeScript ve Swift kopyaları elle senkron tutuluyordu
+//! ("change both together" notu hâlâ codec'in başında duruyor); üçüncü bir
+//! elle-senkron kopya eklemek yerine paylaşıyoruz.
 //!
-//! Katman ayrımı: [`ChatStore`] ne yapılacağını söylüyor (saf, test edilebilir),
-//! [`rest`] nasıl yapılacağını (ince HTTP). Protokol mantığı depo trait'i
-//! üzerinden yazıldığı için gerçek bir Supabase olmadan sınanabiliyor.
-
-pub mod rest;
+//! Katman ayrımı: [`ChatStore`] ne yapılacağını söylüyor, uygulaması sunucuda.
+//! Protokol mantığı depo trait'i üzerinden yazıldığı için veritabanı olmadan
+//! sınanabiliyor.
 
 use futures::future::BoxFuture;
 

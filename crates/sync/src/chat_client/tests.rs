@@ -1358,9 +1358,9 @@ async fn checkpointless_amnesty_refetches_from_zero() {
     client.shutdown().await;
 }
 
-// ── Supabase taşıması ───────────────────────────────────────────────────────
+// ── oda sunucusu taşıması ───────────────────────────────────────────────────
 //
-// Buradaki testler GERÇEK istemciyi Supabase adaptörüne bağlıyor. Adaptörün
+// Buradaki testler GERÇEK istemciyi oda adaptörüne bağlıyor. Adaptörün
 // kendi testleri protokol mantığını izole sınıyor; asıl risk ise istemcinin
 // beklentileriyle adaptörün ürettikleri arasındaki fark, ve o ancak ikisi
 // birlikte koşturulunca görünür.
@@ -1368,7 +1368,7 @@ async fn checkpointless_amnesty_refetches_from_zero() {
 /// Adaptörü bir `BinConnector` hâline getiren köprü: istemciden gelen her
 /// çerçeveyi `supabase::respond` ile cevaplıyor.
 struct SupabaseConnector {
-    store: Arc<dyn crate::supabase::ChatStore>,
+    store: Arc<dyn crate::room::ChatStore>,
     chat_id: String,
 }
 
@@ -1383,7 +1383,7 @@ impl BinConnector for SupabaseConnector {
             tokio::spawn(async move {
                 // Oturum bağlantı boyunca yaşıyor: cihaz kimliği yalnızca
                 // HELLO'da geliyor ve sonraki çerçeveler onu bekliyor.
-                let mut session = crate::supabase::Session::new();
+                let mut session = crate::room::Session::new();
                 while let Some(bytes) = c2s_rx.recv().await {
                     let Some(frame) = decode(&bytes) else { continue };
                     let replies = match session.respond(&*store, &chat_id, &frame).await {
@@ -1409,17 +1409,17 @@ impl BinConnector for SupabaseConnector {
 /// Testlerin paylaştığı bellek içi depo (adaptör testlerindekinin ikizi).
 #[derive(Default)]
 struct SharedStore {
-    rows: Mutex<Vec<crate::supabase::Row>>,
+    rows: Mutex<Vec<crate::room::Row>>,
 }
 
-impl crate::supabase::ChatStore for SharedStore {
+impl crate::room::ChatStore for SharedStore {
     fn state(
         &self,
         _chat: &str,
-    ) -> BoxFuture<'static, Result<crate::supabase::RoomState, SyncError>> {
+    ) -> BoxFuture<'static, Result<crate::room::RoomState, SyncError>> {
         let rows = lock(&self.rows).clone();
         Box::pin(async move {
-            Ok(crate::supabase::RoomState {
+            Ok(crate::room::RoomState {
                 head_seq: rows.last().map(|r| r.seq).unwrap_or(0),
                 row_count: rows.len() as u64,
                 row_bytes: rows.iter().map(|r| r.payload.len() as u64).sum(),
@@ -1433,7 +1433,7 @@ impl crate::supabase::ChatStore for SharedStore {
         _chat: &str,
         after: u64,
         exclude: Option<String>,
-    ) -> BoxFuture<'static, Result<Vec<crate::supabase::Row>, SyncError>> {
+    ) -> BoxFuture<'static, Result<Vec<crate::room::Row>, SyncError>> {
         let rows = lock(&self.rows).clone();
         Box::pin(async move {
             Ok(rows
@@ -1457,7 +1457,7 @@ impl crate::supabase::ChatStore for SharedStore {
             return Box::pin(async move { Ok((seq, true)) });
         }
         let seq = rows.last().map(|r| r.seq).unwrap_or(0) + 1;
-        rows.push(crate::supabase::Row {
+        rows.push(crate::room::Row {
             seq,
             device,
             batch_id,
@@ -1472,11 +1472,11 @@ impl crate::supabase::ChatStore for SharedStore {
 /// Bu, "başka bir cihaz yazdı, ben açtım ve geçmişi aldım" akışı — bulut
 /// yedeklemesinin tamamı bu tek davranışa dayanıyor.
 #[tokio::test(start_paused = true)]
-async fn supabase_deposundan_gecmis_yakalaniyor() {
+async fn oda_deposundan_gecmis_yakalaniyor() {
     let store = Arc::new(SharedStore::default());
     // Başka bir cihazın daha önce yazdığı iki satır.
     for (batch, payload) in [("b1", vec![0xaa]), ("b2", vec![0xbb])] {
-        crate::supabase::ChatStore::append(
+        crate::room::ChatStore::append(
             &*store,
             "c1",
             "dev-b".into(),
@@ -1514,7 +1514,7 @@ async fn supabase_deposundan_gecmis_yakalaniyor() {
 
 /// Yerel güncelleme depoya ulaşmalı.
 #[tokio::test(start_paused = true)]
-async fn yerel_guncelleme_supabase_deposuna_yaziliyor() {
+async fn yerel_guncelleme_oda_deposuna_yaziliyor() {
     let store = Arc::new(SharedStore::default());
     let sink = Arc::new(RecordingSink::default());
     let (fetch, _) = fetcher(b"never");
