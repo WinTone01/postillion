@@ -1,5 +1,5 @@
 //! Cursor harness: drives Cursor's agent runtime through the PINNED
-//! `@cursor/sdk` via a thin zeron-owned Node shim (`shim.mjs`, JSONL over
+//! `@cursor/sdk` via a thin postillion-owned Node shim (`shim.mjs`, JSONL over
 //! stdio) — NOT over ACP, and NOT over `cursor-agent`'s print surface.
 //!
 //! Why: Cursor's ACP surface is lossy (subagent transcripts are stripped at
@@ -56,7 +56,7 @@ use crate::{Harness, HarnessError, RunControls, Signal, send_signal, shutdown_ch
 /// The pinned SDK (public beta 1.0.x line; inspected against 1.0.28's
 /// typings). Bump deliberately — see the module header.
 const CURSOR_SDK_PIN: &str = "@cursor/sdk@1.0.28";
-const SHIM_NAME: &str = "zeron-cursor-shim.mjs";
+const SHIM_NAME: &str = "postillion-cursor-shim.mjs";
 const SHIM_SOURCE: &str = include_str!("shim.mjs");
 
 fn cursor_cli_paths() -> Vec<PathBuf> {
@@ -195,7 +195,7 @@ impl Harness for CursorHarness {
     }
     /// "Installed" means the user's own cursor-agent CLI is present — the
     /// user-visible signal they use Cursor (the SDK itself is a managed
-    /// install zeron performs on demand).
+    /// install postillion performs on demand).
     fn installed(&self) -> bool {
         self.executable.is_some()
             || crate::acp::find_on_paths("cursor-agent", cursor_cli_paths()).is_some()

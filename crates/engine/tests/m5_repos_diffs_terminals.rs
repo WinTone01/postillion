@@ -148,13 +148,13 @@ async fn repos_round_trip_add_branches_worktrees() {
     assert_eq!(branches[0], "main", "default branch first: {branches:?}");
     assert!(branches.contains(&"feature/x".to_string()));
 
-    // Worktree add: zeron/<name> branch, isolated dir under the test root.
+    // Worktree add: postillion/<name> branch, isolated dir under the test root.
     let worktree = repos
         .create_worktree(&repo_dir, "main")
         .await
         .expect("worktree");
     assert!(
-        worktree.branch.starts_with("zeron/"),
+        worktree.branch.starts_with("postillion/"),
         "branch: {}",
         worktree.branch
     );
@@ -172,7 +172,7 @@ async fn repos_round_trip_add_branches_worktrees() {
     assert!(branches.contains(&worktree.branch));
 
     // Refs carry checkout state: `main` is current (main folder), the
-    // worktree's zeron/<name> branch maps to its linked-checkout path, and
+    // worktree's postillion/<name> branch maps to its linked-checkout path, and
     // a plain branch has neither.
     let refs = repos.refs(&repo_dir).await.expect("refs");
     let by_name = |name: &str| refs.iter().find(|r| r.name == name).expect("ref row");
@@ -207,7 +207,7 @@ async fn repos_round_trip_add_branches_worktrees() {
         .expect("wt identity");
     assert_ne!(main_identity.id, wt_identity.id);
 
-    // Delete: dir removed, zeron branch removed, refs pruned.
+    // Delete: dir removed, postillion branch removed, refs pruned.
     repos
         .delete_worktree(&repo_dir, Path::new(&worktree.path))
         .await
@@ -219,7 +219,7 @@ async fn repos_round_trip_add_branches_worktrees() {
         .expect("branches after delete");
     assert!(
         !branches.contains(&worktree.branch),
-        "zeron branch deleted: {branches:?}"
+        "postillion branch deleted: {branches:?}"
     );
 
     // CreateRepo: sanitized name, initialized on main.
@@ -661,7 +661,7 @@ async fn diff_capture_truncates_at_patch_cap() {
     let snapshot = capture_diff(&repos, &repo_dir).await.expect("capture");
     assert!(snapshot.truncated, "patch cap hit");
     assert!(snapshot.patch.len() <= 3 * 1024 * 1024 + 64);
-    assert!(snapshot.patch.contains("# Zeron diff truncated"));
+    assert!(snapshot.patch.contains("# Postillion diff truncated"));
 }
 
 // ---------------------------------------------------------------------------
@@ -1194,7 +1194,7 @@ async fn rpc_dispatch_for_m5_methods() {
         worktree["branch"]
             .as_str()
             .expect("branch")
-            .starts_with("zeron/")
+            .starts_with("postillion/")
     );
     assert!(worktree["checkoutId"].is_string());
     let deleted = client

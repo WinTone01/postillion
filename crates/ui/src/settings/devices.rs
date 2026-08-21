@@ -188,7 +188,7 @@ impl DevicesPage {
     }
 }
 
-/// Human platform label (zeron settings.devices.tsx `platformLabel`).
+/// Human platform label (postillion settings.devices.tsx `platformLabel`).
 pub fn platform_label(platform: &str) -> &str {
     match platform {
         "macos" | "darwin" => "macOS",
@@ -246,7 +246,7 @@ impl Render for DevicesPage {
                 };
                 // Presence lives ON the identity tile: a corner dot (emerald
                 // online with a soft glow, faint offline), ringed by the card
-                // tone so it "cuts" the tile — zeron settings.devices.tsx
+                // tone so it "cuts" the tile — postillion settings.devices.tsx
                 // `border-2 border-[var(--card)]` +
                 // `shadow-[0_0_6px_rgba(52,211,153,0.55)]`.
                 let tile = widgets::row_tile(&theme, platform_icon).relative().child(
@@ -295,7 +295,7 @@ impl Render for DevicesPage {
                             .into_any_element(),
                     );
                 }
-                // "Added {time ago}" — always present (zeron settings.devices.tsx).
+                // "Added {time ago}" — always present (postillion settings.devices.tsx).
                 if let Some(created) = device.created_at {
                     meta.push(
                         div()
@@ -354,7 +354,7 @@ impl Render for DevicesPage {
                         )
                     })
                     .child(
-                        // `opacity-70 hover:opacity-100` (zeron: also rises on
+                        // `opacity-70 hover:opacity-100` (postillion: also rises on
                         // row hover — gpui has no group-hover, so the button's
                         // own hover carries the reveal).
                         widgets::ghost_action(&theme)

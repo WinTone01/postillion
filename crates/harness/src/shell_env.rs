@@ -51,7 +51,7 @@ pub fn prewarm() {
     #[cfg(unix)]
     {
         let _ = std::thread::Builder::new()
-            .name("zeron-shell-env".into())
+            .name("postillion-shell-env".into())
             .spawn(|| {
                 let _ = login_shell_path();
             });
@@ -175,7 +175,7 @@ mod unix {
         if let Some(mut stdout) = child.stdout.take() {
             let buf = Arc::clone(&buf);
             let _ = std::thread::Builder::new()
-                .name("zeron-shell-env-read".into())
+                .name("postillion-shell-env-read".into())
                 .spawn(move || {
                     let mut chunk = [0u8; 8192];
                     loop {
@@ -311,12 +311,12 @@ exit 1
             let shell = fake_shell(
                 dir.path(),
                 &format!(
-                    "#!/bin/sh\nPATH=\"/zeron-test/custom/bin:/usr/bin:/bin\"; export PATH\n{RUN_PAYLOAD}"
+                    "#!/bin/sh\nPATH=\"/postillion-test/custom/bin:/usr/bin:/bin\"; export PATH\n{RUN_PAYLOAD}"
                 ),
             );
             let path = snapshot_path(&shell, Duration::from_secs(10)).unwrap();
             let path = path.to_string_lossy();
-            assert!(path.starts_with("/zeron-test/custom/bin:"), "got: {path}");
+            assert!(path.starts_with("/postillion-test/custom/bin:"), "got: {path}");
         }
 
         #[test]
@@ -327,14 +327,14 @@ exit 1
             let shell = fake_shell(
                 dir.path(),
                 &format!(
-                    "#!/bin/sh\ncase \" $* \" in *\" -i \"*) sleep 60;; esac\nPATH=\"/zeron-test/fallback/bin:/bin\"; export PATH\n{RUN_PAYLOAD}"
+                    "#!/bin/sh\ncase \" $* \" in *\" -i \"*) sleep 60;; esac\nPATH=\"/postillion-test/fallback/bin:/bin\"; export PATH\n{RUN_PAYLOAD}"
                 ),
             );
             let start = Instant::now();
             let path = snapshot_path(&shell, Duration::from_millis(400)).unwrap();
             assert!(
                 path.to_string_lossy()
-                    .starts_with("/zeron-test/fallback/bin"),
+                    .starts_with("/postillion-test/fallback/bin"),
                 "got: {}",
                 path.to_string_lossy()
             );

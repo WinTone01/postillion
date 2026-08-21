@@ -64,10 +64,10 @@ pub const SCROLL_BUTTON_THRESHOLD_PX: f32 = 320.0;
 pub const GAP_TURN: f32 = 14.0;
 /// Vertical gap between blocks within a turn.
 pub const GAP_BLOCK: f32 = 8.0;
-/// Transcript column max width (zeron 46rem).
+/// Transcript column max width (postillion 46rem).
 pub const MAX_CONTENT_WIDTH: f32 = 736.0;
 /// Tool chip row height / gap — analytic, so fold heights need no measurement.
-/// A row is the guide rail + a 30px chip card centered in it (zeron
+/// A row is the guide rail + a 30px chip card centered in it (postillion
 /// tool-chip.tsx: `TOOL_CHIP_HEIGHT = 38`, card `h-[30px]`); rows stack with no
 /// gap so the rail reads continuous.
 pub const CHIP_HEIGHT: f32 = 38.0;
@@ -553,7 +553,7 @@ pub struct Row {
     pub turn_start: bool,
     pub kind: RowKind,
     /// The owning message entry — hover anywhere on the entry's rows reveals
-    /// its timestamp strip (zeron chat-view.tsx `group`/`group-hover`).
+    /// its timestamp strip (postillion chat-view.tsx `group`/`group-hover`).
     pub entry_id: SharedString,
     /// Epoch-ms for the 16px hover-timestamp strip UNDER this row: set on the
     /// LAST row of a completed entry (user rows always; assistant rows only
@@ -1484,7 +1484,7 @@ pub struct Transcript {
     /// Hovered rail tick (grows + shows the preview card).
     rail_hover: Option<usize>,
     /// `(row id, entry id)` under the pointer — reveals the entry's timestamp
-    /// strip (zeron chat-view.tsx `group-hover`; the rows report hover
+    /// strip (postillion chat-view.tsx `group-hover`; the rows report hover
     /// themselves). Keyed by ROW so a row→row move within one entry can't
     /// clear the reveal when the old row's leave event arrives after the new
     /// row's enter (enter/leave order across rows is not guaranteed).
@@ -2596,7 +2596,7 @@ impl Transcript {
     }
 
     /// Devices that may own a user message's attachment files: the chat's host
-    /// device (uploads targeted it) plus this device (zeron's
+    /// device (uploads targeted it) plus this device (Comet's
     /// `uniqueIds([attachmentDeviceId, m.device_id])`).
     fn attachment_device_ids(&self, cx: &Context<Self>) -> Vec<String> {
         // `selected_chat_row` belongs to the PRIMARY transcript's chat — an
@@ -3212,7 +3212,7 @@ impl Transcript {
             RowKind::ErrorChip { message } => error_chip(message.clone(), &theme),
         };
 
-        // Hover-revealed timestamp strip (zeron chat-view.tsx `Timestamp`):
+        // Hover-revealed timestamp strip (postillion chat-view.tsx `Timestamp`):
         // a RESERVED 16px lane under the entry's last row — the label only
         // flips opacity, so revealing it never shifts the virtualizer's
         // layout. User entries align end (under the bubble), assistant start.
@@ -3288,7 +3288,7 @@ impl Transcript {
             .justify_center()
             .pt(px(top_gap))
             .pb(px(bottom_pad))
-            // Wide gutters (zeron `px-4 @3xl:px-12`) around the 46rem column.
+            // Wide gutters (postillion `px-4 @3xl:px-12`) around the 46rem column.
             .px(px(48.0))
             .child(
                 div()
@@ -3559,7 +3559,7 @@ impl Transcript {
         let summary = tool_group_summary(tools);
 
         let toggle_id = row_id.clone();
-        // Header (zeron tool-group.tsx): a small chevron tile centered over the
+        // Header (postillion tool-group.tsx): a small chevron tile centered over the
         // chips' guide rail, then the quiet 12px summary.
         let header = div()
             .id(SharedString::from(format!("{row_id}-hdr")))
@@ -3574,7 +3574,7 @@ impl Transcript {
             // Quiet even when children failed: agents routinely have failed
             // probes mid-work, and a red HEADER read as "this whole step
             // broke" (user report). Failures still show on the individual
-            // chips (destructive tint, zeron tool-chip.tsx) and in the
+            // chips (destructive tint, postillion tool-chip.tsx) and in the
             // summary's "· N failed" count.
             .text_color(theme.text_muted)
             .hover(|s| s.text_color(theme.text))
@@ -3920,7 +3920,7 @@ fn user_bubble_text(
         .into_any_element()
 }
 
-/// The transcript ErrorChip — a port of zeron chat-view.tsx `ErrorChip`
+/// The transcript ErrorChip — a port of Comet chat-view.tsx `ErrorChip`
 /// (34px-minimum row, `rounded-[10px] border border-red-400/[0.16]
 /// bg-red-400/[0.05] px-2 text-[12px]`) with a 20px red-washed tile holding a
 /// 12px DangerTriangle (`bg-red-400/[0.12] text-red-300/80`), a medium
@@ -3928,7 +3928,7 @@ fn user_bubble_text(
 /// red-tinted wash, never a bare red-stroke box. Unlike the web port, the
 /// message WRAPS instead of truncating: startup-crash errors carry the
 /// agent's exit status and stderr, and a one-line ellipsis was exactly what
-/// made zeronsh/comet#95 undiagnosable from the screenshot.
+/// made WinTone01/postillion#95 undiagnosable from the screenshot.
 fn error_chip(message: SharedString, theme: &Theme) -> AnyElement {
     let red_300 = theme.danger_muted; // tailwind red-300
     let danger = theme.danger; // red-400
@@ -4047,9 +4047,9 @@ fn input_chip(header: SharedString, resolved: bool, theme: &Theme) -> AnyElement
         .into_any_element()
 }
 
-/// A small glyph standing in for the tool's icon (zeron uses an icon set; a
+/// A small glyph standing in for the tool's icon (postillion uses an icon set; a
 /// quiet monochrome character keeps the tile without shipping SVGs).
-/// The glyph for a tool call (zeron tool-chip.tsx `toolIcon`, Solar set).
+/// The glyph for a tool call (postillion tool-chip.tsx `toolIcon`, Solar set).
 fn tool_icon_path(call: &ToolCall) -> &'static str {
     match call {
         ToolCall::Exec { .. } => crate::icons::COMMAND,
@@ -5039,7 +5039,7 @@ mod tests {
     /// the RAW text either way, so projection never perturbs the diff key.
     #[test]
     fn user_rows_project_file_mentions_into_chips() {
-        let raw = "look at [composer.rs](zeron-file:crates/ui/src/composer.rs) please";
+        let raw = "look at [composer.rs](postillion-file:crates/ui/src/composer.rs) please";
         let mut entry = assistant("u3", MessageStatus::Complete, vec![]);
         entry.role = MessageRole::User;
         entry.status = None;
@@ -5049,7 +5049,7 @@ mod tests {
             panic!("expected a user row");
         };
         assert!(
-            !text.contains("zeron-file:"),
+            !text.contains("postillion-file:"),
             "raw link left visible: {text}"
         );
         assert!(text.contains("composer.rs"));
@@ -5432,12 +5432,12 @@ mod tests {
         let Some(ToolDetail::Output { lines, .. }) = call_block(&ToolCall::Mcp {
             server: "gh".into(),
             tool: "issues".into(),
-            input: Some(serde_json::json!({"repo": "zeron"})),
+            input: Some(serde_json::json!({"repo": "postillion"})),
         }) else {
             panic!("expected an output block")
         };
         assert_eq!(lines[0].as_ref(), "gh · issues");
-        assert!(lines.iter().any(|l| l.contains("\"repo\": \"zeron\"")));
+        assert!(lines.iter().any(|l| l.contains("\"repo\": \"postillion\"")));
 
         // Todos list one item per line with checkbox state.
         let Some(ToolDetail::Output { lines, .. }) = call_block(&ToolCall::Todo {

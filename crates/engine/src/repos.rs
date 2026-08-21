@@ -1,12 +1,12 @@
 //! Repos — this device's git repositories, branches, worktrees, and the folder
-//! browser (feature-inventory §3.5; port of zeron's `repos.ts` + `folder-lister.ts`).
+//! browser (feature-inventory §3.5; port of Comet's `repos.ts` + `folder-lister.ts`).
 //!
 //! Repos are device-local (paths differ per machine), so the known set is a plain
 //! JSON list (`{data_dir}/repos.json`) — no sync. Existing repos can live anywhere
 //! the user points us; cloned/created ones land in `{data_dir}/repos`. Worktrees are
 //! created under `~/.postillion/worktrees/<repoName>/<worktreeName>` (NOT the data
 //! dir — worktrees are user-facing working checkouts), with an auto-generated name +
-//! matching `zeron/<name>` branch. `POSTILLION_WORKTREES_DIR` overrides the root.
+//! matching `postillion/<name>` branch. `POSTILLION_WORKTREES_DIR` overrides the root.
 //!
 //! All git access is via subprocess (`tokio::process`) — never libgit2.
 
@@ -47,7 +47,7 @@ const ADJECTIVES: &[&str] = &[
     "sharp", "gentle", "vivid", "amber", "cobalt",
 ];
 const NOUNS: &[&str] = &[
-    "otter", "harbor", "falcon", "cedar", "meadow", "zeron", "delta", "ember", "lynx", "maple",
+    "otter", "harbor", "falcon", "cedar", "meadow", "postillion", "delta", "ember", "lynx", "maple",
     "onyx", "quartz", "raven", "summit", "willow", "aspen",
 ];
 
@@ -450,7 +450,7 @@ impl Repos {
     }
 
     /// Public commit history in topological order. Only user-facing branches,
-    /// remotes, and tags seed the walk, so Zeron's internal refs never leak
+    /// remotes, and tags seed the walk, so Postillion's internal refs never leak
     /// into the graph or keep otherwise-unreachable checkpoints visible.
     pub async fn history(
         &self,
@@ -617,7 +617,7 @@ impl Repos {
     // ── worktrees ───────────────────────────────────────────────────────────
 
     /// `git worktree add` an isolated checkout under
-    /// `{worktrees_root}/<repoName>/<generatedName>`, on a fresh `zeron/<name>`
+    /// `{worktrees_root}/<repoName>/<generatedName>`, on a fresh `postillion/<name>`
     /// branch off `branch`.
     pub async fn create_worktree(
         &self,
@@ -649,7 +649,7 @@ impl Repos {
                 ADJECTIVES[(seed % ADJECTIVES.len() as u64) as usize],
                 NOUNS[((seed / 31) % NOUNS.len() as u64) as usize]
             );
-            if !base.join(&candidate).exists() && !existing.contains(&format!("zeron/{candidate}"))
+            if !base.join(&candidate).exists() && !existing.contains(&format!("postillion/{candidate}"))
             {
                 name = Some(candidate);
                 break;
@@ -658,7 +658,7 @@ impl Repos {
         let name =
             name.ok_or_else(|| EngineError::Other("Could not allocate a worktree name".into()))?;
         let path = base.join(&name);
-        let branch_name = format!("zeron/{name}");
+        let branch_name = format!("postillion/{name}");
         self.git(
             &[
                 "worktree",
@@ -695,10 +695,10 @@ impl Repos {
         .is_ok()
     }
 
-    /// Rename a zeron-created worktree branch after its chat's generated title
-    /// (port of zeron's `renameWorktreeBranch`). Guards:
+    /// Rename a postillion-created worktree branch after its chat's generated title
+    /// (port of Comet's `renameWorktreeBranch`). Guards:
     /// - respect an external checkout/rename: only act while the worktree is still
-    ///   on `expected_branch` AND that branch is the original `zeron/<folderName>`;
+    ///   on `expected_branch` AND that branch is the original `postillion/<folderName>`;
     /// - a title-slug collision gets a stable 6-hex suffix (hash of the worktree
     ///   path); a collision on THAT too fails.
     ///
@@ -715,7 +715,7 @@ impl Repos {
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
-        if current != expected_branch || expected_branch != format!("zeron/{folder}") {
+        if current != expected_branch || expected_branch != format!("postillion/{folder}") {
             return Ok(current);
         }
         let preferred = worktree_branch_from_title(title);
@@ -744,7 +744,7 @@ impl Repos {
     }
 
     /// Best-effort worktree removal (if it still exists), then prune stale refs.
-    /// Deletes the worktree's branch ONLY when zeron created it (`zeron/…`) — the
+    /// Deletes the worktree's branch ONLY when postillion created it (`postillion/…`) — the
     /// user may have checked out their own branch inside the worktree.
     pub async fn delete_worktree(
         &self,
@@ -774,7 +774,7 @@ impl Repos {
             }
         }
         let _ = self.git(&["worktree", "prune"], Some(repo_path)).await;
-        if branch.starts_with("zeron/") {
+        if branch.starts_with("postillion/") {
             let _ = self.git(&["branch", "-D", &branch], Some(repo_path)).await;
         }
         Ok(())
@@ -847,7 +847,7 @@ impl Repos {
     /// The walk runs on a DETACHED OS thread (not the tokio blocking pool): a
     /// readdir wedged in the kernel can't be cancelled, and a poisoned blocking
     /// pool — or a runtime shutdown waiting on it — must never be possible. On
-    /// timeout the thread is simply abandoned (the zeron backend's disposable
+    /// timeout the thread is simply abandoned (the postillion backend's disposable
     /// worker, minus the terminate()).
     #[doc(hidden)]
     pub async fn list_folders_with(
@@ -928,7 +928,7 @@ async fn disposable_worker<T: Send + 'static>(
 fn list_folders_blocking(target: &Path) -> Result<FolderListing, EngineError> {
     let read = std::fs::read_dir(target).map_err(|e| match e.kind() {
         std::io::ErrorKind::PermissionDenied => {
-            EngineError::Other("Zeron doesn't have access to this folder on the device.".into())
+            EngineError::Other("Postillion doesn't have access to this folder on the device.".into())
         }
         _ => EngineError::Other(format!("could not read that folder: {e}")),
     })?;
@@ -1273,8 +1273,8 @@ fn search_files_blocking_with_cancel<F: Fn() -> bool>(
         .collect())
 }
 
-/// Turn a generated chat title into the semantic portion of a Zeron branch
-/// (port of zeron's `worktreeBranchFromTitle`). Zeron NFKD-normalizes accented
+/// Turn a generated chat title into the semantic portion of a Postillion branch
+/// (port of Comet's `worktreeBranchFromTitle`). Postillion NFKD-normalizes accented
 /// letters first; native keeps it ASCII-only (generated titles are Title Case
 /// English), so non-ASCII characters collapse into the `-` separator.
 pub fn worktree_branch_from_title(title: &str) -> String {
@@ -1291,7 +1291,7 @@ pub fn worktree_branch_from_title(title: &str) -> String {
     }
     slug.truncate(48);
     let slug = slug.trim_matches('-');
-    format!("zeron/{}", if slug.is_empty() { "update" } else { slug })
+    format!("postillion/{}", if slug.is_empty() { "update" } else { slug })
 }
 
 fn bounded_field(value: &str, max_chars: usize) -> String {

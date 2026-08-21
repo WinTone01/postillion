@@ -157,7 +157,7 @@ async fn happy_path_maps_chunks_tools_diffs_plans_and_commands() {
             _ => None,
         })
         .expect("exec output present");
-    assert!(exec_output.starts_with("   Compiling zeron-harness"));
+    assert!(exec_output.starts_with("   Compiling postillion-harness"));
     assert_eq!(exec_output.lines().count(), 6, "{exec_output:?}");
 
     // Edit tool: single-shot completed call carries the inline diff.

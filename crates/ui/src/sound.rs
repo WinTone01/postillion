@@ -58,7 +58,7 @@ fn play_bytes(data: &[u8]) -> Result<(), String> {
 
 fn temp_path() -> PathBuf {
     let id = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-    std::env::temp_dir().join(format!("zeron-sound-{}-{id}.wav", std::process::id()))
+    std::env::temp_dir().join(format!("postillion-sound-{}-{id}.wav", std::process::id()))
 }
 
 #[cfg(target_os = "macos")]

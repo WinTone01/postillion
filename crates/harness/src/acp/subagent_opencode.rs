@@ -5,7 +5,7 @@
 //! child session's interior transcript never appears on the ACP wire — the
 //! parent only sees the completion's `<task_result>` text. The transcript IS
 //! available live from the process itself: `opencode acp` always doubles as
-//! opencode's HTTP server (zeron passes `--port <free>` to dodge the shared
+//! opencode's HTTP server (postillion passes `--port <free>` to dodge the shared
 //! default 4096, where a losing concurrent bind silently drops the server),
 //! and its `/event` SSE bus broadcasts every session's `session.created` /
 //! `message.updated` / `message.part.updated` / `message.part.delta` events —

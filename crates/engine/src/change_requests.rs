@@ -440,7 +440,7 @@ mod tests {
                 branch,
                 Some(&format!("origin/{branch}")),
                 Some("origin"),
-                Some("git@github.com:acme/zeron.git"),
+                Some("git@github.com:acme/postillion.git"),
             ),
             default_branch: Some("main".into()),
         }
@@ -451,7 +451,7 @@ mod tests {
             provider: "github".into(),
             number,
             title: format!("Pull request {number}"),
-            url: format!("https://github.com/acme/zeron/pull/{number}"),
+            url: format!("https://github.com/acme/postillion/pull/{number}"),
             state: ChangeRequestState::Open,
             base_ref: "main".into(),
             head_ref: "feature/status".into(),

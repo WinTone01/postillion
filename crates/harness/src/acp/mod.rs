@@ -18,7 +18,7 @@
 //!   turn (`cancelled` → Interrupted, `refusal` → Errored, else Completed).
 //! - `session/update` notifications normalize per [`normalize::map_update`].
 //! - Permission requests auto-accept with the agent's preferred allow option
-//!   (zeron sessions run unattended); question-shaped requests block on the
+//!   (postillion sessions run unattended); question-shaped requests block on the
 //!   engine's input bridge.
 //! - Steering: agents advertising `_session/steering` get mid-turn injection;
 //!   others queue steers and deliver them as the next `session/prompt` at the
@@ -225,7 +225,7 @@ fn grok_spec() -> AcpAgentSpec {
         // the `agent` subcommand and starts a fresh agent even when
         // `[cli] use_leader` is set — leader mode ATTACHES `agent stdio` to a
         // shared process via ~/.grok/leader.sock, so a wedged/stale leader
-        // (the user's TUI) reads as total silent non-response in zeron.
+        // (the user's TUI) reads as total silent non-response in postillion.
         args: &["--no-auto-update", "agent", "--no-leader", "stdio"],
         npm_package: Some("@xai-official/grok@1.0.4"),
         extra_paths: grok_install_paths,
@@ -266,7 +266,7 @@ fn grok_spec() -> AcpAgentSpec {
         prompt_complete_extension: true,
         prompt_stall: Some(Duration::from_secs(30)),
         stall_hint: "The agent process is likely wedged — a stale shared leader \
-             process or a hung startup check; zeron launches it with --no-leader \
+             process or a hung startup check; postillion launches it with --no-leader \
              and --no-auto-update to avoid both.",
         http_sidecar: false,
     }
@@ -350,7 +350,7 @@ fn pi_spec() -> AcpAgentSpec {
         cli_executable: "pi",
         cli_extra_paths: || npm_global_bins("pi"),
         install_hint: "pi-acp (searched PATH, the login shell's PATH, npm global bins, \
-             and fnm/nvm/volta/pnpm/bun install dirs; zeron installs the pinned \
+             and fnm/nvm/volta/pnpm/bun install dirs; postillion installs the pinned \
              pi-acp automatically when npm is available — the pi CLI itself is \
              still required, `npm install -g --ignore-scripts \
              @earendil-works/pi-coding-agent`; set PI_ACP_EXECUTABLE to override)",
@@ -375,7 +375,7 @@ fn pi_spec() -> AcpAgentSpec {
         },
         // The adapter has no `_session/steering` extension: turn boundaries.
         steering_mode: SteeringMode::TurnBoundary,
-        // pi's thinking ladder (minimal→max; its extra "off" tier has no zeron
+        // pi's thinking ladder (minimal→max; its extra "off" tier has no postillion
         // equivalent and is left to the agent default).
         reasoning_levels: &[
             ReasoningLevel::Minimal,
@@ -881,7 +881,7 @@ impl AcpHarness {
     }
 }
 
-/// Map an advertised `thought_level` value id onto zeron's ladder.
+/// Map an advertised `thought_level` value id onto Comet's ladder.
 fn reasoning_from_value(value: &str) -> Option<ReasoningLevel> {
     match norm_id(value).as_str() {
         "minimal" => Some(ReasoningLevel::Minimal),
@@ -1056,12 +1056,12 @@ fn models_from_session(session_response: &Value, catalog: &[Model]) -> Vec<Model
 }
 
 /// A session config option surfaced as a Traits-dropdown section. Mode is
-/// zeron's own (forced to the no-prompts choice), model rides the model rows,
+/// Comet's own (forced to the no-prompts choice), model rides the model rows,
 /// and thought_level is the Reasoning ladder — everything else the agent
 /// advertises (fast mode, collaboration mode, agent persona, …) passes
 /// through. `currentValue` doubles as the default: it is the state the
 /// session opens in. Booleans render as an off/on select, mirroring the
-/// catalogs (zeron never declares the boolean config capability, so adapters
+/// catalogs (postillion never declares the boolean config capability, so adapters
 /// send selects, but handle the shape defensively).
 fn trait_from_config_option(option: &Value) -> Option<ModelOption> {
     if matches!(
@@ -1274,12 +1274,12 @@ fn initialize_params(_harness: HarnessId) -> Value {
     json!({
         "protocolVersion": 1,
         "clientInfo": {
-            "name": "zeron",
-            "title": "Zeron",
+            "name": "postillion",
+            "title": "Postillion",
             "version": env!("CARGO_PKG_VERSION"),
         },
         // Declined: agents fall back to their own fs/terminal access, which
-        // is what zeron wants — the working tree is the source of truth for
+        // is what postillion wants — the working tree is the source of truth for
         // the diff pane, and commands belong to the agent's own sandbox.
         "clientCapabilities": capabilities,
     })
@@ -1619,7 +1619,7 @@ fn prompt_turn(
 
 /// Answer a server→client request. Permission requests are auto-accepted with
 /// the agent's preferred allow option — parity with the claude harness's
-/// bypassPermissions and the codex harness's approvalPolicy "never" (zeron
+/// bypassPermissions and the codex harness's approvalPolicy "never" (postillion
 /// sessions run unattended). Everything else (fs, terminal, elicitation) was
 /// declined at initialize, so a stray request gets method-not-found rather
 /// than wedging the agent.
@@ -2094,7 +2094,7 @@ async fn run_session(session: Session) {
         prompt_stall.map(|d| tokio::time::Instant::now() + d);
     let mut turn: Option<BoxFuture<'static, Result<Value, HarnessError>>> = Some({
         prompt_seq += 1;
-        current_prompt_id = prompt_complete_extension.then(|| format!("zeron-p{prompt_seq}"));
+        current_prompt_id = prompt_complete_extension.then(|| format!("postillion-p{prompt_seq}"));
         prompt_turn(
             client.clone(),
             session_id.clone(),
@@ -2341,7 +2341,7 @@ async fn run_session(session: Session) {
                     last_update_at = tokio::time::Instant::now();
                     prompt_seq += 1;
                     current_prompt_id =
-                        prompt_complete_extension.then(|| format!("zeron-p{prompt_seq}"));
+                        prompt_complete_extension.then(|| format!("postillion-p{prompt_seq}"));
                     prompt_stall_deadline =
                         prompt_stall.map(|d| tokio::time::Instant::now() + d);
                     turn = Some(prompt_turn(
@@ -2627,7 +2627,7 @@ async fn run_session(session: Session) {
                     last_update_at = tokio::time::Instant::now();
                     prompt_seq += 1;
                     current_prompt_id =
-                        prompt_complete_extension.then(|| format!("zeron-p{prompt_seq}"));
+                        prompt_complete_extension.then(|| format!("postillion-p{prompt_seq}"));
                     prompt_stall_deadline =
                         prompt_stall.map(|d| tokio::time::Instant::now() + d);
                     turn = Some(prompt_turn(
@@ -2678,7 +2678,7 @@ async fn run_session(session: Session) {
                     last_update_at = tokio::time::Instant::now();
                     prompt_seq += 1;
                     current_prompt_id =
-                        prompt_complete_extension.then(|| format!("zeron-p{prompt_seq}"));
+                        prompt_complete_extension.then(|| format!("postillion-p{prompt_seq}"));
                     prompt_stall_deadline =
                         prompt_stall.map(|d| tokio::time::Instant::now() + d);
                     turn = Some(prompt_turn(
@@ -2782,7 +2782,7 @@ async fn run_session(session: Session) {
                     last_update_at = tokio::time::Instant::now();
                     prompt_seq += 1;
                     current_prompt_id =
-                        prompt_complete_extension.then(|| format!("zeron-p{prompt_seq}"));
+                        prompt_complete_extension.then(|| format!("postillion-p{prompt_seq}"));
                     prompt_stall_deadline =
                         prompt_stall.map(|d| tokio::time::Instant::now() + d);
                     turn = Some(prompt_turn(
@@ -2855,7 +2855,7 @@ async fn run_session(session: Session) {
                         last_update_at = tokio::time::Instant::now();
                         prompt_seq += 1;
                     current_prompt_id =
-                        prompt_complete_extension.then(|| format!("zeron-p{prompt_seq}"));
+                        prompt_complete_extension.then(|| format!("postillion-p{prompt_seq}"));
                     prompt_stall_deadline =
                         prompt_stall.map(|d| tokio::time::Instant::now() + d);
                     turn = Some(prompt_turn(

@@ -376,7 +376,7 @@ enum MutateParams {
     SetChatHost { chat_id: String, device_id: String },
     #[serde(rename_all = "camelCase")]
     SetChatArchived { chat_id: String, archived: bool },
-    /// Full-config replace on the chat row (zeron `SetChatConfig`): the
+    /// Full-config replace on the chat row (postillion `SetChatConfig`): the
     /// composer's mid-session model / reasoning / options changes, LWW-synced
     /// so they survive restarts and reach every device.
     #[serde(rename_all = "camelCase")]

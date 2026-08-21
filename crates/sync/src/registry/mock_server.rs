@@ -1,7 +1,7 @@
 //! In-process registry server speaking the same JSON WS protocol as
 //! `edge/src/registry-room.ts`, built on the SAME merge fn the client uses
 //! (`postillion_doc::apply_op`). Test infrastructure only (`mock-server` feature):
-//! zeron-sync's client tests and zeron-engine's two-engine integration tests
+//! postillion-sync's client tests and postillion-engine's two-engine integration tests
 //! run against this; TS↔Rust interop is proven separately against a real DO
 //! by the `--ignored` live-edge tests and scripts/e2e-smoke.sh.
 

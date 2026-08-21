@@ -1,5 +1,5 @@
 //! UI settings persisted to a small JSON file in the data dir — pane widths and
-//! collapse flags (zeron persisted the same set in localStorage).
+//! collapse flags (postillion persisted the same set in localStorage).
 //!
 //! Loaded once at boot; saved debounced by the shell ([`SAVE_DEBOUNCE_MS`]).
 //! Corrupt or missing files fall back to defaults; loaded values are clamped so a
@@ -80,12 +80,12 @@ pub struct UiSettings {
     /// Desktop banner notifications on the same transitions.
     /// `POSTILLION_DISABLE_NOTIFICATIONS` overrides.
     pub notifications_enabled: bool,
-    /// Suppress the banner while a Zeron window is focused (the chime covers
+    /// Suppress the banner while a Postillion window is focused (the chime covers
     /// the foreground case).
     pub notifications_background_only: bool,
     pub right_pane_width: f32,
     /// Legacy: panel *open* flags are session-scoped in-memory state now
-    /// (`shell::SessionPanels`, zeron `sessionPanels` parity). Kept for file
+    /// (`shell::SessionPanels`, postillion `sessionPanels` parity). Kept for file
     /// compatibility; no longer read or written by the shell.
     pub right_pane_open: bool,
     pub terminal_height: f32,
@@ -142,7 +142,7 @@ impl ShortcutId {
         ShortcutId::NewSession,
     ];
 
-    /// Row label (zeron lib/shortcuts.ts `SHORTCUT_DEFINITIONS`, verbatim).
+    /// Row label (postillion lib/shortcuts.ts `SHORTCUT_DEFINITIONS`, verbatim).
     pub fn label(self) -> &'static str {
         match self {
             ShortcutId::ToggleSidebar => crate::i18n::t("Toggle left sidebar"),
@@ -450,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn defaults_match_zeron() {
+    fn defaults_match_postillion() {
         let d = UiSettings::default();
         assert_eq!(d.sidebar_width, 256.0);
         assert_eq!(d.right_pane_width, 520.0);

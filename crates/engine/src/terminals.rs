@@ -1,5 +1,5 @@
 //! Terminals — PTY sessions owned by this device (feature-inventory §3.4; port of
-//! zeron's `terminals.ts` over `portable-pty`).
+//! Comet's `terminals.ts` over `portable-pty`).
 //!
 //! - `open` spawns the user's login shell in the chat's cwd; `subscribe` replays a
 //!   bounded 1MB window (resumable via `afterSeq`) then tails live output, batched
@@ -9,7 +9,7 @@
 //!   Only EXITED sessions expire (30min TTL on their inert replay buffers), and
 //!   [`MAX_TERMINALS`] bounds leakage from renderers that lost their tab state.
 //! - Ownership: M5 is single-user local — every IPC/relay caller is the device
-//!   owner, so the per-user owner re-checks from zeron's Router land with real
+//!   owner, so the per-user owner re-checks from Comet's Router land with real
 //!   multi-account auth in M6.
 
 use std::collections::{HashMap, VecDeque};
@@ -177,7 +177,7 @@ impl Terminals {
         cmd.cwd(cwd);
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
-        cmd.env("TERM_PROGRAM", "Zeron");
+        cmd.env("TERM_PROGRAM", "Postillion");
         let mut child = pair
             .slave
             .spawn_command(cmd)

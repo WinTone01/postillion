@@ -41,17 +41,17 @@ use crate::theme::Theme;
 // Constants + pure decision logic
 // ---------------------------------------------------------------------------
 
-/// Expanded-mode textarea vertical padding: `pt-4 pb-1` (zeron composer.tsx
+/// Expanded-mode textarea vertical padding: `pt-4 pb-1` (postillion composer.tsx
 /// line 578) = 16 + 4.
 pub const TEXTAREA_PAD_V: f32 = 20.0;
 /// The expanded textarea BOX (content + padding) is clamped by the original's
 /// auto-grow effect: `ta.style.height = Math.min(Math.max(scrollHeight, 76),
-/// 260)` (zeron composer.tsx line 235). The 76px floor applies even when
+/// 260)` (postillion composer.tsx line 235). The 76px floor applies even when
 /// empty — it's what makes the always-expanded new-chat composer tall.
 pub const TEXTAREA_MIN: f32 = 76.0;
 pub const TEXTAREA_MAX: f32 = 260.0;
 /// Expanded actions row: `pt-1` (4) + h-8 picker chips (32 — the tallest
-/// children; composer/styles.tsx pickerChip) + `pb-2.5` (10) — zeron
+/// children; composer/styles.tsx pickerChip) + `pb-2.5` (10) — postillion
 /// composer-actions.tsx line 60.
 pub const ACTIONS_ROW_HEIGHT: f32 = 46.0;
 /// The pill's 1px hairline, top + bottom (`rounded-[26px] border`).
@@ -190,7 +190,7 @@ fn input_drag_scroll_delta(
     distance.signum() * (distance.abs() * 0.2).clamp(1.0, line_height)
 }
 
-/// Staged-attachment strip metrics (zeron attachment-ui.tsx AttachmentStrip:
+/// Staged-attachment strip metrics (postillion attachment-ui.tsx AttachmentStrip:
 /// `flex flex-wrap gap-2 px-4 pt-3`, `size-14` thumbs).
 pub const STRIP_THUMB: f32 = 56.0;
 pub const STRIP_GAP: f32 = 8.0;
@@ -657,7 +657,7 @@ const MENTION_TOOLTIP_HEIGHT: f32 = 24.0;
 const MENTION_SIDE_PAD: &str = "\u{00A0}";
 /// A private URI scheme keeps file mentions distinguishable from ordinary
 /// Markdown links pasted into the composer.
-const FILE_MENTION_SCHEME: &str = "zeron-file:";
+const FILE_MENTION_SCHEME: &str = "postillion-file:";
 
 /// A restorable point in the input's history: text plus where the caret and
 /// selection sat when the edit landed.
@@ -3291,7 +3291,7 @@ fn mention_response_is_current(state: &FileMentionState, request: u64) -> bool {
 fn mention_error_message(err: &RpcError) -> SharedString {
     match err {
         RpcError::UnknownMethod(_) => {
-            "The session's device runs an older zeron — update it to search its files".into()
+            "The session's device runs an older postillion — update it to search its files".into()
         }
         RpcError::Transport(_) | RpcError::Closed => crate::i18n::t("The session's device is unreachable").into(),
         RpcError::BadParams(_) | RpcError::Failed(_) => crate::i18n::t("File search failed").into(),
@@ -3302,7 +3302,7 @@ fn mention_error_message(err: &RpcError) -> SharedString {
 fn slash_error_message(err: &RpcError) -> SharedString {
     match err {
         RpcError::UnknownMethod(_) => {
-            "The session's device runs an older zeron — update it to list commands".into()
+            "The session's device runs an older postillion — update it to list commands".into()
         }
         RpcError::Transport(_) | RpcError::Closed => crate::i18n::t("The session's device is unreachable").into(),
         RpcError::BadParams(_) | RpcError::Failed(_) => {
@@ -4894,7 +4894,7 @@ impl Composer {
                         }
                         crate::pickers::CheckoutPlan::NewWorktree { base } => {
                             // Footer shows the base until the host stamps the
-                            // actual zeron/<name> branch post-creation. cwd
+                            // actual postillion/<name> branch post-creation. cwd
                             // stays the repo folder — an old host that doesn't
                             // know the spec degrades to the main checkout
                             // instead of failing the run.
@@ -5281,7 +5281,7 @@ impl Composer {
 
     // ---- render pieces ----
 
-    /// The agent-asked-a-question panel (zeron question-panel.tsx), rendered in
+    /// The agent-asked-a-question panel (postillion question-panel.tsx), rendered in
     /// place of the composer: the same floating-pill chrome (`rounded-[26px]
     /// border-white/[0.08] bg-white/[0.03] shadow-xl`), uppercase header +
     /// "1/3" counter chip, option rows with number kbd chips, a free-text
@@ -5302,7 +5302,7 @@ impl Composer {
 
         let options = question.options.iter().enumerate().map(|(ix, label)| {
             // Selection reads on the row only while no typed override exists
-            // (typed answers win — zeron question-panel.tsx `isSel`).
+            // (typed answers win — postillion question-panel.tsx `isSel`).
             let picked = wizard.is_picked(ix) && typed_empty;
             div()
                 .id(("wizard-option", ix))
@@ -5319,7 +5319,7 @@ impl Composer {
                 } else {
                     gpui::transparent_black()
                 })
-                // zeron question-panel.tsx option rows: `transition-colors`.
+                // postillion question-panel.tsx option rows: `transition-colors`.
                 .bg(if picked {
                     crate::theme::ink(0.09)
                 } else {
@@ -5495,7 +5495,7 @@ impl Composer {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let theme = Theme::of(cx);
-        // Zeron composer-actions.tsx: a size-7 filled circle — up-arrow to
+        // Postillion composer-actions.tsx: a size-7 filled circle — up-arrow to
         // send/steer, a dark rounded square on the same light circle to stop.
         match mode {
             SendButtonMode::Stop => div()
@@ -5702,7 +5702,7 @@ impl Render for Composer {
                 (text, offline)
             })
         };
-        // Centered composer column (zeron `mx-auto w-full max-w-3xl`).
+        // Centered composer column (postillion `mx-auto w-full max-w-3xl`).
         let container = div()
             .w_full()
             .max_w(px(768.0))
@@ -5713,7 +5713,7 @@ impl Render for Composer {
             .px(px(Theme::SPACE_LG))
             .pb(px(Theme::SPACE_LG))
             .when_some(failure, |el, message| {
-                // zeron composer.tsx `Notice` (matches the transcript
+                // postillion composer.tsx `Notice` (matches the transcript
                 // ErrorChip palette): `flex items-start gap-2 rounded-xl
                 // border px-3 py-2 text-[12px] leading-snug` with a 14px
                 // DangerTriangle — a subtle tinted wash, not a bare red
@@ -5826,7 +5826,7 @@ impl Render for Composer {
         }
 
         // New chats always use the expanded layout: the repo/branch pickers
-        // need the full-width actions row (zeron composer-actions.tsx
+        // need the full-width actions row (postillion composer-actions.tsx
         // `mustExpand = isNew || …`).
         let expanded = expanded || new_chat;
 
@@ -5874,7 +5874,7 @@ impl Render for Composer {
             .justify_center()
             .rounded_full()
             .cursor_pointer()
-            // zeron composer-actions.tsx attach: `transition-colors`.
+            // postillion composer-actions.tsx attach: `transition-colors`.
             .bg(motion::hover_blend(
                 "composer-attach",
                 gpui::transparent_black(),
@@ -5916,7 +5916,7 @@ impl Render for Composer {
         let strip = self.render_attachment_strip(&theme, cx);
         let comments_chip = self.render_comments_chip(&theme, cx);
 
-        // The pill chrome (zeron composer.tsx): `rounded-[26px] border
+        // The pill chrome (postillion composer.tsx): `rounded-[26px] border
         // border-white/[0.08] bg-white/[0.03] shadow-xl` — a floating pill with
         // a hairline over a faint wash, never a solid grey box. Picker chips,
         // attach, and the send circle all live INSIDE the pill.
@@ -6031,7 +6031,7 @@ impl Render for Composer {
                                 .flex_row()
                                 .items_center()
                                 // Shared cluster metrics (`gap-1 pl-1 pr-2`,
-                                // zeron composer-actions.tsx): identical
+                                // postillion composer-actions.tsx): identical
                                 // internals to expanded; the right inset
                                 // glides 12→8 on collapse.
                                 .gap(px(4.0))
@@ -6243,7 +6243,7 @@ mod tests {
         let raw = local_file_link("src/a file#[x].rs", false);
         assert_eq!(
             raw,
-            "[a file#\\[x\\].rs](zeron-file:src/a%20file%23%5Bx%5D.rs)"
+            "[a file#\\[x\\].rs](postillion-file:src/a%20file%23%5Bx%5D.rs)"
         );
         let links = file_mention_links(&raw);
         assert_eq!(links.len(), 1);
@@ -6252,7 +6252,7 @@ mod tests {
         assert!(!links[0].is_dir);
 
         let folder = local_file_link("src/components", true);
-        assert_eq!(folder, "[components](zeron-file:src/components/)");
+        assert_eq!(folder, "[components](postillion-file:src/components/)");
         let links = file_mention_links(&folder);
         assert_eq!(links[0].path, "src/components");
         assert!(links[0].is_dir);
@@ -6356,12 +6356,12 @@ mod tests {
     fn sent_mention_display_leaves_plain_prompts_untouched() {
         assert_eq!(sent_mention_display("fix the composer"), None);
         assert_eq!(
-            sent_mention_display("what is a zeron-file: link?"),
+            sent_mention_display("what is a postillion-file: link?"),
             None,
             "scheme substring without a valid mention link"
         );
         assert_eq!(
-            sent_mention_display("[a.rs](zeron-file:../a.rs)"),
+            sent_mention_display("[a.rs](postillion-file:../a.rs)"),
             None,
             "a hostile path never becomes a chip in the transcript either"
         );
@@ -6440,7 +6440,7 @@ mod tests {
 
     #[test]
     fn auto_grow_math() {
-        // The source heights (zeron composer.tsx line 235 clamp, composer-
+        // The source heights (postillion composer.tsx line 235 clamp, composer-
         // actions.tsx row, 1px hairlines): 76+46+2 empty … 260+46+2 capped.
         assert_eq!(COMPOSER_MIN_HEIGHT, 124.0);
         assert_eq!(COMPOSER_MAX_HEIGHT, 308.0);
@@ -6457,7 +6457,7 @@ mod tests {
             h4,
             4.0 * INPUT_LINE_HEIGHT + TEXTAREA_PAD_V + ACTIONS_ROW_HEIGHT + PILL_BORDER_V
         );
-        // Caps at a 260px textarea box (zeron max-h-[260px] / the JS clamp).
+        // Caps at a 260px textarea box (postillion max-h-[260px] / the JS clamp).
         assert_eq!(
             composer_total_height(input_content_height(100)),
             COMPOSER_MAX_HEIGHT

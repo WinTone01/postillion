@@ -1660,7 +1660,7 @@ impl Shell {
                     .child(SharedString::from(crate::i18n::t("esc"))),
             );
 
-        // ── breadcrumbs ("MacBook Pro / Projects / zeron"): the quiet mono
+        // ── breadcrumbs ("MacBook Pro / Projects / postillion"): the quiet mono
         //    path voice, `/` separators. The device crumb stands in for home —
         //    everything up to the resolved home path folds into it; below
         //    home the full path shows. Ancestors (device crumb included) are

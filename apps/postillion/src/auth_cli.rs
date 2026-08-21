@@ -112,7 +112,7 @@ pub async fn login(config: EngineConfig) -> anyhow::Result<()> {
                     .unwrap_or_default()
             );
             println!(
-                "Sync is ready. Start or restart Zeron to open the synced workspace; existing local sessions will stay local."
+                "Sync is ready. Start or restart Postillion to open the synced workspace; existing local sessions will stay local."
             );
         }
         // terminal_sign_in only returns Ok once signed in; keep an honest fallback.
@@ -214,7 +214,7 @@ fn engine_lock(config: &EngineConfig, verb: &str) -> anyhow::Result<InstanceLock
     InstanceLock::acquire(&config.data_dir).map_err(|err| {
         anyhow::anyhow!(
             "{err}\nCannot {verb} while an engine is running — stop it first \
-             (`postillion daemon stop`, or quit the Zeron app), or use the running UI instead."
+             (`postillion daemon stop`, or quit the Postillion app), or use the running UI instead."
         )
     })
 }

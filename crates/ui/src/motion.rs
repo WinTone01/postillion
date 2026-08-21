@@ -1,4 +1,4 @@
-//! Animation kit — the zeron motion catalog as reusable helpers over gpui
+//! Animation kit — the postillion motion catalog as reusable helpers over gpui
 //! [`Animation`]/[`AnimationExt`].
 //!
 //! Catalog (docs/research/feature-inventory.md §1.12):
@@ -7,7 +7,7 @@
 //! - `menu-in`   0.14s scale 0.96 + translateY −2 (popovers)
 //! - `dialog-in` 0.18s scale 0.96→1
 //! - `splash-out` 0.5s opacity + translateY −6, 0.15s delay
-//! - `zeron-pulse` 2.4s staggered cell opacity 0.08→1, scale 0.9→1 (loaders)
+//! - `postillion-pulse` 2.4s staggered cell opacity 0.08→1, scale 0.9→1 (loaders)
 //! - `gradient-spin-pulse` 750ms per-cell phase wave (working indicator)
 //! - 200ms ease-out width/height transitions (sidebar/panes)
 //!
@@ -207,7 +207,7 @@ impl CubicBezier {
     }
 }
 
-/// zeron's signature entrance curve — CSS `cubic-bezier(0.16, 1, 0.3, 1)`.
+/// Comet's signature entrance curve — CSS `cubic-bezier(0.16, 1, 0.3, 1)`.
 pub const EASE_OUT_EXPO: CubicBezier = CubicBezier::new(0.16, 1.0, 0.3, 1.0);
 /// CSS `ease-out` — width/height transitions.
 pub const EASE_OUT: CubicBezier = CubicBezier::new(0.0, 0.0, 0.58, 1.0);
@@ -306,12 +306,12 @@ pub const CHEVRON: MotionSpec = MotionSpec::new(200, EASE);
 /// scroll, a fixed-duration gentle ease, never percent-of-remaining).
 pub const SCROLL_GLIDE: MotionSpec = MotionSpec::new(500, EASE_IN_OUT);
 /// Tailwind's default transition curve — CSS `cubic-bezier(0.4, 0, 0.2, 1)`
-/// (`transition-colors` et al. carry it unless overridden; zeron never does).
+/// (`transition-colors` et al. carry it unless overridden; postillion never does).
 pub const EASE_TAILWIND: CubicBezier = CubicBezier::new(0.4, 0.0, 0.2, 1.0);
 /// CSS `transition-colors` default: 150ms over [`EASE_TAILWIND`] — the temporal
 /// blend every interactive hover wash rides in the original.
 pub const HOVER_FADE: MotionSpec = MotionSpec::new(150, EASE_TAILWIND);
-/// Zeron loader pulse period: 2.4s.
+/// Postillion loader pulse period: 2.4s.
 pub const POSTILLION_PULSE: MotionSpec = MotionSpec::new(2400, EASE);
 /// Gradient matrix spinner wave period: 750ms.
 pub const GRADIENT_SPIN: MotionSpec = MotionSpec::new(750, EASE);
@@ -339,7 +339,7 @@ where
 }
 
 /// Popover entrance: fade + translateY −2→0 over [`MENU_IN`].
-/// (zeron also scales 0.96→1; divs have no scale transform in gpui — approximated.)
+/// (postillion also scales 0.96→1; divs have no scale transform in gpui — approximated.)
 pub fn menu_in<E>(id: impl Into<ElementId>, element: E) -> AnimationElement<E>
 where
     E: Styled + IntoElement + 'static,
@@ -391,7 +391,7 @@ where
 // Loader math (pure; rendered by crate::loaders)
 // ---------------------------------------------------------------------------
 
-/// Zeron-pulse floor opacity.
+/// Postillion-pulse floor opacity.
 // The loader constants and math live in `postillion_proto::motion` (pure phase
 // functions); this crate animates them with gpui.
 pub use postillion_proto::motion::{
@@ -417,7 +417,7 @@ pub fn lerp(from: f32, to: f32, t: f32) -> f32 {
 // ---------------------------------------------------------------------------
 //
 // gpui `.hover()` styles snap by construction — the style applies the frame
-// the pointer enters. The original zeron puts Tailwind `transition-colors`
+// the pointer enters. The original postillion puts Tailwind `transition-colors`
 // (150ms, cubic-bezier(0.4, 0, 0.2, 1)) on every interactive wash, so hover
 // states FADE. This is the manual-drive tween for that (the shell `WidthTween`
 // pattern — never `with_animation`, whose element-id-keyed clock replays on
@@ -750,7 +750,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_timings_match_zeron() {
+    fn catalog_timings_match_postillion() {
         assert_eq!(FADE_IN.duration_ms, 500);
         assert_eq!(FADE_QUICK.duration_ms, 150);
         assert_eq!(MENU_IN.duration_ms, 140);

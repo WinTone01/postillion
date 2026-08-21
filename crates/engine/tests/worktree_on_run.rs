@@ -1,7 +1,7 @@
 //! Host-side worktree materialization: a Run command carrying a
 //! `WorktreeSpec` creates the isolated worktree on the HOST at drain time
 //! (the durable replacement for the composer's old blocking CreateWorktree
-//! relay RPC), runs there, and stamps the chat row's cwd + `zeron/<name>`
+//! relay RPC), runs there, and stamps the chat row's cwd + `postillion/<name>`
 //! branch. A second spec-carrying Run for the same chat REUSES the checkout
 //! instead of minting another.
 
@@ -212,7 +212,7 @@ async fn run_with_worktree_spec_materializes_on_host_and_reuses() {
     );
 
     // The chat row follows: cwd repointed at the worktree, branch stamped
-    // with the actual zeron/<name> (the composer only knew the base).
+    // with the actual postillion/<name> (the composer only knew the base).
     let chat = core
         .workspace
         .chat(CHAT)
@@ -221,7 +221,7 @@ async fn run_with_worktree_spec_materializes_on_host_and_reuses() {
     assert_eq!(chat.cwd.as_deref(), Some(first_cwd.as_str()));
     let branch = chat.branch.expect("branch stamped");
     assert!(
-        branch.starts_with("zeron/"),
+        branch.starts_with("postillion/"),
         "stamped branch is the worktree's own: {branch}"
     );
 

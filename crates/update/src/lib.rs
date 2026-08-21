@@ -371,7 +371,7 @@ pub fn restart_service() -> anyhow::Result<()> {
 // macOS app-bundle installs — the desktop path
 // ---------------------------------------------------------------------------
 
-/// Download + unpack the app tarball into `{data_dir}/updates/<ver>/Zeron.app`
+/// Download + unpack the app tarball into `{data_dir}/updates/<ver>/Postillion.app`
 /// (idempotent). Returns the staged bundle path.
 pub async fn stage_mac_app(
     edge_url: &str,
@@ -380,7 +380,7 @@ pub async fn stage_mac_app(
 ) -> anyhow::Result<PathBuf> {
     let version = &manifest.version;
     let dir = data_dir.join("updates").join(version);
-    let staged = dir.join("Zeron.app");
+    let staged = dir.join("Postillion.app");
     if staged.join("Contents/MacOS/postillion").exists() {
         return Ok(staged);
     }
@@ -400,7 +400,7 @@ pub async fn stage_mac_app(
     )?;
     std::fs::remove_file(&tarball).ok();
     if !staged.join("Contents/MacOS/postillion").exists() {
-        bail!("app tarball {file} did not contain Zeron.app");
+        bail!("app tarball {file} did not contain Postillion.app");
     }
     Ok(staged)
 }
@@ -734,11 +734,11 @@ mod tests {
         );
         assert_eq!(
             detect_install_from(
-                Path::new("/Applications/Zeron.app/Contents/MacOS/postillion"),
+                Path::new("/Applications/Postillion.app/Contents/MacOS/postillion"),
                 Some(Path::new("/Users/u")),
             ),
             InstallKind::MacApp {
-                bundle: PathBuf::from("/Applications/Zeron.app")
+                bundle: PathBuf::from("/Applications/Postillion.app")
             }
         );
         // A path merely containing `.app` without the bundle layout is not a bundle.
