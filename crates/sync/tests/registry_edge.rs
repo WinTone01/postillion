@@ -7,7 +7,7 @@
 //! `edge/` with AUTH_MODE=dev). Run with:
 //!
 //! ```sh
-//! POSTILLION_EDGE_WS=ws://127.0.0.1:27640 cargo test -p zeron-sync --test registry_edge -- --ignored
+//! POSTILLION_EDGE_WS=ws://127.0.0.1:27640 cargo test -p postillion-sync --test registry_edge -- --ignored
 //! ```
 
 use std::sync::{Arc, Mutex};

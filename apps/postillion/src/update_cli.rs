@@ -13,12 +13,12 @@ pub async fn update(edge_url: &str, check_only: bool) -> anyhow::Result<()> {
     let current = current_version();
     if !version_newer(&manifest.version, current) {
         println!(
-            "zeron {current} is up to date (latest: {}).",
+            "postillion {current} is up to date (latest: {}).",
             manifest.version
         );
         return Ok(());
     }
-    println!("zeron {current} → {} available", manifest.version);
+    println!("postillion {current} → {} available", manifest.version);
     if check_only {
         std::process::exit(1);
     }
@@ -54,14 +54,14 @@ pub async fn update(edge_url: &str, check_only: bool) -> anyhow::Result<()> {
                 .unwrap_or_else(super::dirs_data_dir);
             let staged = postillion_update::stage_mac_app(edge_url, &manifest, &data_dir).await?;
             postillion_update::apply_mac_app(&staged, &bundle)?;
-            println!("updated {} — relaunch Zeron to finish.", bundle.display());
+            println!("updated {} — relaunch Postillion to finish.", bundle.display());
             Ok(())
         }
         InstallKind::Unmanaged => {
             bail!(
                 "this binary is not update-managed (source build or hand-copied).\n\
-                 Linux: curl -fsSL https://zeron.sh/install.sh | sh\n\
-                 macOS: download the new Zeron.app dmg, or rebuild from source."
+                 Rebuild from source, or download a release from\n\
+                 https://github.com/WinTone01/postillion/releases."
             )
         }
     }

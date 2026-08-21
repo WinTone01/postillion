@@ -1,4 +1,4 @@
-//! Loaders: the zeron pulse loader, the gradient matrix spinner, and the boot
+//! Loaders: the postillion pulse loader, the gradient matrix spinner, and the boot
 //! splash content. All motion routes through `crate::motion` pure helpers, so
 //! the math is unit-tested and these elements are testable-by-compile.
 //!
@@ -23,12 +23,12 @@ pub use postillion_proto::motion::{
     MARK_CELLS, MARK_SPREAD, MATRIX_SIDE, POSTILLION_CELLS, mark_cell_stagger,
 };
 
-/// The animated zeron mark (zeron-loader.tsx `ZeronLoader`): the full logo
+/// The animated postillion mark (postillion-loader.tsx `PostillionLoader`): the full logo
 /// pixel grid with a light wave sweeping tail→head. Each cell rests dim
 /// (opacity 0.08, scale 0.9) and flares to full as the crest passes; per-cell
 /// stagger follows the flight axis. `height_px` sets the mark's height (width
 /// follows the 820:940 canvas).
-pub fn zeron_mark_loader(
+pub fn postillion_mark_loader(
     _id: &'static str,
     theme: &Theme,
     height_px: f32,
@@ -56,7 +56,7 @@ pub fn zeron_mark_loader(
                 .justify_center()
                 .child({
                     // Negative CSS delay ⇒ the cell starts mid-cycle:
-                    // the stagger ADDS phase (zeron-loader.tsx delayFor).
+                    // the stagger ADDS phase (postillion-loader.tsx delayFor).
                     let phase = (delta + stagger).rem_euclid(1.0);
                     div()
                         .rounded(px(16.0 * scale))
@@ -67,12 +67,12 @@ pub fn zeron_mark_loader(
         }))
 }
 
-/// The zeron wave loader: a row of cells pulsing opacity 0.08→1 / scale 0.9→1
+/// The postillion wave loader: a row of cells pulsing opacity 0.08→1 / scale 0.9→1
 /// over 2.4s with a 0.15s stagger per cell.
 ///
 /// `id` scopes the per-cell animation state — give each loader instance a
 /// distinct id.
-pub fn zeron_loader(
+pub fn postillion_loader(
     _id: &'static str,
     theme: &Theme,
     cell_px: f32,
@@ -107,7 +107,7 @@ pub fn zeron_loader(
 
 pub use postillion_proto::motion::{GSPIN_DIM, GSPIN_ROW_TINTS};
 
-/// The gradient matrix spinner (WorkingIndicator), ported from zeron's
+/// The gradient matrix spinner (WorkingIndicator), ported from Comet's
 /// gradient-spin.tsx: a 3×3 grid of round cells tinted per row from the
 /// sunrise gradient. Each cell pulses opacity once per 750ms period; the
 /// per-cell phase follows the "arrow-up" pattern (the pulse enters at the
@@ -276,7 +276,7 @@ pub fn upload_progress_ring(percent: u8, diameter: f32) -> AnyElement {
         .into_any_element()
 }
 
-/// Full-window boot splash (zeron App.tsx `Splash`): the animated zeron mark
+/// Full-window boot splash (postillion App.tsx `Splash`): the animated postillion mark
 /// (`h-16`) over the app background with an uppercase tracked "Loading" line.
 /// While `fading` it plays `splash-out` (150ms hold, then 0.5s fade + 6px
 /// lift); the shell removes it once [`SPLASH_OUT`] has run its course.

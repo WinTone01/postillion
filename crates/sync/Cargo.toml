@@ -25,7 +25,7 @@ block2 = "0.6"
 
 [features]
 # In-process registry server speaking the DO's JSON WS protocol — test
-# infrastructure for this crate's tests and zeron-engine's integration tests.
+# infrastructure for this crate's tests and postillion-engine's integration tests.
 mock-server = []
 
 [dev-dependencies]

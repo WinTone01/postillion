@@ -198,8 +198,8 @@ impl CodexHarness {
                     "initialize",
                     json!({
                         "clientInfo": {
-                            "name": "zeron-native",
-                            "title": "Zeron",
+                            "name": "postillion-native",
+                            "title": "Postillion",
                             "version": env!("CARGO_PKG_VERSION"),
                         },
                         "capabilities": { "experimentalApi": true },
@@ -502,7 +502,7 @@ async fn run_session(session: Session) {
 
     // ---- wire params ------------------------------------------------------
     // Parity with the Claude adapter, which auto-approves every `can_use_tool`
-    // regardless of `auto_approve` (zeron sessions run unattended; combined
+    // regardless of `auto_approve` (postillion sessions run unattended; combined
     // with the danger-full-access override above this is codex's yolo mode):
     // never surface wire approvals. "on-request" turned
     // every command into a yes/no question (user report: "asking me for
@@ -540,8 +540,8 @@ async fn run_session(session: Session) {
                 "initialize",
                 json!({
                     "clientInfo": {
-                        "name": "zeron-native",
-                        "title": "Zeron",
+                        "name": "postillion-native",
+                        "title": "Postillion",
                         "version": env!("CARGO_PKG_VERSION"),
                     },
                     "capabilities": { "experimentalApi": true },
@@ -1300,7 +1300,7 @@ async fn steer_as_new_turn(
 }
 
 // ---------------------------------------------------------------------------
-// Approvals (approval-as-input parity with zeron's UX)
+// Approvals (approval-as-input parity with Comet's UX)
 // ---------------------------------------------------------------------------
 
 type RequestInputFn = Box<

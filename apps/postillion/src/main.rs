@@ -1,4 +1,4 @@
-//! zeron — headed by default; `postillion headless` runs the engine alone. Both start
+//! postillion — headed by default; `postillion headless` runs the engine alone. Both start
 //! local-only without credentials. `postillion login` and `postillion logout` select the
 //! profile used by the next engine start without mutating a live runtime.
 //!
@@ -63,15 +63,18 @@ enum DaemonCommand {
     Status,
 }
 
-/// Production edge (Cloudflare Worker + Durable Objects on the zeron.sh zone).
-/// `POSTILLION_EDGE_URL` overrides (local dev / self-hosting).
-const DEFAULT_EDGE_URL: &str = "https://edge.zeron.sh";
+/// Sync endpoint. Empty by default: Postillion ships no hosted edge, so a bare
+/// install stays local-only until `POSTILLION_EDGE_URL` points at a server you
+/// run yourself (see `deploy/`).
+///
+/// This deliberately does not inherit the upstream project's endpoint. Keeping
+/// it would have sent every synced chat to a host we do not operate.
+const DEFAULT_EDGE_URL: &str = "";
 
-/// Production WorkOS AuthKit client id — public knowledge (it appears in every
-/// authorize URL), so baking it in is safe. Overridden by `POSTILLION_WORKOS_CLIENT_ID`;
-/// set it to the empty string — or set a dev bearer via `POSTILLION_EDGE_TOKEN` — to
-/// force dev-mode auth instead.
-const DEFAULT_WORKOS_CLIENT_ID: &str = "client_01KWD0EAKZKD50YCQJNYSRE4BY";
+/// WorkOS AuthKit client id. `None` by default for the same reason: the
+/// upstream client id authenticates against an identity provider we do not
+/// control. Set `POSTILLION_WORKOS_CLIENT_ID` to enable hosted sign-in.
+const DEFAULT_WORKOS_CLIENT_ID: Option<&str> = None;
 
 fn edge_url_from_env() -> String {
     std::env::var("POSTILLION_EDGE_URL")
@@ -82,14 +85,14 @@ fn edge_url_from_env() -> String {
 
 /// WorkOS client id resolution: explicit env wins (empty string = dev mode);
 /// otherwise a `POSTILLION_EDGE_TOKEN` dev bearer keeps dev mode (smoke tests,
-/// local wrangler); otherwise the baked production client id makes optional
-/// sync available while a bare start remains local-only.
+/// local wrangler); otherwise `DEFAULT_WORKOS_CLIENT_ID`, which is `None` until
+/// you configure your own AuthKit tenant.
 fn workos_client_id_from_env(edge_token: &Option<String>) -> Option<String> {
     match std::env::var("POSTILLION_WORKOS_CLIENT_ID") {
         Ok(v) if v.trim().is_empty() => None,
         Ok(v) => Some(v),
         Err(_) if edge_token.is_some() => None,
-        Err(_) => Some(DEFAULT_WORKOS_CLIENT_ID.into()),
+        Err(_) => DEFAULT_WORKOS_CLIENT_ID.map(Into::into),
     }
 }
 
@@ -297,7 +300,8 @@ fn dirs_data_dir() -> std::path::PathBuf {
     //
     // Newest first. The chain matters — a machine that never ran the `.zeron`
     // build still has `.comet-native` to inherit, and losing the agent-account
-    // slots would mean re-authenticating every saved login.
+    // slots would mean re-authenticating every saved login. These are upstream
+    // directory names on disk, so they stay spelled the old way on purpose.
     if !dir.exists() {
         for previous in [".zeron", ".comet-native"] {
             let old = home.join(previous);
@@ -324,7 +328,7 @@ async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
     let client = postillion_rpc::connect_ws(&format!("ws://127.0.0.1:{ipc_port}"))
         .await
         .map_err(|e| {
-            anyhow::anyhow!("no engine listening on 127.0.0.1:{ipc_port} ({e}) — is zeron running?")
+            anyhow::anyhow!("no engine listening on 127.0.0.1:{ipc_port} ({e}) — is postillion running?")
         })?;
     let status = client
         .call(postillion_rpc::methods::SYNC_STATUS, serde_json::json!({}))
@@ -440,7 +444,7 @@ async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `{data_dir}/logs/zeron-{mode}.log`, previous launch preserved as `.old`.
+/// `{data_dir}/logs/postillion-{mode}.log`, previous launch preserved as `.old`.
 /// Headed and headless are separate files so an embedded-engine app and a
 /// daemon on the same machine never interleave writes.
 ///
@@ -451,7 +455,7 @@ async fn sync_cli(ipc_port: u16) -> anyhow::Result<()> {
 /// second unlinked it entirely, and the daemon spent the rest of the incident
 /// logging to an orphaned inode (an entire day of sync diagnostics gone at
 /// the exact moment they were needed). A launch that finds the canonical file
-/// locked logs to `zeron-{mode}.{pid}.log` instead; the next lock-holding
+/// locked logs to `postillion-{mode}.{pid}.log` instead; the next lock-holding
 /// launch sweeps pid-suffixed files older than a week.
 fn open_log_file(mode: &str) -> Option<std::fs::File> {
     let dir = std::env::var_os("POSTILLION_DATA_DIR")
@@ -536,7 +540,7 @@ mod log_file_tests {
     }
 }
 
-/// Delete `zeron-{mode}.{pid}.log` overflow files older than a week — they
+/// Delete `postillion-{mode}.{pid}.log` overflow files older than a week — they
 /// only exist when a second instance raced a live one for the canonical log.
 #[cfg(unix)]
 fn sweep_stale_pid_logs(dir: &std::path::Path, mode: &str) {

@@ -226,7 +226,7 @@ fn captured_env() -> Vec<(String, String)> {
 
 fn render_systemd_unit(exe: &Path, env: &[(String, String)]) -> String {
     let mut unit = String::from(
-        "[Unit]\nDescription=Zeron headless engine\nAfter=network-online.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n\n[Service]\n",
+        "[Unit]\nDescription=Postillion headless engine\nAfter=network-online.target\nStartLimitIntervalSec=60\nStartLimitBurst=5\n\n[Service]\n",
     );
     for (key, value) in env {
         // systemd unquotes the value; escape the characters it treats specially.
@@ -425,28 +425,28 @@ mod tests {
         // Source build: literal path.
         assert_eq!(
             exec_path_for(
-                Path::new("/src/target/debug/zeron"),
+                Path::new("/src/target/debug/postillion"),
                 Some(Path::new("/home/u"))
             ),
-            "/src/target/debug/zeron"
+            "/src/target/debug/postillion"
         );
     }
 
     #[test]
     fn launchd_plist_shape() {
         let plist = render_launchd_plist(
-            Path::new("/Users/x/zeron & co/zeron"),
+            Path::new("/Users/x/postillion & co/postillion"),
             &[("POSTILLION_EDGE_URL".into(), "https://e?a=1&b=2".into())],
-            Path::new("/Users/x/.zeron/daemon.log"),
+            Path::new("/Users/x/.postillion/daemon.log"),
         );
         assert!(plist.contains("<key>Label</key><string>sh.postillion.app</string>"));
         // XML-escaped exe path and env value.
-        assert!(plist.contains("<string>/Users/x/zeron &amp; co/zeron</string>"));
+        assert!(plist.contains("<string>/Users/x/postillion &amp; co/postillion</string>"));
         assert!(plist.contains("<string>https://e?a=1&amp;b=2</string>"));
         assert!(plist.contains("<string>headless</string>"));
         assert!(plist.contains("<key>SuccessfulExit</key><false/>"));
         assert!(
-            plist.contains("<key>StandardOutPath</key><string>/Users/x/.zeron/daemon.log</string>")
+            plist.contains("<key>StandardOutPath</key><string>/Users/x/.postillion/daemon.log</string>")
         );
     }
 }

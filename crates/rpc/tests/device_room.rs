@@ -690,7 +690,7 @@ async fn nudges_reach_the_host_callback() {
 }
 
 /// Live-edge variant: run the same host+client path through a real DeviceRoom DO.
-/// `POSTILLION_EDGE_WS=http://127.0.0.1:26640 cargo test -p zeron-rpc -- --ignored live_edge`
+/// `POSTILLION_EDGE_WS=http://127.0.0.1:26640 cargo test -p postillion-rpc -- --ignored live_edge`
 /// (dev-mode edge; POSTILLION_EDGE_TOKEN defaults to a fixed dev user id).
 #[tokio::test]
 #[ignore = "needs a running edge (set POSTILLION_EDGE_WS)"]

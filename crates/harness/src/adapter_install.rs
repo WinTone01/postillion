@@ -4,9 +4,9 @@
 //! user's npm state in the hot path: a cold cache meant a multi-minute
 //! download while the chat showed "Working", and a broken one meant npm dying
 //! before the adapter ever ran — silently, with an errno-encoded exit code
-//! (254 = ENOENT, the zeronsh/comet#95 crash) that surfaced as an opaque
+//! (254 = ENOENT, the WinTone01/postillion#95 crash) that surfaced as an opaque
 //! "harness protocol error". Instead, pinned adapter packages are installed
-//! ONCE into a zeron-owned prefix (`~/.postillion/adapters/<pkg>/<version>`, own
+//! ONCE into a postillion-owned prefix (`~/.postillion/adapters/<pkg>/<version>`, own
 //! npm cache beside it, so a root-owned or read-only `~/.npm` can't break
 //! us), and every subsequent launch spawns `node <entry>` directly — no npm
 //! anywhere near a chat turn.
@@ -225,7 +225,7 @@ pub(crate) async fn ensure_installed(
     })
 }
 
-/// A zeron-owned shim script materialized INSIDE a managed install dir, for
+/// A postillion-owned shim script materialized INSIDE a managed install dir, for
 /// SDK packages with no bin entry (`@cursor/sdk`): the shim resolves the SDK
 /// from the sibling `node_modules`. Returns the shim path when the install is
 /// complete AND the shim contents match this build (a comet upgrade that
@@ -246,7 +246,7 @@ pub(crate) fn installed_shim(pin: &NpmPin, shim_name: &str, contents: &str) -> O
 }
 
 /// Like [`ensure_installed`], for a package consumed as a LIBRARY by a
-/// zeron-owned shim rather than through a bin entry. Installs the pin once,
+/// postillion-owned shim rather than through a bin entry. Installs the pin once,
 /// writes `contents` as `<install-dir>/<shim_name>`, and returns the shim
 /// path (spawn it via [`launch_for_entry`]).
 pub(crate) async fn ensure_installed_shim(

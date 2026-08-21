@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Two-device e2e smoke: real edge (wrangler dev), two headless engines, and the
-# zeron-rpc e2e_driver example proving the doc-queued cross-device command path:
+# postillion-rpc e2e_driver example proving the doc-queued cross-device command path:
 #
 #   B queues a Run into the chat doc -> nudge -> A (host) executes via the mock
 #   harness -> transcript + session status sync A -> edge -> B.
 #
-# Both engines run as the SAME user (alice@org1) on different devices — zeron's
+# Both engines run as the SAME user (alice@org1) on different devices — Comet's
 # one-user-many-devices model; chat/device rooms are claim-on-first-join per user.
 #
 # Usage: scripts/e2e-smoke.sh
@@ -23,7 +23,7 @@ A_PORT=27801
 B_PORT=27802
 A_DIR=/tmp/e2e-a
 B_DIR=/tmp/e2e-b
-LOG_DIR="$(mktemp -d /tmp/zeron-e2e-logs.XXXXXX)"
+LOG_DIR="$(mktemp -d /tmp/postillion-e2e-logs.XXXXXX)"
 
 EDGE_PID=""
 A_PID=""
@@ -87,13 +87,13 @@ else
 fi
 
 # ── 2. Build the binaries (workspace target is warm in CI/dev) ─────────────────
-echo "build: zeron + e2e_driver"
+echo "build: postillion + e2e_driver"
 # Two invocations: a single one with `--example` builds ONLY the example
-# (the target filter applies across every -p), silently skipping the zeron
+# (the target filter applies across every -p), silently skipping the postillion
 # bin — the smoke then dies on "No such file or directory".
-(cd "$ROOT" && cargo build -q -p zeron)
-(cd "$ROOT" && cargo build -q -p zeron-rpc --example e2e_driver)
-ZERON="$ROOT/target/debug/zeron"
+(cd "$ROOT" && cargo build -q -p postillion)
+(cd "$ROOT" && cargo build -q -p postillion-rpc --example e2e_driver)
+POSTILLION="$ROOT/target/debug/postillion"
 DRIVER="$ROOT/target/debug/examples/e2e_driver"
 
 # ── 3. Two headless engines, one user, two devices ─────────────────────────────
@@ -104,7 +104,7 @@ start_engine() { # start_engine <data_dir> <ipc_port> <name> <log>
   POSTILLION_DATA_DIR="$1" POSTILLION_IPC_PORT="$2" POSTILLION_DEVICE_NAME="$3" \
     POSTILLION_EDGE_URL="$EDGE_URL" POSTILLION_EDGE_TOKEN="$TOKEN" POSTILLION_ORG_ID="$ORG" \
     POSTILLION_HARNESS=mock RUST_LOG=info \
-    "$ZERON" headless >"$4" 2>&1 &
+    "$POSTILLION" headless >"$4" 2>&1 &
 }
 
 start_engine "$A_DIR" "$A_PORT" "e2e-device-a" "$LOG_DIR/engine-a.log"; A_PID=$!

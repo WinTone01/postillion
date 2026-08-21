@@ -2,7 +2,7 @@
 //! binary anywhere, `run()` must npm-install the pinned adapter into
 //! `$POSTILLION_ADAPTERS_DIR`, spawn it via node, and reach SessionStarted (the
 //! full initialize → session/new handshake) — the exact path that used to be
-//! `npx -y` at chat time (zeronsh/comet#95).
+//! `npx -y` at chat time (WinTone01/postillion#95).
 //!
 //! Ignored: needs network, npm, and the pi CLI on the machine. Run with
 //! `cargo test -p postillion-harness --test managed_install -- --ignored`.

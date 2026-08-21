@@ -1,7 +1,12 @@
 #!/bin/sh
 # Postillion (native) headless installer.
 #
-#   curl -fsSL https://postillion.sh/install.sh | sh
+# `postillion.invalid` is a placeholder, not a real host: this fork publishes no
+# hosted install surface. `.invalid` is reserved by RFC 2606 and can never be
+# registered, so a stale copy of this script cannot be pointed at someone
+# else's server. Set POSTILLION_BASE_URL to your own release host to use it:
+#
+#   curl -fsSL https://your-host.example/install.sh | POSTILLION_BASE_URL=https://your-host.example sh
 #
 # Installs the self-contained native binary (no runtime deps) to
 # ~/.postillion/app, puts `postillion` on PATH, and runs it as a local-only
@@ -13,7 +18,7 @@
 # client-id configuration needed. Overrides (if any) go in ~/.postillion/env.
 set -eu
 
-BASE="${POSTILLION_BASE_URL:-https://postillion.sh}"
+BASE="${POSTILLION_BASE_URL:-https://postillion.invalid}"
 
 # --- platform ---------------------------------------------------------------
 os="$(uname -s)"

@@ -6,7 +6,7 @@
 //! 2. The agent re-invokes ITSELF on a background-task notification and
 //!    streams real output with no prompt behind it. The old parked gate
 //!    dropped that output on the floor ("Build finished successfully…"
-//!    existed in the agent's session data, was absent from zeron's doc).
+//!    existed in the agent's session data, was absent from Comet's doc).
 //! 3. A steer ("what about now") becomes the next turn — the agent answers,
 //!    and the turn-end reply is LOST upstream. No Done ever arrives; the
 //!    session read Working forever (the live heartbeat defeats the 45s
