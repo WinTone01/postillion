@@ -260,6 +260,21 @@ fn turkish(source: &str) -> Option<&'static str> {
         }
         "Unarchiving…" => "Arşivden çıkarılıyor…",
 
+        // ── bu makinedeki Claude Code oturumları
+        "Sessions on this machine" => "Bu makinedeki oturumlar",
+        "Search local sessions…" => "Yerel oturumlarda ara…",
+        "Scanning…" => "Taranıyor…",
+        "No Claude Code sessions found on this machine" => {
+            "Bu makinede Claude Code oturumu bulunamadı"
+        }
+        "No sessions match" => "Eşleşen oturum yok",
+        "Import" => "İçe aktar",
+        "Importing…" => "İçe aktarılıyor…",
+        "Imported" => "İçe aktarıldı",
+        "The transcript stays where it is; the session continues here." => {
+            "Transcript yerinde kalıyor; oturum burada devam ediyor."
+        }
+
         // ── oturum / sohbet
         "New session" => "Yeni oturum",
         "Session title" => "Oturum başlığı",

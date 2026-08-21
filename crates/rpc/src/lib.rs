@@ -99,6 +99,10 @@ pub mod methods {
     pub const LOCAL_IMPORT_STATUS: &str = "LocalImportStatus";
     /// One-time local→synced profile import: run it (stream of progress items).
     pub const IMPORT_LOCAL_WORKSPACE: &str = "ImportLocalWorkspace";
+    /// Bu cihazdaki Claude Code oturumlarını tara (unary, cihaza yönlendirilebilir).
+    pub const LIST_LOCAL_CHATS: &str = "ListLocalChats";
+    /// Taranan bir oturumu sohbete çevir (unary, cihaza yönlendirilebilir).
+    pub const ADOPT_LOCAL_CHAT: &str = "AdoptLocalChat";
     // Repos / worktrees / folders (ControlRpc, relay-forwardable).
     pub const LIST_REPOS: &str = "ListRepos";
     pub const ADD_REPO: &str = "AddRepo";
