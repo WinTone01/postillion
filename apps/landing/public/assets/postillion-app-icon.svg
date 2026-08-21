@@ -1,0 +1,36 @@
+<!--
+  Postillion app icon. The mark is the same one the app draws in its own UI
+  (crates/ui/assets/icons/postillion-logo.svg): a core that stays put while two
+  arcs hand off around it — a session that keeps running as the device driving
+  it changes. Drawn for this fork; it is not upstream's artwork.
+
+  This SVG is the master. The PNGs beside it (and the iOS/macOS icons) are
+  rendered from it:
+    rsvg-convert -w 1024 -h 1024 postillion-app-icon.svg -o postillion-app-icon.png
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E1B33"/>
+      <stop offset="1" stop-color="#0A0912"/>
+    </linearGradient>
+    <linearGradient id="arc" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#A5B4FC"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <rect x="4" y="4" width="1016" height="1016" rx="226" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="8"/>
+
+  <!-- The 48×48 mark, scaled to 620px and centred. -->
+  <g transform="translate(202 202) scale(12.9167)">
+    <rect x="18" y="18" width="12" height="12" rx="3.5" fill="#ffffff"/>
+    <g stroke="url(#arc)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M11.5 18.5A14 14 0 0 1 29.5 8.4"/>
+      <path d="M24.6 4.5l6.2 4.3-4.3 6.2"/>
+      <path d="M36.5 29.5A14 14 0 0 1 18.5 39.6"/>
+      <path d="M23.4 43.5l-6.2-4.3 4.3-6.2"/>
+    </g>
+  </g>
+</svg>

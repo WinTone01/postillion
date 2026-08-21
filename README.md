@@ -4,11 +4,9 @@
 
 Control your coding agents (Claude Code, Codex, Cursor, Grok, Hermes, Pi) locally by default, with optional multi-device sync.
 
-![Postillion driving a Claude Code session with a live branch diff sidebar](apps/landing/public/assets/app-screenshot.jpg)
-
 Every device runs a small engine that stores sessions on that device. A new installation starts in local-only mode without an account or a network connection.
 
-Postillion is built on [zeronsh/comet](https://github.com/zeronsh/comet), rebuilt on GPUI. `main` starts from a single squashed import of upstream; the full unsquashed upstream history is kept on the [`upstream-history`](https://github.com/WinTone01/postillion/tree/upstream-history) branch, and the pre-GPUI Tauri version on the [`v1-tauri`](https://github.com/WinTone01/postillion/tree/v1-tauri) branch and tag.
+Postillion is built on [zeronsh/comet](https://github.com/zeronsh/comet), rebuilt on GPUI. `main` starts from a single squashed import of upstream — the unsquashed history is upstream's own, at [zeronsh/comet](https://github.com/zeronsh/comet). The pre-GPUI Tauri version is on the [`v1-tauri`](https://github.com/WinTone01/postillion/tree/v1-tauri) branch and tag.
 
 ## Install
 
