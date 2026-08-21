@@ -22,6 +22,7 @@ pub mod chat2_host;
 pub mod diff_sync;
 pub mod doc_host;
 pub mod instance_lock;
+pub mod local_chats;
 pub mod local_import;
 pub mod profile;
 pub mod processes;
@@ -130,6 +131,8 @@ pub struct EngineCore {
     pub device_id: String,
     /// Local→synced profile import (account-scoped runtimes only).
     pub local_import: Option<local_import::LocalImporter>,
+    /// Bu makinedeki Claude Code oturumlarının algılanması ve içe aktarılması.
+    pub local_chats: local_chats::LocalChats,
     workspace_scope: WorkspaceScope,
     /// Auth service (attached by [`Engine::run`]; a lazy dev-mode instance otherwise).
     auth: std::sync::Mutex<Option<Auth>>,
@@ -270,6 +273,12 @@ impl EngineCore {
                 uploads.clone(),
             )
         });
+        let local_chats = local_chats::LocalChats::new(
+            data_dir,
+            &device_id,
+            store_for_import.clone(),
+            workspace.clone(),
+        );
         let agent_accounts = AgentAccounts::new(AgentAccountsConfig::detect(data_dir));
         sessions.set_titles(TitleGenerator::new(
             workspace.clone(),
@@ -297,6 +306,7 @@ impl EngineCore {
             agent_accounts,
             device_id,
             local_import,
+            local_chats,
             workspace_scope: profile.scope(),
             auth: std::sync::Mutex::new(None),
             links: std::sync::Mutex::new(None),
@@ -424,6 +434,7 @@ impl EngineCore {
             self.diff_sync.clone(),
             self.uploads.clone(),
             self.agent_accounts.clone(),
+            self.local_chats.clone(),
             self.workspace_scope,
         )
         .with_auth(self.auth());

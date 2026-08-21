@@ -81,6 +81,13 @@ struct ChatParams {
     chat_id: String,
 }
 
+/// Benimsenecek yerel oturumun Claude tarafındaki kimliği.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AdoptLocalChatParams {
+    session_id: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ListModelsParams {
@@ -404,6 +411,7 @@ pub struct EngineRpc {
     links: Option<std::sync::Arc<LinkCache>>,
     updater: Option<postillion_update::Updater>,
     local_import: Option<crate::local_import::LocalImporter>,
+    local_chats: crate::local_chats::LocalChats,
     engine_info: EngineInfo,
 }
 
@@ -420,6 +428,7 @@ impl EngineRpc {
         diff_sync: CheckoutDiffSync,
         uploads: Uploads,
         agent_accounts: AgentAccounts,
+        local_chats: crate::local_chats::LocalChats,
         workspace_scope: WorkspaceScope,
     ) -> Self {
         let engine_info = EngineInfo {
@@ -437,6 +446,7 @@ impl EngineRpc {
             diff_sync,
             uploads,
             agent_accounts,
+            local_chats,
             auth: None,
             links: None,
             updater: None,
@@ -924,6 +934,9 @@ fn forwardable(method: &str) -> bool {
             | methods::LIST_SKILLS
             | methods::SKILL_DELETE
             | methods::SKILL_CREATE
+            // Yerel transcript'ler o cihazın `~/.claude/projects`'inde.
+            | methods::LIST_LOCAL_CHATS
+            | methods::ADOPT_LOCAL_CHAT
             // Süreç ağacı, ajanın koştuğu cihazın `/proc`'unda.
             | methods::LIST_PROCESSES
             | methods::KILL_PROCESS
@@ -1331,6 +1344,23 @@ impl RpcService for EngineRpc {
                 Ok(RpcReply::Stream(Box::pin(futures::stream::poll_fn(
                     move |cx| rx.poll_recv(cx),
                 ))))
+            }
+            methods::LIST_LOCAL_CHATS => {
+                let local = self.local_chats.clone();
+                let chats = tokio::task::spawn_blocking(move || local.list())
+                    .await
+                    .map_err(|e| RpcError::Failed(e.to_string()))?
+                    .map_err(|e| RpcError::Failed(e.to_string()))?;
+                RpcReply::value(&chats)
+            }
+            methods::ADOPT_LOCAL_CHAT => {
+                let p: AdoptLocalChatParams = parse_params(params)?;
+                let local = self.local_chats.clone();
+                let adopted = tokio::task::spawn_blocking(move || local.adopt(&p.session_id))
+                    .await
+                    .map_err(|e| RpcError::Failed(e.to_string()))?
+                    .map_err(|e| RpcError::Failed(e.to_string()))?;
+                RpcReply::value(&adopted)
             }
             methods::UPDATE_STATUS => Ok(RpcReply::Stream(watch_stream(self.updater()?.watch()))),
             methods::APPLY_UPDATE => {

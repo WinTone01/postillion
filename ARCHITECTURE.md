@@ -228,6 +228,14 @@ Direct ports of zeron behaviors (spec: feature-inventory §3):
   cases); worktrees under `~/.zeron/worktrees`; fs watchers (`notify`) + 2min repair; diff
   capture (patch + numstat + untracked, 3MiB cap, sha256) → workspace registry summary + DO diff
   sidecar.
+- **Local session adoption** (`engine/src/local_chats.rs`, Postillion addition — v1 listed
+  Claude Code's own transcripts as its session list): `ListLocalChats` scans
+  `~/.claude/projects/<cwd-slug>/<sessionId>.jsonl` (head+tail parse, `(path, mtime, size)` disk
+  cache) and marks the ones a chat already claims via `harness_session_id`; `AdoptLocalChat`
+  folds one transcript into a session doc through the same `fold_event_into_parts` the live wire
+  uses, saves it in the born-chat2 shape (cursor 0, epoch 2), and writes a chat row stamped with
+  `harness_session_id` + `harness_session_cwd` so the next turn resumes that conversation. The
+  transcript is never copied or moved; adoption is idempotent per session id.
 - **Agent accounts**: credential-slot swap (macOS Keychain via `security-framework`, files
   elsewhere), plan labels, usage probes, paste-code/browser-poll OAuth flows.
 - **Auth**: WorkOS through edge routes (`/auth/exchange`, `/auth/refresh`, orgs); loopback

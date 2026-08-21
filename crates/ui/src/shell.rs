@@ -52,6 +52,7 @@ use crate::terminal::panel::{TerminalPanel, ToggleTerminal, clamp_terminal_heigh
 use crate::theme::Theme;
 use crate::transcript::{self, Transcript, TranscriptEvent};
 
+mod local_chats;
 mod spaces;
 mod tabs;
 
@@ -865,6 +866,9 @@ pub struct Shell {
     /// The add-space palette (⌘K-style; device tabs + folder search), `Some`
     /// while open.
     add_space: Option<AddSpaceFlow>,
+    /// Bu makinedeki Claude Code oturumlarını içe aktarma paleti, `Some`
+    /// açıkken.
+    local_chats: Option<local_chats::LocalChatsPalette>,
     /// The sidebar's space-filter dropdown.
     spaces_menu: popover::Popup<spaces::SpacesMenu>,
     /// Chat id whose STATUS CORNER is under the pointer — just that corner
@@ -1123,6 +1127,7 @@ impl Shell {
             rename_space_dialog: None,
             delete_space_confirm: None,
             add_space: None,
+            local_chats: None,
             spaces_menu: popover::Popup::default(),
             chat_status_hover: None,
             sidebar_scroll: gpui::ScrollHandle::new(),
@@ -3886,6 +3891,8 @@ impl Shell {
 
         // t3code's archived accordion, below the active list.
         let archived_section = self.render_archived_section(theme, cx);
+        // Yerel Claude Code oturumlarına giriş satırı.
+        let local_entry = self.render_local_chats_entry(theme, cx);
 
         let (user_line, trigger_subline, menu_identity): (
             SharedString,
@@ -3979,7 +3986,10 @@ impl Shell {
                                     .child(SharedString::from(crate::i18n::t("No sessions yet")))
                                     .into_any_element()
                             })
-                            .children(archived_section),
+                            .children(archived_section)
+                            // Bu makinedeki Claude Code oturumları — listenin
+                            // altında, arşivin ardından.
+                            .child(local_entry),
                     ),
                 )
                 .fade_overflow_y(&self.sidebar_scroll),
@@ -4862,6 +4872,9 @@ impl Shell {
 
         overlays.extend(self.render_space_overlays(viewport, window, cx));
         if let Some(overlay) = self.render_add_space_overlay(viewport, window, cx) {
+            overlays.push(overlay);
+        }
+        if let Some(overlay) = self.render_local_chats_overlay(viewport, window, cx) {
             overlays.push(overlay);
         }
 
