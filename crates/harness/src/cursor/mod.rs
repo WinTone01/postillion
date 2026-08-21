@@ -61,7 +61,7 @@ const SHIM_SOURCE: &str = include_str!("shim.mjs");
 
 fn cursor_cli_paths() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+    if let Some(home) = crate::home_dir() {
         dirs.push(home.join(".local").join("bin").join("cursor-agent"));
         dirs.push(home.join(".cursor").join("bin").join("cursor-agent"));
     }

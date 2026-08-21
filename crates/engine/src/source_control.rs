@@ -852,7 +852,6 @@ async fn read_capped(
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
-    use std::os::unix::fs::PermissionsExt;
     use std::sync::Mutex;
 
     use super::*;
@@ -1022,8 +1021,12 @@ mod tests {
         assert_eq!(requests[0].output_limit, GITHUB_OUTPUT_LIMIT);
     }
 
+    // Sahte `gh` bir `#!/bin/sh` betiği: shebang + çalıştırma biti unix'e özgü.
+    #[cfg(unix)]
     #[tokio::test]
     async fn real_git_checkout_resolves_through_host_fake_gh() {
+        use std::os::unix::fs::PermissionsExt;
+
         let temp = tempfile::tempdir().expect("fixture tempdir");
         let checkout = temp.path().join("checkout");
         std::fs::create_dir_all(&checkout).expect("checkout directory");

@@ -47,6 +47,13 @@ zeron daemon start
 
 On macOS: use the desktop release, or build `zeron` from source and run `zeron daemon install` to install the launchd service.
 
+On Windows: download the release zip and run `Install.ps1` (per-user, no admin
+rights). It installs into `%LOCALAPPDATA%\Programs\Postillion`, adds a Start
+Menu shortcut, and puts the directory on your user PATH. There is no background
+service on Windows — the desktop app runs the engine in-process, and `zeron
+update` reports new versions rather than applying them, so update by
+re-running `Install.ps1` from the newer zip.
+
 ---
 
 Developing or curious how it works? [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zeronsh/comet) or check out [ARCHITECTURE.md](ARCHITECTURE.md).

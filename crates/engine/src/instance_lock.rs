@@ -27,6 +27,30 @@ impl InstanceLock {
     /// already owns this data dir.
     pub fn acquire(data_dir: &Path) -> Result<Self, EngineError> {
         let path = data_dir.join("engine.lock");
+        #[cfg(windows)]
+        let mut file = {
+            // Windows'ta `flock` yok; paylaşım kipini sıfırlamak (dosyayı
+            // münhasır açmak) aynı işi görüyor — ikinci motor açarken
+            // PermissionDenied alır. Pid damgasını okuyabilmek için ikinci
+            // motor önce paylaşımlı bir okuma denemesi yapıyor (aşağıda).
+            match open_exclusive(&path) {
+                Ok(file) => file,
+                Err(err) if is_lock_contention(&err) => {
+                    // Kilit dosyası münhasır açıldığı için içeriği okunamaz;
+                    // pid damgası yanındaki `engine.pid`'de duruyor.
+                    let holder = std::fs::read_to_string(pid_stamp_path(data_dir)).unwrap_or_default();
+                    let holder = holder.trim();
+                    return Err(EngineError::Other(format!(
+                        "another postillion engine is already running on {} (pid {}); \
+                         stop it or use a different data dir (POSTILLION_DATA_DIR)",
+                        data_dir.display(),
+                        if holder.is_empty() { "unknown" } else { holder },
+                    )));
+                }
+                Err(err) => return Err(EngineError::Io(err)),
+            }
+        };
+        #[cfg(not(windows))]
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -77,6 +101,8 @@ impl InstanceLock {
         let _ = file.set_len(0);
         let _ = write!(file, "{}", std::process::id());
         let _ = file.flush();
+        #[cfg(windows)]
+        let _ = std::fs::write(pid_stamp_path(data_dir), std::process::id().to_string());
         Ok(Self { _file: file })
     }
 
@@ -113,7 +139,41 @@ impl InstanceLock {
                 pid.to_string()
             })
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            // Kilidi almayı dene: başarılıysa kimse çalışmıyor, elimizdekini
+            // hemen bırakıyoruz. `open_exclusive` yerine tek denemelik açış —
+            // bu sonda çağıranlar (status, login/logout guard) beklememeli.
+            use std::os::windows::fs::OpenOptionsExt;
+            let probe = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .share_mode(0)
+                .open(&path);
+            match probe {
+                Ok(file) => {
+                    drop(file);
+                    None
+                }
+                // Yalnızca paylaşım ihlali "başkası tutuyor" demek. Veri dizini
+                // henüz yokken (ilk çalıştırma) açış NotFound veriyor; bunu
+                // sahiplik saymak `postillion status`'a hayali bir motor
+                // gösteriyordu.
+                Err(err) if !is_lock_contention(&err) => None,
+                Err(_) => {
+                    let pid = std::fs::read_to_string(pid_stamp_path(data_dir)).unwrap_or_default();
+                    let pid = pid.trim();
+                    Some(if pid.is_empty() {
+                        "unknown".to_string()
+                    } else {
+                        pid.to_string()
+                    })
+                }
+            }
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = path;
             None
@@ -121,7 +181,59 @@ impl InstanceLock {
     }
 }
 
-#[cfg(all(test, unix))]
+/// "Bu dosyayı başkası münhasır tutuyor" hatası.
+///
+/// `share_mode(0)` ile açılmış bir dosyayı ikinci kez açmak
+/// `ERROR_SHARING_VIOLATION` (32) veriyor, `ERROR_ACCESS_DENIED` değil — ve
+/// Rust bunu `ErrorKind::PermissionDenied`'a eşlemiyor, sınıflandırılmamış
+/// bırakıyor. Yalnızca `kind()`'a bakan bir kontrol bu yüzden çekişmeyi
+/// tamamen ıskalıyor (ölçüldü: ikinci motor dostane mesaj yerine ham
+/// "io: Sharing violation" ile düşüyordu). ACL nedeniyle gerçekten erişim
+/// reddi de olabileceği için ikisini birden kabul ediyoruz.
+#[cfg(windows)]
+pub(crate) fn is_lock_contention(err: &std::io::Error) -> bool {
+    const ERROR_SHARING_VIOLATION: i32 = 32;
+    const ERROR_LOCK_VIOLATION: i32 = 33;
+    matches!(
+        err.raw_os_error(),
+        Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION)
+    ) || err.kind() == std::io::ErrorKind::PermissionDenied
+}
+
+/// Windows'ta kilit dosyası münhasır açıldığı için pid damgası ayrı bir
+/// dosyada durur; unix'te damga kilit dosyasının kendi içeriğidir.
+#[cfg(windows)]
+fn pid_stamp_path(data_dir: &Path) -> std::path::PathBuf {
+    data_dir.join("engine.pid")
+}
+
+/// Münhasır açış, sınırlı yeniden denemeyle. Unix'teki EWOULDBLOCK bütçesinin
+/// karşılığı: bir önceki sahibin tanıtıcısı kapanırken (ya da bir virüs
+/// tarayıcı dosyaya bakarken) kısa bir paylaşım ihlali penceresi oluşabiliyor.
+#[cfg(windows)]
+fn open_exclusive(path: &Path) -> std::io::Result<File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    let mut retries = 40u32; // × 25ms = 1s bütçe
+    loop {
+        let attempt = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .share_mode(0)
+            .open(path);
+        match attempt {
+            Ok(file) => return Ok(file),
+            Err(err) if is_lock_contention(&err) && retries > 0 => {
+                retries -= 1;
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+            Err(err) => return Err(err),
+        }
+    }
+}
+
+#[cfg(all(test, any(unix, windows)))]
 mod tests {
     use super::*;
 

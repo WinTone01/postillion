@@ -1,6 +1,12 @@
 //! zeron — headed by default; `postillion headless` runs the engine alone. Both start
 //! local-only without credentials. `postillion login` and `postillion logout` select the
 //! profile used by the next engine start without mutating a live runtime.
+//!
+//! Windows'ta ikili GUI alt sistemiyle bağlanıyor: konsol alt sistemi, Başlat
+//! menüsünden açılan her pencerenin arkasında boş bir cmd penceresi bırakıyor.
+//! Bedeli, CLI alt komutlarının stdout'unu kaybetmesi — bunu `attach_console`
+//! telafi ediyor (aşağıda).
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod auth_cli;
 mod daemon;
@@ -117,7 +123,22 @@ fn apply_backend_override() {
     unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
 }
 
+/// GUI alt sistemiyle bağlanan ikili kendi konsolunu almıyor; onu başlatan
+/// terminal varsa ona iliştiriyoruz ki `postillion status` çıktısı ve clap'in
+/// `--help`/hata mesajları görünsün. Terminalden başlatılmadıysa (Başlat menüsü,
+/// kısayol) `AttachConsole` başarısız olur ve hiçbir şey değişmez.
+#[cfg(windows)]
+fn attach_console() {
+    use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
+    // SAFETY: argümansız FFI çağrısı; başarısızlığı anlamlı ve zararsız.
+    unsafe {
+        AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+}
+
 fn main() -> anyhow::Result<()> {
+    #[cfg(windows)]
+    attach_console();
     apply_backend_override();
     let cli = Cli::parse();
     // Long-running modes log at info, one-shot CLI commands at warn (RUST_LOG
@@ -267,7 +288,9 @@ fn harness_from_env() -> postillion_engine::HarnessId {
 }
 
 fn dirs_data_dir() -> std::path::PathBuf {
-    let home = std::path::PathBuf::from(std::env::var_os("HOME").expect("HOME not set"));
+    // Windows'ta `HOME` yok; `home_dir` `USERPROFILE`'a düşüyor. Eskiden burada
+    // doğrudan `HOME` okunuyordu ve uygulama açılışta panikliyordu.
+    let home = postillion_harness::home_dir().expect("no home directory");
     let dir = home.join(".postillion");
     // One-shot migrations: adopt the pre-rename data dir (sign-in, device
     // identity, saved account credentials, prefs) instead of starting fresh.

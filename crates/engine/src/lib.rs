@@ -1299,9 +1299,9 @@ impl DeviceIdentityLock {
             let file = loop {
                 match options.open(&path) {
                     Ok(file) => break file,
-                    Err(err)
-                        if err.kind() == std::io::ErrorKind::PermissionDenied && retries > 0 =>
-                    {
+                    // Çekişme `ERROR_SHARING_VIOLATION` olarak geliyor,
+                    // `PermissionDenied` olarak değil — bkz. instance_lock.
+                    Err(err) if instance_lock::is_lock_contention(&err) && retries > 0 => {
                         retries -= 1;
                         std::thread::sleep(std::time::Duration::from_millis(5));
                     }

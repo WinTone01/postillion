@@ -25,6 +25,29 @@ use postillion_proto::{
     UserInputAnswer, UserInputQuestion,
 };
 
+/// Kullanıcının ev dizini. Unix'te `HOME`, Windows'ta `USERPROFILE` (ve son
+/// çare olarak `HOMEDRIVE`+`HOMEPATH` — bir hizmet hesabı altında `USERPROFILE`
+/// boş gelebiliyor). Ajan CLI'larının config/oturum dizinleri (`~/.claude`,
+/// `~/.codex`, `~/.cursor`) buradan türetiliyor, o yüzden tek bir yerden.
+pub fn home_dir() -> Option<std::path::PathBuf> {
+    if let Some(home) = std::env::var_os("HOME").filter(|h| !h.is_empty()) {
+        return Some(std::path::PathBuf::from(home));
+    }
+    #[cfg(windows)]
+    {
+        if let Some(profile) = std::env::var_os("USERPROFILE").filter(|p| !p.is_empty()) {
+            return Some(std::path::PathBuf::from(profile));
+        }
+        let drive = std::env::var_os("HOMEDRIVE").filter(|d| !d.is_empty())?;
+        let path = std::env::var_os("HOMEPATH").filter(|p| !p.is_empty())?;
+        let mut joined = std::ffi::OsString::from(drive);
+        joined.push(path);
+        return Some(std::path::PathBuf::from(joined));
+    }
+    #[cfg(not(windows))]
+    None
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum HarnessError {
     #[error("harness binary not found: {0}")]
@@ -117,7 +140,7 @@ pub mod shell_env;
 /// Dock/Finder-launched app never runs.
 pub(crate) fn node_version_manager_bins() -> Vec<std::path::PathBuf> {
     use std::path::PathBuf;
-    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let home = home_dir();
     let mut dirs: Vec<PathBuf> = Vec::new();
     // fnm: `aliases/default` is a stable symlink to the active default
     // installation (the multishell PATH entries are ephemeral, per-shell).
@@ -285,6 +308,9 @@ pub(crate) async fn shutdown_child(
         if tokio::time::timeout(kill_grace, child.wait()).await.is_ok() {
             return;
         }
+        // Windows'ta `start_kill` yalnızca launcher'ı öldürür; ağacı `/F` ile al.
+        #[cfg(windows)]
+        send_signal(pid, Signal::Kill);
     }
     let _ = child.start_kill();
     let _ = child.wait().await;
@@ -308,7 +334,31 @@ pub(crate) fn send_signal(pid: u32, signal: Signal) {
     }
 }
 
-#[cfg(not(unix))]
+/// Windows'ta sinyal yok ve `start_kill` yalnızca doğrudan çocuğu öldürüyor —
+/// `claude.exe`/`codex.exe` birer launcher olduğu için asıl node süreci torun
+/// olarak hayatta kalır ve stdio borusunu açık tutar. `taskkill /T` ağacın
+/// tamamını hedefliyor: önce zarif (WM_CLOSE + CTRL_BREAK eşdeğeri), grace
+/// dolduğunda `/F` ile sert.
+#[cfg(windows)]
+pub(crate) fn send_signal(pid: u32, signal: Signal) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut cmd = std::process::Command::new("taskkill");
+    cmd.arg("/PID").arg(pid.to_string()).arg("/T");
+    if matches!(signal, Signal::Kill) {
+        cmd.arg("/F");
+    }
+    // Konsol penceresi açtırmadan, çıktısını yutarak: en iyi çaba temizlik.
+    let _ = cmd
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|mut child| child.wait());
+}
+
+#[cfg(not(any(unix, windows)))]
 pub(crate) fn send_signal(_pid: u32, _signal: Signal) {
     // No SIGTERM off unix; `start_kill`/`kill_on_drop` handle termination.
 }

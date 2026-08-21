@@ -61,8 +61,8 @@ pub fn default_config_path() -> Option<PathBuf> {
     Some(dirs_home()?.join(".claude.json"))
 }
 
-fn dirs_home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
+pub(crate) fn dirs_home() -> Option<PathBuf> {
+    crate::home_dir()
 }
 
 /// Seçilen sunucuları içeren geçici config'i yazar ve yolunu döndürür.

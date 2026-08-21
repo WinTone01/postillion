@@ -92,7 +92,7 @@ fn resolve_codex_executable() -> Option<PathBuf> {
                 .map(|d| d.join(exe)),
         );
     }
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+    if let Some(home) = crate::home_dir() {
         candidates.push(home.join(".local").join("bin").join("codex"));
         candidates.push(home.join(".codex").join("bin").join("codex"));
         candidates.push(home.join(".npm-global").join("bin").join("codex"));

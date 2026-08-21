@@ -64,9 +64,7 @@ fn adapters_root() -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os("POSTILLION_ADAPTERS_DIR").filter(|d| !d.is_empty()) {
         return Some(PathBuf::from(dir));
     }
-    std::env::var_os("HOME")
-        .filter(|h| !h.is_empty())
-        .map(|h| PathBuf::from(h).join(".postillion").join("adapters"))
+    crate::home_dir().map(|h| h.join(".postillion").join("adapters"))
 }
 
 fn install_dir(pin: &NpmPin) -> Option<PathBuf> {
@@ -427,6 +425,9 @@ mod tests {
         assert_eq!(pin.dir_name(), "pi-acp");
     }
 
+    // `ExitStatus::from_raw` semantiği unix'e özgü (wait(2) durum kelimesi);
+    // Windows'ta ham çıkış kodu doğrudan geliyor, sentezlenecek bir şey yok.
+    #[cfg(unix)]
     #[test]
     fn npm_errno_exits_are_decoded() {
         use std::os::unix::process::ExitStatusExt;
@@ -468,7 +469,7 @@ mod tests {
         // Marker gating: entry present but no marker → not installed.
         assert_eq!(
             install_dir(&pin).is_some(),
-            std::env::var_os("HOME").is_some()
+            crate::home_dir().is_some()
         );
     }
 }
