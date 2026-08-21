@@ -8,7 +8,7 @@ Control your coding agents (Claude Code, Codex, Cursor, Grok, Hermes, Pi) locall
 
 Every device runs a small engine that stores sessions on that device. A new installation starts in local-only mode without an account or a network connection.
 
-Postillion is a fork of [zeronsh/comet](https://github.com/zeronsh/comet), rebuilt on GPUI. The upstream history is preserved in this repository, and the pre-GPUI Tauri version is kept on the [`v1-tauri`](https://github.com/WinTone01/postillion/tree/v1-tauri) branch and tag.
+Postillion is built on [zeronsh/comet](https://github.com/zeronsh/comet), rebuilt on GPUI. `main` starts from a single squashed import of upstream; the full unsquashed upstream history is kept on the [`upstream-history`](https://github.com/WinTone01/postillion/tree/upstream-history) branch, and the pre-GPUI Tauri version on the [`v1-tauri`](https://github.com/WinTone01/postillion/tree/v1-tauri) branch and tag.
 
 ## Install
 
