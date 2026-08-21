@@ -1,3 +1,5 @@
+<img src="apps/landing/public/assets/postillion-app-icon.png" alt="Postillion" width="128">
+
 # Postillion
 
 Control your coding agents (Claude Code, Codex, Cursor, Grok, Hermes, Pi) locally by default, with optional multi-device sync.
