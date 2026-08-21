@@ -94,6 +94,36 @@ not built yet).
 | --- | --- | --- |
 | Token-usage display dropped | done | No WatchUsage, no doc `tokens`, no profile heatmap; rate-limit meters + Usage AgentEvent passthrough kept as specified. |
 
+## Platform support
+
+| Platform | Status | Notes |
+| --- | --- | --- |
+| Linux | done | Primary development target; wgpu renderer, systemd `--user` service, `notify-send`, tarball + `install.sh`. |
+| macOS | partial | Metal renderer, launchd service, AppleScript banners, dmg config in `dist/macos/`; the packaging job has never run on a Mac and the Keychain paths in `agent_accounts.rs` are not type-checked against the Apple SDK. |
+| Windows | partial | Whole workspace builds and links (`x86_64-pc-windows-msvc`); DirectX renderer, `share_mode(0)` single-instance lock, `taskkill /T` child-tree reap, `USERPROFILE` home, WinRT toasts, GUI subsystem with parent-console attach, zip + `Install.ps1`. Gaps below. |
+
+Windows gaps, all deliberate for the first shipping build:
+
+- **No backdrop blur.** `scene.backdrop_blurs` is a separate vec, not a
+  `PrimitiveBatch` variant, so the DirectX renderer skips it — glass panels
+  (sidebar, palette, modals) render unblurred. Metal and wgpu rasterize it;
+  porting the snapshot/blur/composite to HLSL is the remaining work.
+- **No background service.** `postillion daemon` is launchd/systemd only; the
+  desktop app runs the engine in-process. A Windows service (or a Startup
+  shortcut for the headless mode) is unbuilt.
+- **Report-only updates.** Managed installs are a `current`-symlink swap;
+  `detect_install` returns `Unmanaged` on Windows, so `postillion update`
+  reports a new version and the user re-runs `Install.ps1`.
+- **No login-shell PATH snapshot.** `shell_env` is unix-only, so `claude.exe`
+  discovery rests on the inherited PATH plus the known-location lists.
+- **Toasts borrow PowerShell's AppUserModelID** until the installer registers
+  our own — a shortcut-less install shows the banner attributed to PowerShell.
+- **Unsigned binaries.** No Authenticode certificate in the release job, so
+  SmartScreen warns on first run.
+- **Empty process panel.** `engine/src/processes.rs` reads `/proc`; it is
+  already inert on macOS, and stays inert on Windows (would need
+  `CreateToolhelp32Snapshot`).
+
 ## Deferred (cross-cutting)
 
 - **Mobile app** — out of scope for the native rewrite so far.

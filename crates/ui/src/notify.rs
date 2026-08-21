@@ -252,7 +252,64 @@ fn post_impl(title: &str, body: &str) {
     });
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+/// XML metin düğümüne gömmek için kaçış. Başlıklar model üretimi olduğu için
+/// `&`/`<` gerçekten geliyor; kaçmazsa toast XML'i parse edilemez ve bildirim
+/// sessizce düşer. Tek tırnak PowerShell literalinde ikilenerek kaçılıyor.
+#[cfg(any(target_os = "windows", test))]
+fn toast_escape(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '\'' => out.push_str("&apos;"),
+            '"' => out.push_str("&quot;"),
+            '\r' => {}
+            '\n' => out.push(' '),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// Windows toast'ı, ek bağımlılık olmadan PowerShell üzerinden WinRT
+/// `ToastNotificationManager` ile. AppId olarak PowerShell'in kayıtlı
+/// kısayol kimliği kullanılıyor: kendi AUMID'imizi Start menüsüne kaydetmeden
+/// bildirim gösterilemiyor, kurulum paketi bunu yaptığında burası
+/// `Postillion` AUMID'ine geçecek.
+#[cfg(target_os = "windows")]
+fn post_impl(title: &str, body: &str) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const APP_ID: &str =
+        "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe";
+    let (title, body) = (toast_escape(title), toast_escape(body));
+    std::thread::spawn(move || {
+        let script = format!(
+            // Her iki WinRT tipi de ayrı ayrı yüklenmeli: `New-Object` ancak
+            // tip ContentType=WindowsRuntime ile çözüldükten sonra çalışıyor.
+            "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] > $null; \
+             [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType=WindowsRuntime] > $null; \
+             $xml = New-Object Windows.Data.Xml.Dom.XmlDocument; \
+             $xml.LoadXml('<toast><visual><binding template=\"ToastGeneric\"><text>{title}</text><text>{body}</text></binding></visual></toast>'); \
+             [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{APP_ID}').Show([Windows.UI.Notifications.ToastNotification]::new($xml))"
+        );
+        let result = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        match result {
+            Ok(status) if status.success() => {}
+            Ok(status) => tracing::debug!(?status, "toast failed"),
+            Err(err) => tracing::debug!(error = %err, "powershell unavailable"),
+        }
+    });
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 fn post_impl(_title: &str, _body: &str) {}
 
 #[cfg(test)]
@@ -268,5 +325,15 @@ mod tests {
         );
         // Raw newlines would end the AppleScript statement mid-literal.
         assert_eq!(applescript_escape("two\nlines\r\n"), "two lines  ");
+    }
+
+    #[test]
+    fn toast_escaping() {
+        assert_eq!(toast_escape("plain"), "plain");
+        // Kaçmayan `&`/`<` toast XML'ini bozar — bildirim hiç görünmez.
+        assert_eq!(toast_escape("a & b < c"), "a &amp; b &lt; c");
+        // Tek tırnak PowerShell literalinin içinde: XML entity'si güvenli.
+        assert_eq!(toast_escape("it's"), "it&apos;s");
+        assert_eq!(toast_escape("two\nlines\r\n"), "two lines ");
     }
 }

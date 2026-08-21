@@ -1,0 +1,3 @@
+// Uygulama ikonu — dist/postillion.svg dosyasindan her boyut ayri vektor
+// render edilerek uretildi (16..256).
+1 ICON "postillion.ico"

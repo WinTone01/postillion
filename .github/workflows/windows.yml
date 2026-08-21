@@ -1,0 +1,33 @@
+name: windows
+
+# Windows'un kendi CI'ı: derleme + test paketi bir `windows-latest` koşucusunda.
+#
+# Neden ayrı bir iş: Windows yolları (`share_mode(0)` tek-örnek kilidi,
+# `taskkill /T` ile süreç ağacı kapatma, `USERPROFILE` ev dizini, toast
+# bildirimleri) yalnızca burada çalışıyor ve DirectX renderer'ı Metal/wgpu
+# ikizlerinden bağımsız derleniyor — bir yapı bozulması yalnızca burada görünür.
+#
+# Windows'a özgü olmayan bir kırılmayı da yakalar, ama amaç bu değil.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
+  pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: rust toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: build
+        run: cargo build --workspace
+      # Ajan CLI'ları (claude/codex/cursor) koşucuda yok; onları gerektiren
+      # testler zaten kendi başlarına atlanıyor.
+      - name: test
+        run: cargo test --workspace

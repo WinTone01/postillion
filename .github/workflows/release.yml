@@ -3,6 +3,7 @@ name: release
 # Build release artifacts and publish them:
 #   - Linux headless tarballs (x86_64 + aarch64) via scripts/package-linux.sh
 #   - macOS dmg (Apple silicon) via scripts/package-macos.sh
+#   - Windows zip (x86_64) via scripts/package-windows.ps1
 # then create a GitHub Release AND upload everything to the
 # `comet-native-releases` R2 bucket (served at zeron.sh/releases/* for
 # `curl -fsSL https://zeron.sh/install.sh | sh`), bumping latest.txt.
@@ -113,9 +114,28 @@ jobs:
             target/package/*.tar.gz
           if-no-files-found: error
 
+  # Windows'ta yönetilen kurulum (symlink takası + servis) yok: zip açılıp
+  # Install.ps1 çalıştırılıyor, güncelleme akışı rapor-modunda kalıyor
+  # (crates/update `InstallKind::Unmanaged`).
+  windows:
+    runs-on: windows-latest # x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - name: rust toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: package
+        shell: pwsh
+        run: scripts/package-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ runner.arch }}
+          path: target/package/*.zip
+          if-no-files-found: error
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, macos]
+    needs: [linux, macos, windows]
     runs-on: ubuntu-latest
     env:
       # `secrets` is not a valid context in step `if:` expressions — surface

@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 postillion-engine.workspace = true
+postillion-harness.workspace = true
 postillion-rpc.workspace = true
 postillion-ui.workspace = true
 postillion-update.workspace = true
@@ -22,6 +23,17 @@ libc.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# Konsol iliştirme: GUI alt sistemiyle bağlanan ikili, CLI alt komutlarında
+# çağıran terminale geri bağlanıyor (aksi halde çıktı hiçbir yere gitmez).
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+
+# Hedefe göre değil, KOŞAN makineye göre çözülüyor: `[target.'cfg(windows)']`
+# altında olsaydı Linux'tan çapraz derlemede hiç gelmezdi. Hedef kontrolü
+# build.rs içinde CARGO_CFG_TARGET_OS ile yapılıyor.
+[build-dependencies]
+embed-resource = "3"
 
 [dev-dependencies]
 tempfile.workspace = true

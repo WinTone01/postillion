@@ -344,7 +344,10 @@ pub fn apply_headless(app_root: &Path, version: &str) -> anyhow::Result<()> {
     #[cfg(not(unix))]
     {
         let _ = (app_root, version);
-        bail!("managed installs are unix-only");
+        // Windows'ta yönetilen kurulum yok: zip açılıp Install.ps1
+        // çalıştırılıyor (scripts/package-windows.ps1), `detect_install` de
+        // `Unmanaged` döndüğü için güncelleme rapor-modunda kalıyor.
+        bail!("managed installs are unix-only — on Windows download the release zip and run Install.ps1");
     }
 }
 

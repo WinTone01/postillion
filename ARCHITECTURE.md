@@ -162,6 +162,14 @@ feature spec `docs/research/feature-inventory.md` §1.
 
 - **Deps**: `gpui` + `gpui_platform` pinned to one Zed rev (Apache-2.0). **We do not use Zed's
   GPL crates** (`markdown`, `ui`, `theme`, `editor`) — markdown, components, and theme are ours.
+  The pin is `WinTone01/zed`, our fork of `wingleeio/zed`: the upstream fork adds `EdgeFadeParams`
+  and `BackdropBlur` to the scene but implements them only in the Metal and wgpu shaders, so our
+  commit carries `fade` through the DirectX `Quad`/`PolychromeSprite` structs. That field is not
+  cosmetic — the renderers upload the Rust `#[repr(C)]` structs straight into GPU structured
+  buffers, so a missing field is a stride mismatch and silent scene corruption, not a compile
+  error. Rebase that commit when bumping the upstream rev, and check every scene struct against
+  all three shader twins (`gpui_macos/src/shaders.metal`, `gpui_wgpu/src/shaders.wgsl`,
+  `gpui_windows/src/shaders.hlsl`) when adding one.
 - **Transcript**: gpui `list()` + `ListState::new(n, ListAlignment::Bottom, overdraw)` (sum-tree
   offsets, follow-tail). On top of it, port the mugen behaviors that gpui doesn't give us:
   - stick-to-bottom **spring** with feed-forward tracking of streaming growth; interrupt from

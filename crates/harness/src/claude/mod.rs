@@ -93,7 +93,7 @@ fn resolve_claude_executable() -> Option<PathBuf> {
                 .map(|d| d.join(exe)),
         );
     }
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+    if let Some(home) = crate::home_dir() {
         candidates.push(home.join(".claude").join("local").join("claude"));
         candidates.push(home.join(".local").join("bin").join("claude"));
     }
