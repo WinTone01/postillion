@@ -5338,6 +5338,7 @@ dependencies = [
  "futures",
  "postillion-doc",
  "postillion-proto",
+ "postillion-rpc",
  "postillion-sync",
  "serde",
  "serde_json",

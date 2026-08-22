@@ -224,6 +224,7 @@ pub async fn start_with(store: Arc<dyn ChatStore>) -> u16 {
         registry: Arc::new(MemRegistry::default()),
         hub: ChatHub::new(),
         registry_hub: postillion_server::registry_ws::RegistryHub::new(),
+        device_hub: postillion_server::device_room::DeviceHub::new(),
         auth: Auth::new(TOKEN),
     };
     // Port 0: çekirdek boş bir port veriyor, böylece testler paralel koşarken

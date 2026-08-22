@@ -4,7 +4,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use postillion_server::{
-    auth::Auth, db, health, registry_db::PgRegistry, registry_ws::RegistryHub, rooms::ChatHub, App,
+    auth::Auth, db, device_room::DeviceHub, health, registry_db::PgRegistry,
+    registry_ws::RegistryHub, rooms::ChatHub, App,
 };
 
 /// Sunucunun dinleyeceği adres. Konteynerde tüm arayüzler; ağ sınırını
@@ -48,6 +49,7 @@ async fn main() -> anyhow::Result<()> {
         registry: Arc::new(PgRegistry::new(pool)),
         hub: ChatHub::new(),
         registry_hub: RegistryHub::new(),
+        device_hub: DeviceHub::new(),
         auth,
     };
 
