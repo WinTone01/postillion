@@ -1,0 +1,49 @@
+@layout('layouts/app', { title: 'Cihaz jetonları — Postillion', captchaScript: false })
+@section('content')
+  <div class="card wide">
+    <h1>Cihaz jetonları</h1>
+    <p class="sub">Her cihaz sunucuya kendi jetonuyla bağlanır.</p>
+
+    @if (fresh)
+      <div class="fresh">
+        <p class="fresh-label">Yeni jeton — <strong>yalnızca şimdi görünüyor</strong></p>
+        <code>{{ fresh }}</code>
+        <p class="fresh-hint">
+          Kopyalayın ve cihazın <em>Ayarlar → Eşitleme</em> ekranına girin.
+          Sayfayı yenilediğinizde kaybolur; saklanan tek şey özeti.
+        </p>
+      </div>
+    @end
+
+    <form method="POST" action="/tokens" class="row">
+      {{ csrfField() }}
+      <input type="text" name="name" placeholder="Dizüstü" required maxlength="64" />
+      <button class="btn narrow" type="submit">Üret</button>
+    </form>
+
+    @if (tokens.length)
+      <ul class="tokens">
+        @each (token in tokens)
+          <li>
+            <div>
+              <span class="name">{{ token.name }}</span>
+              <span class="meta">
+                @if (token.lastUsedAt)
+                  son kullanım {{ token.lastUsedAt.toRelative() }}
+                @else
+                  hiç kullanılmadı
+                @end
+              </span>
+            </div>
+            <form method="POST" action="/tokens/{{ token.id }}?_method=DELETE">
+              {{ csrfField() }}
+              <button class="link-danger" type="submit">İptal et</button>
+            </form>
+          </li>
+        @end
+      </ul>
+    @else
+      <p class="empty">Henüz jeton yok.</p>
+    @end
+  </div>
+@end

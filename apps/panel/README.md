@@ -6,7 +6,30 @@ Tasarım kararları ve yol haritası: [`docs/panel-plan.md`](../../docs/panel-pl
 
 ## Durum
 
-Aşama 1 — iskelet ve kimlik. Kayıt, giriş, çıkış çalışıyor.
+Aşama 1 ve 2 — kimlik ve cihaz jetonları. Kayıt, giriş, çıkış ve
+`/tokens` üzerinden jeton üretme/iptal çalışıyor.
+
+## Cihaz jetonları
+
+Kullanıcı `/tokens` sayfasından jeton üretiyor ve cihazın **Ayarlar →
+Eşitleme** ekranına giriyor.
+
+Ham jeton **yalnızca üretildiği anda, bir kez** gösteriliyor. Saklanan tek şey
+SHA-256 özeti, dolayısıyla geri getirilemiyor — kaçırılırsa yenisini üretmek
+gerekiyor. Bu bilinçli: veritabanını ele geçiren biri jetonları kullanamıyor.
+
+Jeton **onaltılık**, base64 değil: istemci tarafında bu değer kullanıcı
+kimliği olarak da kullanılıp veri dizininde bir yol parçasına dönüşüyor ve
+base64'teki `/` o yolu bölerdi.
+
+`api_tokens` tablosunun şeması BURADA tanımlı değil; `postillion-server`
+açılışta kuruyor (`crates/server/src/identity_db.rs`). İki yerde tanımlamak,
+ikisinin zamanla ayrılması ve hangisinin önce koştuğuna bağlı bir veritabanı
+demekti. Panel çalışmadan önce sunucunun bir kez başlamış olması gerekiyor.
+
+Özetleme iki tarafta AYNI olmak zorunda ve paylaşılan bir test vektörüyle
+bağlanıyor (`ApiToken.hash` ↔ `hash_token`). Ayrılsalardı hiçbir jeton
+doğrulanmaz ve hata yalnızca çalışan sistemde görünürdü.
 
 ## Kurulum
 

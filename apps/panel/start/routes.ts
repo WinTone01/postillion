@@ -8,6 +8,7 @@ import router from '@adonisjs/core/services/router'
 import { middleware } from './kernel.js'
 
 const AuthController = () => import('#controllers/auth_controller')
+const TokensController = () => import('#controllers/tokens_controller')
 
 // Giriş yapmış kullanıcı kayıt/giriş sayfasını görmemeli.
 router
@@ -22,4 +23,13 @@ router
 router.post('/logout', [AuthController, 'logout']).use(middleware.auth())
 
 // Panelin kendisi kimlik ister.
-router.on('/').render('pages/home').use(middleware.auth())
+router
+  .group(() => {
+    router.on('/').render('pages/home')
+    router.get('/tokens', [TokensController, 'index'])
+    router.post('/tokens', [TokensController, 'store'])
+    // Tarayıcı formları yalnızca GET/POST gönderiyor; `?_method=DELETE`
+    // Adonis'in yöntem sahteciliğiyle gerçek DELETE'e çevriliyor.
+    router.delete('/tokens/:id', [TokensController, 'destroy'])
+  })
+  .use(middleware.auth())

@@ -103,9 +103,9 @@ sunucu sohbeti okuyamadan içine yazamaz.
 - ✅ Kullanıcı ayrımı: odalar "ilk yazan sahiplenir" kuralıyla korunuyor
 - ✅ Paylaşılan jeton tek yol olmaktan çıktı (geriye dönük uyumluluk için
   duruyor, sunucu açılışta kaldırılmasını hatırlatıyor)
-- ⏳ Panelde jeton üretme/iptal arayüzü
+- ✅ Panelde jeton üretme/iptal arayüzü (`/tokens`)
 
-### 3. Cihazlar ve sohbetler
+### 3. Cihazlar ve sohbetler — SIRADAKİ
 - Kayıt satırlarından cihaz ve sohbet listesi
 - Presence: hangi cihaz çevrimiçi
 
