@@ -367,3 +367,40 @@ body {
 .row.send {
   margin: 18px 0 0;
 }
+
+/* ── dar ekran ───────────────────────────────────────────────────────────── */
+/*
+ * Panelin asıl kullanım anı "bilgisayarım kapalı, telefondan bakıyorum" —
+ * dolayısıyla dar ekran istisna değil, birincil durum.
+ */
+@media (max-width: 560px) {
+  .shell {
+    padding: 12px;
+    /* Dar ekranda ortalamak kartı aşağı itiyor; üstten başlaması gerekiyor. */
+    place-items: start center;
+  }
+
+  .card {
+    padding: 20px 16px;
+    border-radius: 10px;
+  }
+
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .btn.narrow {
+    width: 100%;
+  }
+
+  .tokens li {
+    /* İsim ve durum yan yana sığmıyor; alt alta ve sola dayalı. */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .msg.user {
+    padding-left: 8px;
+  }
+}

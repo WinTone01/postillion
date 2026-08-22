@@ -18,8 +18,9 @@ const shieldConfig = defineConfig({
       // Vite geliştirmede stilleri enjekte ediyor; üretimde dosyadan geliyor.
       styleSrc: [`'self'`, `'unsafe-inline'`],
       imgSrc: [`'self'`, 'data:'],
-      // Sunucuya WebSocket ve HTTP: adres ortamdan geliyor, bu yüzden
-      // 'self' dışındakiler çalışma anında ekleniyor (bkz. start/csp.ts).
+      // Yalnızca kendi kaynağımız yeterli: tarayıcı eşitleme sunucusuna HİÇ
+      // gitmiyor. Gitseydi sunucu jetonunun tarayıcıya verilmesi gerekirdi ve
+      // o jeton kullanıcının bütün odalarına açılıyor — panel vekillik ediyor.
       connectSrc: [`'self'`],
       objectSrc: [`'none'`],
       baseUri: [`'self'`],

@@ -20,6 +20,9 @@ use crate::App;
 pub struct RowsQuery {
     #[serde(default)]
     after: u64,
+    /// Panelin elindeki baş sıra; aynıysa belge yeniden kurulmuyor.
+    #[serde(default)]
+    since: Option<u64>,
     device: Option<String>,
     #[serde(rename = "batchId")]
     batch_id: Option<String>,
@@ -190,6 +193,25 @@ pub async fn get_messages(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    // Baş sıra ÖNCE okunuyor: değişmemişse belgeyi hiç kurmuyoruz.
+    //
+    // Panel canlı akış için düzenli yokluyor ve her yoklamada bütün satırları
+    // birleştirmek sohbet uzadıkça pahalılaşırdı — uzun bir sohbette bu, hiç
+    // değişmemiş bir belgeyi saniyede bir yeniden kurmak demek.
+    let state = app
+        .store
+        .state(&chat_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if query.since.is_some_and(|since| since == state.head_seq) {
+        return Ok(axum::Json(serde_json::json!({
+            "headSeq": state.head_seq,
+            "unchanged": true,
+        }))
+        .into_response());
+    }
+
     let rows = app
         .store
         .rows_after(&chat_id, 0, None)
@@ -201,7 +223,11 @@ pub async fn get_messages(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    Ok(axum::Json(serde_json::json!({ "messages": entries })).into_response())
+    Ok(axum::Json(serde_json::json!({
+        "headSeq": state.head_seq,
+        "messages": entries,
+    }))
+    .into_response())
 }
 
 /// `GET /chat2/{id}/checkpoint`.

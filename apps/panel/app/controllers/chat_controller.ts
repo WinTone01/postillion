@@ -29,7 +29,8 @@ export default class ChatController {
       return response.notFound('Sohbet bulunamadı')
     }
 
-    const messages = await transcript(params.id)
+    const loaded = await transcript(params.id)
+    const messages = loaded?.messages ?? null
     const list = await chats(user.id, presence)
     const chat = list.find((c) => c.id === params.id)
 
@@ -38,9 +39,34 @@ export default class ChatController {
       messages,
       // `null` ile boş sohbeti ayırmak gerekiyor: ilki arıza, ikincisi
       // normal durum ve arayüzde farklı görünmeliler.
-      unreachable: messages === null,
+      unreachable: loaded === null,
+      headSeq: loaded?.headSeq ?? 0,
       livenessKnown: configured(),
     })
+  }
+
+  /**
+   * Canlı yoklama için JSON transkript.
+   *
+   * Tarayıcı sunucuya DOĞRUDAN gitmiyor: gitseydi sunucu jetonunun tarayıcıya
+   * verilmesi gerekirdi ve o jeton kullanıcının bütün odalarına açılıyor.
+   * Panel kendi jetonuyla soruyor ve sahipliği kendisi denetliyor.
+   */
+  async messages({ params, request, response, auth }: HttpContext) {
+    const user = auth.getUserOrFail()
+    if (!(await this.owns(user.id, params.id))) {
+      return response.notFound({ error: 'Sohbet bulunamadı' })
+    }
+
+    // `since` yoksa tam transkript isteniyor demek; sayıya çevrilemeyen bir
+    // değer de öyle sayılıyor — bozuk bir sorgu yüzünden boş ekran dönmemeli.
+    const raw = Number(request.input('since'))
+    const loaded = await transcript(params.id, Number.isFinite(raw) ? raw : undefined)
+
+    if (!loaded) {
+      return response.serviceUnavailable({ error: 'Sunucuya ulaşılamadı' })
+    }
+    return response.json(loaded)
   }
 
   /**
