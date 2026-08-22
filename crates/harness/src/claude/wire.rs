@@ -165,16 +165,59 @@ pub(crate) struct UsageBody {
     /// Bu turda önbellekten okunan bağlam.
     #[serde(default)]
     pub cache_read_input_tokens: u64,
+    /// Turdaki her API çağrısının kendi muhasebesi.
+    ///
+    /// Sonuç çerçevesinin ÜST DÜZEY alanları bir bağlam ölçüsü değil, tur
+    /// boyunca harcananın toplamı: alt ajanların kullanımı da oraya
+    /// ekleniyor. Bağlam boyutu isteniyorsa bakılacak yer burası.
+    #[serde(default)]
+    pub iterations: Vec<IterationUsage>,
+}
+
+/// Tek bir API çağrısının girdi muhasebesi.
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct IterationUsage {
+    #[serde(default)]
+    pub input_tokens: u64,
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
+}
+
+impl IterationUsage {
+    fn context(&self) -> u64 {
+        self.input_tokens + self.cache_creation_input_tokens + self.cache_read_input_tokens
+    }
 }
 
 impl UsageBody {
-    /// Turda modele giden toplam bağlam.
+    /// Konuşmanın ŞU ANKİ bağlam boyutu.
     ///
-    /// Üç kalemin toplamı, çünkü tek başına `input_tokens` yanıltıcı: bağlamın
-    /// neredeyse tamamı önbellekten geliyor ve o alan hemen her turda sıfıra
-    /// yakın kalıyor. Ölçüldü — 656k token'lık bir konuşmada `input_tokens` 2
-    /// iken `cache_read_input_tokens` 656.190'dı.
+    /// Üç kalemin toplamı alınıyor çünkü tek başına `input_tokens` yanıltıcı:
+    /// bağlamın neredeyse tamamı önbellekten geliyor ve o alan hemen her turda
+    /// sıfıra yakın kalıyor. Ölçüldü — 656k token'lık bir konuşmada
+    /// `input_tokens` 2 iken `cache_read_input_tokens` 656.190'dı.
+    ///
+    /// Ama toplam SON iterasyondan alınıyor, üst düzey alanlardan değil. Üst
+    /// düzey alanlar tur boyunca harcananı topluyor: bağlam her araç
+    /// çağrısında yeniden önbellekten okunduğu için elli çağrılık bir tur
+    /// bağlamı elli kez sayıyor, alt ajanların kendi bağlamları da üstüne
+    /// biniyor. Ölçüldü — gerçek bir oturumda bu 22 ve 34 MİLYON token
+    /// gösterdi; hiçbir modelin penceresi o değil.
+    ///
+    /// Bu yalnızca göstergeyi bozmuyordu: otomatik sıkıştırma bu sayıyı eşikle
+    /// karşılaştırdığı için eşik hemen her turda aşılmış görünüyor ve
+    /// `/compact` durmadan tetikleniyordu — sıkıştırmanın kendisi token
+    /// yakarken bağlamın gerçekte dolup dolmadığı hiç ölçülmemiş oluyordu.
     pub fn context_tokens(&self) -> u64 {
+        if let Some(last) = self.iterations.last() {
+            return last.context();
+        }
+        // `iterations` taşımayan eski CLI sürümleri: üst düzey alanlar tek
+        // çağrılık turlarda doğru, çok çağrılıklarda şişik. Yanlış ama VAR
+        // olan bir ölçü, hiç ölçmemekten iyi — sıfır "bilinmiyor" demek ve
+        // göstergeyi tamamen kapatırdı.
         self.input_tokens + self.cache_creation_input_tokens + self.cache_read_input_tokens
     }
 }
@@ -346,5 +389,82 @@ mod tests {
             user_message_line_with_images("hi", &[]),
             user_message_line("hi")
         );
+    }
+
+    /// Bağlam ölçüsü SON iterasyondan gelmeli, üst düzey toplamdan değil.
+    ///
+    /// Gerçek bir oturumda üst düzey alanlar 22 ve 34 MİLYON token gösterdi.
+    /// Bu yalnızca göstergeyi bozmadı: otomatik sıkıştırma aynı sayıya baktığı
+    /// için eşik hemen her turda aşılmış görünüyor ve `/compact` durmadan
+    /// tetikleniyordu.
+    #[test]
+    fn baglam_son_iterasyondan_okunuyor() {
+        let usage: UsageBody = serde_json::from_value(serde_json::json!({
+            // Üst düzey: tur boyunca harcanan + alt ajanlar.
+            "input_tokens": 10,
+            "cache_creation_input_tokens": 413,
+            "cache_read_input_tokens": 52_962,
+            "output_tokens": 155,
+            "iterations": [
+                { "input_tokens": 4, "cache_creation_input_tokens": 100,
+                  "cache_read_input_tokens": 20_000 },
+                { "input_tokens": 10, "cache_creation_input_tokens": 413,
+                  "cache_read_input_tokens": 26_552 }
+            ]
+        }))
+        .expect("usage çözülmeli");
+
+        assert_eq!(usage.context_tokens(), 26_975, "son iterasyonun bağlamı");
+        // Üst düzey toplam alınsaydı 53.385 çıkardı — gerçek bağlamın iki katı.
+        assert_ne!(usage.context_tokens(), 53_385);
+    }
+
+    /// `iterations` taşımayan eski CLI sürümleri.
+    ///
+    /// Yanlış ama VAR olan bir ölçü, hiç ölçmemekten iyi: sıfır "bilinmiyor"
+    /// demek ve göstergeyi tamamen kapatırdı.
+    #[test]
+    fn iterasyonsuz_surumde_ust_duzeye_dusuyor() {
+        let usage: UsageBody = serde_json::from_value(serde_json::json!({
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 656_190,
+            "output_tokens": 100
+        }))
+        .expect("usage çözülmeli");
+        assert_eq!(usage.context_tokens(), 656_192);
+    }
+
+    /// Depodaki gerçek kayıt: tek iterasyonlu bir turda bile üst düzey alanlar
+    /// bağlamın iki katını gösteriyor, çünkü alt ajanın kullanımı da orada.
+    #[test]
+    fn gercek_kayitta_ust_duzey_baglamdan_buyuk() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/claude/live-2.1.228-background-subagent.jsonl");
+        let text = std::fs::read_to_string(&fixture).expect("kayıt okunmalı");
+
+        let mut seen = 0;
+        for line in text.lines() {
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+            if value.get("type").and_then(|v| v.as_str()) != Some("result") {
+                continue;
+            }
+            let usage: UsageBody =
+                serde_json::from_value(value["usage"].clone()).expect("usage çözülmeli");
+            if usage.iterations.is_empty() {
+                continue;
+            }
+            seen += 1;
+            let top = usage.input_tokens
+                + usage.cache_creation_input_tokens
+                + usage.cache_read_input_tokens;
+            assert!(
+                usage.context_tokens() <= top,
+                "bağlam üst düzey toplamı aşamaz"
+            );
+        }
+        assert!(seen > 0, "kayıtta iterasyonlu sonuç çerçevesi bulunamadı");
     }
 }
