@@ -18,8 +18,11 @@ build/
 *.key
 
 # Sunucunun ihtiyacı olmayan taraflar.
+#
+# `apps/landing/` BURAYA GİRMİYOR: landing imajı da aynı kökü bağlam olarak
+# kullanıyor ve buradan dışlanması onu görünmez yapardı. 1,8 MB, sunucu
+# derlemesine yükü ihmal edilebilir.
 apps/ios/
-apps/landing/
 apps/postillion/
 crates/ui/
 crates/engine/

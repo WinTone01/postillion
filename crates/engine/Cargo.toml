@@ -36,6 +36,7 @@ ignore.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+filetime.workspace = true
 tokio-tungstenite.workspace = true
 # In-process registry server for the two-engine workspace integration tests.
 postillion-sync = { workspace = true, features = ["mock-server"] }

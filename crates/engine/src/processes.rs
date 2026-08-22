@@ -182,6 +182,11 @@ mod tests {
 
     /// Kendi sürecimizin soyu okunabiliyor mu — /proc ayrıştırması burada
     /// kırılırsa panel hep boş görünürdü.
+    ///
+    /// Linux'a kapalı: `/bin/sh` ve `/proc` başka bir yerde yok. Modülün
+    /// tamamı zaten `/proc` üzerine kurulu ve diğer platformlarda boş liste
+    /// dönüyor — panel orada boş görünüyor, çökmüyor.
+    #[cfg(target_os = "linux")]
     #[test]
     fn kendi_alt_surecimizi_gorur() {
         let mut child = std::process::Command::new("/bin/sh")
@@ -217,7 +222,9 @@ mod tests {
         let _ = child.wait();
     }
 
-    /// Soydan olmayan bir pid'e sinyal gönderilmemeli.
+    /// Soydan olmayan bir pid'e sinyal gönderilmemeli. Bu test bilerek her
+    /// platformda koşuyor: soy listesi boş dönen bir sistemde bile reddin
+    /// tutması gerekiyor, aksi halde boş liste "her pid serbest" demek olurdu.
     #[test]
     fn yabanci_pid_reddedilir() {
         // 1 (init) hiçbir zaman bizim alt sürecimiz olamaz.
@@ -227,6 +234,7 @@ mod tests {
 
     /// `comm` alanı boşluk ve parantez içerebiliyor; ayrıştırma son `)`'e
     /// bakmazsa alanlar kayar.
+    #[cfg(target_os = "linux")]
     #[test]
     fn stat_ayristirmasi_kendi_surecimizde_calisir() {
         let me = std::process::id();

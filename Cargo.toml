@@ -99,6 +99,9 @@ uuid = { version = "1", features = ["v4", "serde"] }
 
 # storage
 rusqlite = { version = "0.32", features = ["bundled"] }
+# Dizin mtime'ını taşınabilir biçimde ayarlamak için (yalnızca testlerde):
+# std ile bir dizin tanıtıcısı açmak Windows'ta mümkün değil.
+filetime = "0.2"
 
 # misc
 # Global allocator for the binaries: returns freed pages to the OS. System
