@@ -164,6 +164,40 @@ kurulmuyor ve eşitleme hiç başlamıyor.
 
 ---
 
+## C. Landing sayfası
+
+Landing ayrı bir Coolify kaynağı — sayfada bir yazı değiştirmek eşitleme
+sunucusunu yeniden başlatmamalı, sunucuyu güncellemek de sayfayı
+indirmemeli.
+
+Coolify'da: **Yeni Kaynak → Docker Compose**, aynı depoyu seçin ve compose
+dosyası olarak şunu verin:
+
+```
+apps/landing/docker-compose.yaml
+```
+
+Dağıtımdan sonra **Domains** alanına alan adınızı yazın (örn.
+`postillion.alanadiniz.com`). TLS'i Coolify'ın vekili sonlandırıyor.
+
+Sayfa saf statik; derleme adımı yok, nginx dosyaları olduğu gibi sunuyor.
+Bulunmayan bir yol `404` dönüyor — statik bir sitede her isteği `index.html`'e
+düşürmek kırık bağlantıları sessizce ana sayfa gibi gösterirdi.
+
+İki alan adını da tek sunucuda toplayabilirsiniz; ikisi ayrı kaynak olduğu
+için birbirlerini etkilemiyorlar:
+
+| Alan adı | Kaynak |
+| --- | --- |
+| `postillion.alanadiniz.com` | `apps/landing/docker-compose.yaml` |
+| `sync.alanadiniz.com` | `deploy/docker-compose.yaml` |
+
+Depoda ayrıca Cloudflare Workers'a dağıtan bir iş akışı duruyor
+(`.github/workflows/deploy.yml`). `CLOUDFLARE_API_TOKEN` sırrı tanımlı
+değilken hiçbir şey yapmıyor, dolayısıyla Coolify kurulumuyla çakışmıyor.
+
+---
+
 ## Uçlar
 
 | Uç | İş |

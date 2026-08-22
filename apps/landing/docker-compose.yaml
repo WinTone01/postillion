@@ -1,0 +1,20 @@
+# Coolify için landing sayfası kaynağı.
+#
+# Coolify'da: Yeni Kaynak → Docker Compose, bu depoyu seçin, compose dosyası
+# olarak `apps/landing/docker-compose.yaml` verin, ardından Domains alanına
+# kendi alan adınızı yazın. TLS'i Coolify'ın vekili sonlandırıyor.
+#
+# Eşitleme sunucusundan AYRI bir kaynak: sayfayı güncellemek sunucuyu
+# yeniden başlatmamalı.
+
+services:
+  landing:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      # Coolify bu değişkeni görünce servise alan adı atayıp 80'e vekillik
+      # ediyor.
+      - SERVICE_FQDN_LANDING_80
+    expose:
+      - "80"
