@@ -17,6 +17,9 @@ postillion-sync.workspace = true
 postillion-doc.workspace = true
 # Cihaz rölesinin çerçeve codec'i — istemcinin kullandığının aynısı.
 postillion-rpc.workspace = true
+# Sohbet içeriğini sunucuda materyalize etmek için (panel, bilgisayar kapalıyken
+# de transkripti göstermeli).
+loro.workspace = true
 
 axum.workspace = true
 tower-http.workspace = true
@@ -33,3 +36,4 @@ uuid.workspace = true
 [dev-dependencies]
 tokio-tungstenite.workspace = true
 postillion-proto.workspace = true
+postillion-doc.workspace = true
