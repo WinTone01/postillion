@@ -68,7 +68,7 @@ export default class AuthController {
 
     const user = await User.create(payload)
     await auth.use('web').login(user)
-    return response.redirect('/')
+    return response.redirect('/app')
   }
 
   async login(ctx: HttpContext) {
@@ -85,7 +85,7 @@ export default class AuthController {
     try {
       const user = await User.verifyCredentials(email, password)
       await auth.use('web').login(user)
-      return response.redirect('/')
+      return response.redirect('/app')
     } catch {
       // Tek ve AYRIM YAPMAYAN mesaj: "böyle bir kullanıcı yok" ile "parola
       // yanlış"ı ayırmak, hangi e-postaların kayıtlı olduğunu sızdırırdı.

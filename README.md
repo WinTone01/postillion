@@ -1,4 +1,4 @@
-<img src="apps/landing/public/assets/postillion-app-icon.png" alt="Postillion" width="128">
+<img src="apps/panel/public/assets/postillion-app-icon.png" alt="Postillion" width="128">
 
 # Postillion
 

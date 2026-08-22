@@ -24,7 +24,9 @@ router
 
 router.post('/logout', [AuthController, 'logout']).use(middleware.auth())
 
-// Panelin kendisi kimlik ister.
+// Panel `/app` altında. Kök yol tanıtım sayfası ve statik olarak
+// sunuluyor (`public/index.html`) — aynı alan adında iki ayrı dağıtım
+// tutmaktansa tek uygulama.
 router
   .group(() => {
     router.get('/', [WorkspaceController, 'index'])
@@ -37,4 +39,5 @@ router
     // Adonis'in yöntem sahteciliğiyle gerçek DELETE'e çevriliyor.
     router.delete('/tokens/:id', [TokensController, 'destroy'])
   })
+  .prefix('/app')
   .use(middleware.auth())

@@ -68,7 +68,7 @@ if (root) {
 
   const poll = async () => {
     try {
-      const response = await fetch(`/chats/${encodeURIComponent(chatId)}/messages?since=${headSeq}`, {
+      const response = await fetch(`/app/chats/${encodeURIComponent(chatId)}/messages?since=${headSeq}`, {
         headers: { accept: 'application/json' },
       })
       if (!response.ok) {

@@ -45,7 +45,7 @@ test.group('Sohbet', (group) => {
 
   test('kendi sohbeti açılıyor', async ({ client }) => {
     const user = await userWithChat('org-c1', 'chat-1')
-    const response = await client.get('/chats/chat-1').loginAs(user)
+    const response = await client.get('/app/chats/chat-1').loginAs(user)
     response.assertStatus(200)
     response.assertTextIncludes('Deneme')
   })
@@ -58,13 +58,13 @@ test.group('Sohbet', (group) => {
       password: 'cok-uzun-bir-parola',
     })
 
-    const response = await client.get('/chats/gizli-sohbet').loginAs(bora)
+    const response = await client.get('/app/chats/gizli-sohbet').loginAs(bora)
     response.assertStatus(404)
   })
 
   test('olmayan sohbet 404', async ({ client }) => {
     const user = await userWithChat('org-c2', 'chat-2')
-    const response = await client.get('/chats/hic-olmayan').loginAs(user)
+    const response = await client.get('/app/chats/hic-olmayan').loginAs(user)
     response.assertStatus(404)
   })
 
@@ -72,13 +72,13 @@ test.group('Sohbet', (group) => {
   /// transkript göstermek, sohbeti boş sanmaya yol açardı.
   test('sunucuya ulaşılamayınca sebebi yazıyor', async ({ client }) => {
     const user = await userWithChat('org-c3', 'chat-3')
-    const response = await client.get('/chats/chat-3').loginAs(user)
+    const response = await client.get('/app/chats/chat-3').loginAs(user)
     response.assertStatus(200)
     response.assertTextIncludes('ulaşılamadı')
   })
 
   test('sohbet sayfası kimliksiz açılmıyor', async ({ client }) => {
-    const response = await client.get('/chats/chat-1').redirects(0)
+    const response = await client.get('/app/chats/chat-1').redirects(0)
     response.assertStatus(302)
   })
 
@@ -90,7 +90,7 @@ test.group('Sohbet', (group) => {
     })
 
     const response = await client
-      .post('/chats/gizli-2/send')
+      .post('/app/chats/gizli-2/send')
       .form({ prompt: 'merhaba' })
       .withCsrfToken()
       .loginAs(bora)
@@ -105,7 +105,7 @@ test.group('Sohbet', (group) => {
     const user = await userWithChat('org-g2', 'chat-g2')
 
     const response = await client
-      .post('/chats/chat-g2/send')
+      .post('/app/chats/chat-g2/send')
       .form({ prompt: 'merhaba' })
       .withCsrfToken()
       .loginAs(user)
@@ -118,7 +118,7 @@ test.group('Sohbet', (group) => {
   test('boş mesaj gönderilemiyor', async ({ client }) => {
     const user = await userWithChat('org-g3', 'chat-g3')
     const response = await client
-      .post('/chats/chat-g3/send')
+      .post('/app/chats/chat-g3/send')
       .form({ prompt: '   ' })
       .withCsrfToken()
       .loginAs(user)
@@ -135,12 +135,12 @@ test.group('Sohbet', (group) => {
       password: 'cok-uzun-bir-parola',
     })
 
-    const response = await client.get('/chats/gizli-json/messages').loginAs(bora)
+    const response = await client.get('/app/chats/gizli-json/messages').loginAs(bora)
     response.assertStatus(404)
   })
 
   test('canlı yoklama kimliksiz açılmıyor', async ({ client }) => {
-    const response = await client.get('/chats/chat-1/messages').redirects(0)
+    const response = await client.get('/app/chats/chat-1/messages').redirects(0)
     response.assertStatus(302)
   })
 
@@ -148,7 +148,7 @@ test.group('Sohbet', (group) => {
   /// dönmek, tarayıcıda sohbeti silinmiş gibi gösterirdi.
   test('sunucu yokken yoklama 503 veriyor', async ({ client }) => {
     const user = await userWithChat('org-j2', 'chat-j2')
-    const response = await client.get('/chats/chat-j2/messages').loginAs(user)
+    const response = await client.get('/app/chats/chat-j2/messages').loginAs(user)
     response.assertStatus(503)
   })
 })

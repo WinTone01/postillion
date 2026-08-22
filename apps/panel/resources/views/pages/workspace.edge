@@ -3,13 +3,13 @@
   <div class="card wide">
     <div class="head">
       <h1>Çalışma alanı</h1>
-      <a class="quiet" href="/tokens">Cihaz jetonları</a>
+      <a class="quiet" href="/app/tokens">Cihaz jetonları</a>
     </div>
 
     @if (!devices.length && !chats.length)
       <p class="empty">
         Henüz cihaz bağlanmamış.
-        <a href="/tokens">Bir jeton üretin</a> ve cihazın
+        <a href="/app/tokens">Bir jeton üretin</a> ve cihazın
         <em>Ayarlar → Eşitleme</em> ekranına girin.
       </p>
     @end
@@ -42,7 +42,7 @@
         @each (chat in chats)
           <li>
             <div>
-              <a class="name link" href="/chats/{{ chat.id }}">{{ chat.title }}</a>
+              <a class="name link" href="/app/chats/{{ chat.id }}">{{ chat.title }}</a>
               <span class="meta">{{ chat.location }}</span>
             </div>
             @if (livenessKnown && !chat.deviceOnline)

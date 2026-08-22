@@ -66,7 +66,7 @@ test.group('Kimlik', (group) => {
       .redirects(0)
 
     response.assertStatus(302)
-    response.assertHeader('location', '/')
+    response.assertHeader('location', '/app')
   })
 
   test('yanlış parola girişi reddediyor', async ({ client }) => {
@@ -82,7 +82,7 @@ test.group('Kimlik', (group) => {
     // `redirect().back()` Referer olmadığında köke düşüyor ve bu testin
     // ölçtüğü şey değil.
     response.assertStatus(302)
-    const after = await client.get('/').redirects(0)
+    const after = await client.get('/app').redirects(0)
     after.assertStatus(302)
   })
 
@@ -98,7 +98,7 @@ test.group('Kimlik', (group) => {
   })
 
   test('panel kimliksiz açılmıyor', async ({ client }) => {
-    const response = await client.get('/').redirects(0)
+    const response = await client.get('/app').redirects(0)
     response.assertStatus(302)
   })
 })

@@ -3,7 +3,7 @@
   <div class="card wide" data-chat-id="{{ chat ? chat.id : '' }}" data-head-seq="{{ headSeq }}">
     <div class="head">
       <h1>{{ chat ? chat.title : 'Sohbet' }}</h1>
-      <a class="quiet" href="/">Çalışma alanı</a>
+      <a class="quiet" href="/app">Çalışma alanı</a>
     </div>
 
     @if (chat && chat.location)
@@ -50,7 +50,7 @@
     @end
 
     @if (chat && chat.deviceOnline)
-      <form class="row send" method="POST" action="/chats/{{ chat.id }}/send">
+      <form class="row send" method="POST" action="/app/chats/{{ chat.id }}/send">
         {{ csrfField() }}
         <input type="text" name="prompt" placeholder="Mesaj yazın…" required
                maxlength="20000" value="{{ flashMessages.get('prompt') ?? '' }}" />
