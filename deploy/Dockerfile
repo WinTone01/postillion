@@ -17,6 +17,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/proto crates/proto
 COPY crates/doc   crates/doc
 COPY crates/sync  crates/sync
+# Cihaz rölesinin çerçeve codec'i burada; sunucu ona bağımlı.
+COPY crates/rpc   crates/rpc
 COPY crates/server crates/server
 
 # Yalnızca gerekmeyen üyeler çıkarılıyor; sürümler kök `Cargo.toml`'da tek
@@ -24,10 +26,11 @@ COPY crates/server crates/server
 # hedefi ıskalamadığını doğruluyor: sessizce boşalan bir üye listesi çok
 # daha sonra, anlamsız bir bağlantı hatası olarak ortaya çıkardı.
 RUN awk '/^members = \[/{p=1} \
-         p && /"(crates\/(harness|engine|rpc|update|ui|syntax)|apps\/postillion)"/{next} \
+         p && /"(crates\/(harness|engine|update|ui|syntax)|apps\/postillion)"/{next} \
          /^\]/{p=0} {print}' Cargo.toml > Cargo.toml.trimmed \
  && mv Cargo.toml.trimmed Cargo.toml \
- && grep -q '"crates/server"' Cargo.toml
+ && grep -q '"crates/server"' Cargo.toml \
+ && grep -q '"crates/rpc"' Cargo.toml
 
 # `--locked` YOK: üye listesi kırpıldığı için cargo kilit dosyasından artık
 # kullanılmayan girdileri düşürüyor ve `--locked` bunu hata sayardı. Kalan
