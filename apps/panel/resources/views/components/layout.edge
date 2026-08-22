@@ -1,9 +1,11 @@
 {{--
   Panelin ana düzeni.
 
-  Renkler uygulamanın temasından ÜRETİLİYOR (`resources/css/theme.css`,
-  kaynağı `crates/ui/src/theme.rs`). Elle kopyalanmıyorlar: bir ton
-  değiştiğinde `cargo test -p postillion-ui --test panel_theme` düşüyor.
+  Bileşen + slot, `@layout`/`@section` DEĞİL: edge.js 6'da o tag'ler yok ve
+  bilinmeyen bir tag sessizce METİN olarak çıktıya düşüyor — sayfa `<html>`
+  olmadan, stilsiz geliyor ve hiçbir yerde hata görünmüyor.
+
+  Renkler uygulamanın temasından üretiliyor (`resources/css/theme.css`).
 --}}
 <!DOCTYPE html>
 <html lang="tr">
@@ -12,14 +14,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ title ?? 'Postillion' }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    {{-- Turnstile yalnızca ihtiyacı olan sayfada yükleniyor. --}}
     @if (captchaScript)
+      {{-- Turnstile yalnızca ihtiyacı olan sayfada yükleniyor. --}}
       <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     @end
   </head>
   <body>
     <main class="shell">
-      @!section('content')
+      {{{ await $slots.main() }}}
     </main>
   </body>
 </html>

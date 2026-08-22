@@ -18,6 +18,26 @@ test.group('Kimlik', (group) => {
     response.assertTextIncludes('Hesap oluştur')
   })
 
+  /// Düzen GERÇEKTEN uygulanmalı.
+  ///
+  /// Önceki iddialar yalnızca bölüm içindeki metne bakıyordu ve o metin
+  /// düzen hiç uygulanmadığında da çıktıda oluyor: sayfalar `<html>` ve CSS
+  /// olmadan, şablon tag'leri düz metin hâlinde geliyordu ve hiçbir test
+  /// bunu görmedi.
+  test('sayfalar tam HTML belgesi olarak geliyor', async ({ client }) => {
+    for (const path of ['/login', '/register']) {
+      const response = await client.get(path)
+      response.assertStatus(200)
+      response.assertTextIncludes('<!DOCTYPE html>')
+      response.assertTextIncludes('</html>')
+      // İşlenmemiş bir şablon tag'i çıktıya düşmemeli.
+      const body = response.text()
+      if (body.includes('@component(') || body.includes('@section(')) {
+        throw new Error(`şablon işlenmemiş: ${path}`)
+      }
+    }
+  })
+
   test('kayıt hesabı oluşturup oturum açıyor', async ({ client, assert }) => {
     const response = await client
       .post('/register')

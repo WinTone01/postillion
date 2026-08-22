@@ -1,5 +1,4 @@
-@layout('layouts/app', { title: 'Giriş — Postillion', captchaScript: true })
-@section('content')
+@component('components/layout', { title: 'Giriş — Postillion', captchaScript: true })
   <form class="card" method="POST" action="/login">
     {{ csrfField() }}
     <h1>Giriş yap</h1>
