@@ -1,0 +1,27 @@
+# Satır sonlarını depoda ve çalışma ağacında LF'te sabitliyor.
+#
+# Windows'ta git varsayılan olarak `autocrlf` ile CRLF'e çeviriyor. Bu yalnızca
+# bir kozmetik fark değil: `edge/src/install.sh` ve systemd birim dosyaları
+# Linux'ta ÇALIŞTIRILIYOR, CRLF'li bir kabuk betiği `bad interpreter` veriyor
+# ve CRLF'li bir systemd birimi bozuk sayılıyor. Rust tarafında da
+# `include_str!` dosyayı olduğu gibi gömdüğü için `"...\n"` arayan bir
+# doğrulama Windows'ta sessizce başarısız oluyor (windows CI, 2026-08-21).
+* text=auto eol=lf
+
+# Windows'un kendi betikleri CRLF kalıyor — orada yerel biçim bu.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# İkili varlıklar hiç dokunulmasın: metin sanılıp dönüştürülen bir görsel bozulur.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.pdf binary
+*.zip binary
