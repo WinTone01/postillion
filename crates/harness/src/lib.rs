@@ -134,6 +134,68 @@ pub(crate) mod jsonrpc;
 pub mod mock;
 pub mod shell_env;
 
+/// Windows creation flag: run the child without allocating a console.
+#[cfg(windows)]
+pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Keep a child process from flashing a console window on screen.
+///
+/// Every helper we spawn (git, gh, the agent CLIs, their `.cmd` shims by way
+/// of `cmd.exe`) is a console program, so Windows hands each one a fresh
+/// console unless told otherwise — a GUI app that polls git then blinks a
+/// window every couple of seconds. No-op off Windows.
+pub fn hide_console(cmd: &mut tokio::process::Command) {
+    // tokio's Command carries its own inherent `creation_flags` on Windows.
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
+/// [`hide_console`] for the blocking [`std::process::Command`].
+pub fn hide_console_std(cmd: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
+/// The file names `exe` can have inside a bin directory, in probe order.
+///
+/// On Windows an npm-installed CLI is a `claude.cmd` shim, not `claude.exe`,
+/// and the extensionless `claude` sitting beside it is a POSIX shell script
+/// Windows cannot execute. Probing the extensions the shell itself would is
+/// what makes a CLI that works in `cmd` also resolve here. `.ps1` is
+/// deliberately absent — `CreateProcess` cannot launch it without powershell
+/// as the interpreter. Elsewhere the bare name is the only candidate.
+pub(crate) fn executable_names(exe: &str) -> Vec<String> {
+    #[cfg(windows)]
+    {
+        if std::path::Path::new(exe).extension().is_some() {
+            return vec![exe.to_string()];
+        }
+        ["exe", "cmd", "bat"]
+            .iter()
+            .map(|ext| format!("{exe}.{ext}"))
+            .collect()
+    }
+    #[cfg(not(windows))]
+    {
+        vec![exe.to_string()]
+    }
+}
+
+/// Every candidate path for `exe` inside `dir`, in probe order.
+pub(crate) fn executables_in(dir: &std::path::Path, exe: &str) -> Vec<std::path::PathBuf> {
+    executable_names(exe)
+        .into_iter()
+        .map(|name| dir.join(name))
+        .collect()
+}
+
 /// Bin directories where npm-installed CLIs land under Node version managers.
 /// GUI launches never see these on PATH — the managers shape PATH in shell
 /// init (fnm's per-shell multishells, nvm's shell function), which a

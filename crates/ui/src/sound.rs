@@ -74,7 +74,9 @@ fn run_player(path: &Path) -> Result<(), String> {
         "(New-Object Media.SoundPlayer '{}').PlaySync()",
         path.display()
     );
-    let output = std::process::Command::new("powershell.exe")
+    let mut command = std::process::Command::new("powershell.exe");
+    postillion_harness::hide_console_std(&mut command);
+    let output = command
         .args([
             "-NoLogo",
             "-NoProfile",
