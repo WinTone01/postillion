@@ -816,6 +816,7 @@ async fn terminal_stream_proxies_over_the_relay() {
             break;
         }
     }
+    eprintln!("TANI: döngü geçildi, işaret bulundu");
 
     client
         .call(
@@ -824,9 +825,12 @@ async fn terminal_stream_proxies_over_the_relay() {
         )
         .await
         .expect("remote close");
+    eprintln!("TANI: CLOSE_TERMINAL döndü");
 
     core_a.shutdown().await;
+    eprintln!("TANI: core_a kapandı");
     core_b.shutdown().await;
+    eprintln!("TANI: core_b kapandı");
 }
 
 #[tokio::test]
