@@ -6,8 +6,21 @@ Tasarım kararları ve yol haritası: [`docs/panel-plan.md`](../../docs/panel-pl
 
 ## Durum
 
-Aşama 1–4. Kayıt/giriş, cihaz jetonları, çalışma alanı listesi ve
-**sohbete devam etme** çalışıyor.
+Aşama 1–5 tamamlandı. Kayıt/giriş, cihaz jetonları, çalışma alanı listesi,
+sohbete devam etme ve canlı akış çalışıyor.
+
+## Canlı akış
+
+Sayfa açıkken transkript kendini yeniliyor. Tarayıcı eşitleme sunucusuna
+**hiç gitmiyor** — panel vekillik ediyor. Gitseydi sunucu jetonunun tarayıcıya
+verilmesi gerekirdi ve o jeton kullanıcının bütün odalarına açılıyor.
+
+Yoklama ucuz: panel elindeki baş sırayı gönderiyor ve değişmemişse sunucu
+belgeyi hiç kurmuyor. Aksi hâlde uzun bir sohbette hiç değişmemiş bir belge
+saniyede bir yeniden birleştirilirdi.
+
+Art arda hatada aralık açılıyor (3 sn → 30 sn) ve ekrana hata basılmıyor:
+geçici bir arıza, okunabilir duran bir transkripti gürültüye boğmamalı.
 
 ## Sohbete devam etme
 

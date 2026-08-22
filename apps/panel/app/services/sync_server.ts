@@ -74,9 +74,24 @@ export interface Message {
  * `null` "ulaşılamadı" demek; boş dizi "sohbet boş". İkisini ayırmak
  * gerekiyor, yoksa bağlantı arızası boş bir sohbet gibi görünürdü.
  */
-export async function transcript(chatId: string): Promise<Message[] | null> {
-  const body = (await get(`/chat2/${encodeURIComponent(chatId)}/messages`)) as
-    | { messages?: Message[] }
+export interface Transcript {
+  headSeq: number
+  /** `null` "değişmedi" demek — `since` verildiğinde gelebiliyor. */
+  messages: Message[] | null
+}
+
+export async function transcript(chatId: string, since?: number): Promise<Transcript | null> {
+  const query = since === undefined ? '' : `?since=${since}`
+  const body = (await get(`/chat2/${encodeURIComponent(chatId)}/messages${query}`)) as
+    | { headSeq?: number; messages?: Message[]; unchanged?: boolean }
     | null
-  return body ? (body.messages ?? []) : null
+  if (!body) {
+    return null
+  }
+  return {
+    headSeq: body.headSeq ?? 0,
+    // "Değişmedi" ile "boş sohbet" AYRI: ilkinde ekrandakini korumak
+    // gerekiyor, ikincisinde temizlemek.
+    messages: body.unchanged ? null : (body.messages ?? []),
+  }
 }

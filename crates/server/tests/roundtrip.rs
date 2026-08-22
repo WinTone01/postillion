@@ -261,6 +261,64 @@ async fn transkript_ucu_materyalize_mesaj_donduruyor() {
         body.contains("webden görünmeli"),
         "transkript mesajı taşımalı: {body}"
     );
+    // Baş sıra dönmeli: panel canlı yoklamada bunu geri veriyor.
+    assert!(body.contains("headSeq"), "baş sıra dönmeli: {body}");
+}
+
+/// Değişmemiş bir sohbet için belge YENİDEN KURULMAMALI.
+///
+/// Panel canlı akış için düzenli yokluyor; her yoklamada bütün satırları
+/// birleştirmek uzun bir sohbette hiç değişmemiş bir belgeyi saniyede bir
+/// yeniden kurmak olurdu.
+#[tokio::test]
+async fn degismemis_transkript_yeniden_kurulmuyor() {
+    let server = start().await;
+
+    let doc = postillion_doc::SessionDoc::init("c-since").expect("doc");
+    doc.push_message(&postillion_doc::SessionMessageEntry {
+        id: "m1".into(),
+        role: postillion_doc::MessageRole::User,
+        parts: vec![postillion_doc::MessagePart::Text {
+            id: "m1-p0".into(),
+            text: "ilk".into(),
+        }],
+        created_at: 1_700_000_000_000,
+        device_id: "dev-a".into(),
+        status: None,
+        continuation_of: None,
+    })
+    .expect("yazım");
+
+    postillion_sync::room::ChatStore::append(
+        &*server.store,
+        "c-since",
+        "dev-a".into(),
+        "b1".into(),
+        doc.doc().export(loro::ExportMode::Snapshot).expect("dışa aktarım"),
+    )
+    .await
+    .expect("satır");
+
+    // Önce baş sırayı öğreniyoruz.
+    let first = http_get(server.port, "/chat2/c-since/messages?token=test-jetonu").await;
+    assert!(first.contains("\"headSeq\":1"), "baş sıra 1 olmalı: {first}");
+
+    // Aynı sırayla tekrar sorunca mesajlar GELMEMELİ.
+    let again = http_get(
+        server.port,
+        "/chat2/c-since/messages?token=test-jetonu&since=1",
+    )
+    .await;
+    assert!(again.contains("unchanged"), "değişmedi denmeli: {again}");
+    assert!(!again.contains("ilk"), "mesaj yeniden gönderilmemeli: {again}");
+
+    // Eski bir sırayla sorunca tam transkript gelmeli.
+    let stale = http_get(
+        server.port,
+        "/chat2/c-since/messages?token=test-jetonu&since=0",
+    )
+    .await;
+    assert!(stale.contains("ilk"), "eski imleç tam transkript almalı: {stale}");
 }
 
 /// Tek atışlık ham HTTP GET.

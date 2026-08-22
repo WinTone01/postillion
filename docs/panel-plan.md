@@ -114,9 +114,10 @@ sunucu sohbeti okuyamadan içine yazamaz.
 - ✅ Cihaz rölesine `role=client` bağlantısı + `QueueCommand`
 - ✅ Cihaz çevrimdışıysa: geçmiş okunur, yazma kapalı ve sebebi yazılı
 
-### 5. Cilalama — SIRADAKİ
-- Yeniden bağlanma, host çevrimdışıyken açık durum bildirimi
-- Mobil düzen
+### 5. Cilalama — YAPILDI
+- ✅ Canlı akış (ucuz yoklama, geri çekilmeli)
+- ✅ Cihaz çevrimdışıyken durum bildirimi
+- ✅ Dar ekran düzeni
 
 ## Uçtan uca şifreleme YAPILMIYOR
 

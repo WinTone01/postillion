@@ -125,4 +125,30 @@ test.group('Sohbet', (group) => {
       .redirects(0)
     response.assertStatus(302)
   })
+
+  /// Canlı yoklama ucu da sahipliğe tabi: tarayıcıya açılan bir uç, en kolay
+  /// atlanan denetim yeri.
+  test('canlı yoklama başkasının sohbetini vermiyor', async ({ client }) => {
+    await userWithChat('org-j1', 'gizli-json')
+    const bora = await User.create({
+      email: `j${Date.now()}@example.com`,
+      password: 'cok-uzun-bir-parola',
+    })
+
+    const response = await client.get('/chats/gizli-json/messages').loginAs(bora)
+    response.assertStatus(404)
+  })
+
+  test('canlı yoklama kimliksiz açılmıyor', async ({ client }) => {
+    const response = await client.get('/chats/chat-1/messages').redirects(0)
+    response.assertStatus(302)
+  })
+
+  /// Sunucuya ulaşılamadığında yoklama 503 dönmeli — boş bir transkript
+  /// dönmek, tarayıcıda sohbeti silinmiş gibi gösterirdi.
+  test('sunucu yokken yoklama 503 veriyor', async ({ client }) => {
+    const user = await userWithChat('org-j2', 'chat-j2')
+    const response = await client.get('/chats/chat-j2/messages').loginAs(user)
+    response.assertStatus(503)
+  })
 })
