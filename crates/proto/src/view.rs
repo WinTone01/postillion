@@ -431,7 +431,31 @@ fn tool_chip_content_raw(call: &crate::ToolCall) -> (&'static str, String) {
         ToolCall::Unknown { name, .. } => match name.strip_prefix("Agent: ") {
             Some(description) => ("Agent", description.to_owned()),
             None if name == "Agent" => ("Agent", String::new()),
-            None => ("Tool", name.clone()),
+            // Arka plan görevleri: etiket "Task", ayrıntı ise hangi görev
+            // olduğu. "Tool · Background output: bash_1" iki etiketin
+            // birbiriyle yarıştığı bir satır okunuyordu.
+            None => match name
+                .strip_prefix("Background output")
+                .or_else(|| name.strip_prefix("Stop background task"))
+            {
+                Some(rest) => {
+                    let id = rest.trim_start_matches(':').trim();
+                    let verb = if name.starts_with("Stop") {
+                        "stop"
+                    } else {
+                        "output"
+                    };
+                    (
+                        "Task",
+                        if id.is_empty() {
+                            verb.to_owned()
+                        } else {
+                            format!("{verb} · {id}")
+                        },
+                    )
+                }
+                None => ("Tool", name.clone()),
+            },
         },
     }
 }
@@ -668,6 +692,44 @@ mod checkout_tests {
         assert_eq!(
             checkout_label(CheckoutKind::NewWorktree, Some(&plain("main"))),
             "New worktree"
+        );
+    }
+}
+
+#[cfg(test)]
+mod background_task_chip_tests {
+    //! Arka plan görev çiplerinin etiketi.
+    use crate::ToolCall;
+    use crate::view::tool_chip_content;
+
+    fn unknown(name: &str) -> ToolCall {
+        ToolCall::Unknown {
+            name: name.into(),
+            input: None,
+        }
+    }
+
+    #[test]
+    fn arka_plan_cipleri_task_olarak_etiketleniyor() {
+        assert_eq!(
+            tool_chip_content(&unknown("Background output: bash_1")),
+            ("Task", "output · bash_1".to_owned())
+        );
+        assert_eq!(
+            tool_chip_content(&unknown("Stop background task: bash_2")),
+            ("Task", "stop · bash_2".to_owned())
+        );
+    }
+
+    #[test]
+    fn ajan_ve_bilinmeyen_etiketleri_bozulmadi() {
+        assert_eq!(
+            tool_chip_content(&unknown("Agent: scan repo")),
+            ("Agent", "scan repo".to_owned())
+        );
+        assert_eq!(
+            tool_chip_content(&unknown("Whatever")),
+            ("Tool", "Whatever".to_owned())
         );
     }
 }

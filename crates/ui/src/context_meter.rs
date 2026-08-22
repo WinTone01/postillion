@@ -50,13 +50,51 @@ pub fn format_context(tokens: u64) -> String {
     format!("{}k", tokens.div_ceil(1_000).max(1))
 }
 
+/// Doluluk yüzdesi — `"27%"`.
+///
+/// Sayının kendisi tek başına bir şey söylemiyor: 232k, 200k'lık bir modelde
+/// duvarın ötesi, 1M'likte dörtte biri bile değil. Oran zaten hesaplanıyordu
+/// ama hiç gösterilmiyordu.
+///
+/// Sıfırın üstündeki her ölçüm en az `%1` yazıyor: `%0` "ölçüm yok" gibi
+/// okunur, oysa bir şey ölçülmüş durumda.
+pub fn format_fill(tokens: u64, window: u64) -> String {
+    let percent = (context_fraction(tokens, window) * 100.0).round() as u32;
+    if tokens > 0 && percent == 0 {
+        return "%1".into();
+    }
+    format!("%{percent}")
+}
+
 /// Ölçer satırı — footer etiketleriyle aynı ölçüler.
 ///
 /// Renk pencereye göre: 1M'lik bir modelde 300k sakin, 200k'lık bir modelde
 /// aynı sayı çoktan kritik. Sabit bir eşik ikisini de yanlış boyardı.
+///
+/// Sayının yanında doluluk çubuğu ve yüzdesi var. Çıplak bir "232k" pencerenin
+/// neresinde olunduğunu söylemiyordu ve asıl sorulan bu.
 pub fn context_meter(tokens: u64, window: u64, theme: &Theme) -> Div {
-    let level = usage_level(context_fraction(tokens, window));
+    let fraction = context_fraction(tokens, window);
+    let level = usage_level(fraction);
     let color = usage_color(level, theme);
+
+    // Çubuk sabit genişlikte: değişken genişlik, sayı büyüdükçe satırı
+    // oynatır ve göz her turda yeniden yer arardı.
+    const BAR_WIDTH: f32 = 28.0;
+    let bar = div()
+        .w(px(BAR_WIDTH))
+        .h(px(3.0))
+        .rounded(px(2.0))
+        .bg(color.opacity(0.18))
+        .child(
+            div()
+                // Sıfırdan büyük her doluluk görünür kalmalı; 1 piksel altına
+                // düşen bir dolgu hiç çizilmemiş gibi görünürdü.
+                .w(px((BAR_WIDTH * fraction).max(if fraction > 0.0 { 2.0 } else { 0.0 })))
+                .h(px(3.0))
+                .rounded(px(2.0))
+                .bg(color),
+        );
 
     div()
         .h(px(20.0))
@@ -80,12 +118,41 @@ pub fn context_meter(tokens: u64, window: u64, theme: &Theme) -> Div {
                 .truncate()
                 .child(SharedString::from(format_context(tokens))),
         )
+        .child(bar)
+        .child(
+            div()
+                .flex_none()
+                .text_color(color.opacity(0.75))
+                .child(SharedString::from(format_fill(tokens, window))),
+        )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::settings::accounts::UsageLevel;
+    /// Yüzde, pencereye göre okunmalı: aynı sayı iki modelde farklı anlam.
+    #[test]
+    fn doluluk_pencereye_gore_yaziliyor() {
+        assert_eq!(format_fill(100_000, DEFAULT_CONTEXT_WINDOW), "%50");
+        assert_eq!(format_fill(100_000, LONG_CONTEXT_WINDOW), "%10");
+        assert_eq!(format_fill(0, DEFAULT_CONTEXT_WINDOW), "%0");
+    }
+
+    /// Ölçülmüş ama çok küçük bir bağlam `%0` yazmamalı: o "ölçüm yok" gibi
+    /// okunur, oysa bir şey ölçülmüş durumda.
+    #[test]
+    fn kucuk_ama_var_olan_olcum_sifir_yazmiyor() {
+        assert_eq!(format_fill(200, LONG_CONTEXT_WINDOW), "%1");
+    }
+
+    /// Pencereyi aşan bir ölçüm %100'de doyuyor — çubuk taşmamalı.
+    #[test]
+    fn pencereyi_asan_olcum_doyuyor() {
+        assert_eq!(format_fill(5_000_000, DEFAULT_CONTEXT_WINDOW), "%100");
+        assert_eq!(context_fraction(5_000_000, DEFAULT_CONTEXT_WINDOW), 1.0);
+    }
+
     #[test]
     fn olcum_kisaltilarak_yazilir() {
         // Bin altı ham: "0k" hiçbir şey söylemez.
