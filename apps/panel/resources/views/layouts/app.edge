@@ -1,0 +1,25 @@
+{{--
+  Panelin ana düzeni.
+
+  Renkler uygulamanın temasından ÜRETİLİYOR (`resources/css/theme.css`,
+  kaynağı `crates/ui/src/theme.rs`). Elle kopyalanmıyorlar: bir ton
+  değiştiğinde `cargo test -p postillion-ui --test panel_theme` düşüyor.
+--}}
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title ?? 'Postillion' }}</title>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Turnstile yalnızca ihtiyacı olan sayfada yükleniyor. --}}
+    @if (captchaScript)
+      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    @end
+  </head>
+  <body>
+    <main class="shell">
+      @!section('content')
+    </main>
+  </body>
+</html>

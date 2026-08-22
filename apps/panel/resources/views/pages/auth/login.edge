@@ -1,0 +1,37 @@
+@layout('layouts/app', { title: 'Giriş — Postillion', captchaScript: true })
+@section('content')
+  <form class="card" method="POST" action="/login">
+    {{ csrfField() }}
+    <h1>Giriş yap</h1>
+    <p class="sub">Postillion hesabınızla devam edin.</p>
+
+    @if (flashMessages.has('errorsBag') || flashMessages.has('errors'))
+      <ul class="errors">
+        @each (message in (flashMessages.get('errorsBag') ?? {}))
+          <li>{{ message }}</li>
+        @end
+        @each ((messages, field) in (flashMessages.get('errors') ?? {}))
+          @each (message in messages)
+            <li>{{ message }}</li>
+          @end
+        @end
+      </ul>
+    @end
+
+    <label class="field">
+      <span>E-posta</span>
+      <input type="email" name="email" required autocomplete="email"
+             value="{{ flashMessages.get('email') ?? '' }}" />
+    </label>
+
+    <label class="field">
+      <span>Parola</span>
+      <input type="password" name="password" required autocomplete="current-password" />
+    </label>
+
+    <div class="cf-turnstile" data-sitekey="{{ turnstileSiteKey }}"></div>
+
+    <button class="btn" type="submit">Giriş yap</button>
+    <p class="alt">Hesabınız yok mu? <a href="/register">Kayıt olun</a></p>
+  </form>
+@end
