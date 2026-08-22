@@ -137,7 +137,24 @@ strip = "symbols"
 [profile.dev]
 # gpui is slow unoptimized; match zed's approach for deps
 opt-level = 0
+# Sınırlı hata ayıklama bilgisi: geri izleme ve satır numaraları duruyor ama
+# bütün bağımlılık grafiği için tam sembol üretilmiyor. Ölçüldü: bu ağaçta
+# `target/` 141 GB'a ulaşmıştı, 33 GB'ı artımlı önbellek. Tam sembol
+# gerektiğinde aşağıdaki `dbg` profili var.
+#
+# Üst akıştan alındı: zeronsh/comet#17.
+debug = "limited"
 
 [profile.dev.package."*"]
 opt-level = 2
+
+# Tam yerel VE bağımlılık sembolleri gerektiğinde: `cargo build --profile dbg`.
+#
+# `incremental = false` bilerek: artımlı durum bu ağaçta tek başına 33 GB
+# tutuyordu ve nadiren kullanılan bir hata ayıklama profilinin kendi
+# önbelleğini biriktirmesi anlamsız.
+[profile.dbg]
+inherits = "dev"
+debug = "full"
+incremental = false
 
