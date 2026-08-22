@@ -44,7 +44,7 @@ export POSTILLION_EDGE_TOKEN=<the server's POSTILLION_SERVER_TOKEN>
 
 Generate it with `openssl rand -hex 32`. Avoid base64 here: the token doubles as the client's user id, which becomes a path segment under the data directory, and base64's `/` would split it.
 
-Anyone holding that token can read every chat on the server, and chat contents are **not yet end-to-end encrypted** — see [`deploy/README.md`](deploy/README.md) for the current limits. Multi-user sign-in over WorkOS AuthKit (`POSTILLION_WORKOS_CLIENT_ID`) targets the upstream Cloudflare edge, not `postillion-server`.
+Anyone holding that token can read every chat on the server. Chats are stored so the server can read them — **there is no end-to-end encryption, by decision, not by omission**: the web panel exists to continue a chat from the browser, and encrypting content would mean putting the key in the browser to show it. Anyone you open registration to needs to know the operator can read their chats, and a database backup is a plain copy of them. See [`deploy/README.md`](deploy/README.md) for the rest of the limits. Multi-user sign-in over WorkOS AuthKit (`POSTILLION_WORKOS_CLIENT_ID`) targets the upstream Cloudflare edge, not `postillion-server`.
 
 Once an endpoint is configured, sign in only when you want to open your account's synced workspace. Authentication changes the profile selected by the next engine start, so stop the daemon before changing it:
 

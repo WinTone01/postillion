@@ -5,12 +5,12 @@ Bu belge ne yapılacağını ve neden öyle yapılacağını yazıyor.
 
 ## Panelin işi
 
-Sırayla, en çok istenenden:
+**Bilgisayarı açık olan bir kullanıcının, o bilgisayardaki sohbete webden devam
+edebilmesi.**
 
-1. **Tarayıcıdan kendi cihazlarına mesaj göndermek.** Dizüstü kapalıyken bile
-   VPS'teki ajana iş verebilmek.
-2. Cihazları ve sohbetleri görmek.
-3. Hesap yönetimi: kayıt, giriş, cihaz jetonları.
+Tek cümle ama iki şey söylüyor: transkripti görebilmek ve içine yazabilmek. Ve
+"bilgisayar açıksa" şartı bir sınır değil, tasarımın kendisi — panel işi
+bilgisayara yaptırıyor, kendisi yapmıyor.
 
 ## Alınan kararlar
 
@@ -35,22 +35,30 @@ doğal çalışıyor. Passkey/2FA sonradan gerekirse ayrıca eklenir.
 Captcha için **Cloudflare Turnstile**: alan adı zaten Cloudflare'in arkasında,
 ikinci bir sağlayıcı hesabı açmaya gerek yok.
 
-### Panel Rust sunucusunun İKİNCİ istemcisi, kopyası değil
+### Panel bir RPC istemcisi; eşitleme istemcisi DEĞİL
 
-Eşitleme protokolünü TypeScript'te yeniden yazmıyoruz. Zaten üç uygulaması var
-(Rust istemci, TS edge, Swift iOS) ve dördüncüsü elle senkron tutulacak dördüncü
-bir sapma kaynağı olurdu.
+Bu planın en önemli kararı ve işi büyük ölçüde ortadan kaldırıyor.
 
-Panel iki yoldan konuşuyor:
+İlk düşünce, sohbet içeriğini göstermek için tarayıcıda loro çalıştırmaktı:
+satırlar opak CRDT güncellemesi ve okumak için birleştirme gerekiyor. Gerekmiyor.
+Motorun RPC yüzeyinde iki metot **zaten** `targetDeviceId` ile uzak cihaza
+yönlendirilebilir durumda (`crates/engine/src/rpc.rs`, `forwardable`):
 
-- **Okuma:** kayıt satırları düz JSON (`registry_rows.fields`). Kenar çubuğu —
-  cihazlar, sohbetler, alanlar — CRDT'ye hiç dokunmadan okunabiliyor.
-- **Yazma/eylem:** cihaz rölesine `role=client` ile bağlanıp mevcut RPC'yi
-  çağırıyor. Uzaktan mesaj göndermenin tasarlanmış yolu bu.
+| Metot | Panelde karşılığı |
+| --- | --- |
+| `WatchDocMessages` | Transkripti akış olarak al |
+| `QueueCommand` | Sohbete mesaj yaz |
 
-Sohbet İÇERİĞİ opak loro güncellemesi; onu göstermek tarayıcıda loro gerektiriyor.
-`loro-crdt` npm'de var ve `edge/src/session-doc/` okuma mantığını zaten taşıyor,
-yani mümkün — ama ilk sürümün kapsamı dışında.
+Yani panel cihaz rölesine `role=client` ile bağlanıp bu ikisini çağırıyor.
+Belgeyi host tutuyor, mesajları host materyalize ediyor, panel yalnızca JSON
+render ediyor. Tarayıcıda CRDT yok, protokolün dördüncü bir uygulaması yok.
+
+Eşitleme protokolünün zaten üç uygulaması var (Rust istemci, TS edge, Swift iOS)
+ve elle senkron tutuluyorlar; dördüncüsü dördüncü bir sapma kaynağı olurdu.
+
+Kayıt satırları (`registry_rows.fields`) düz JSON olduğu için cihaz ve sohbet
+LİSTESİ bilgisayar kapalıyken de gösterilebiliyor. Gösterilemeyen şey o
+sohbetin içi — çünkü onu materyalize eden bilgisayar kapalı. İstenen model bu.
 
 ### Jeton modeli: sunucu kendi tablosunu tutuyor
 
@@ -83,24 +91,38 @@ Aşama 3'ü.
 - Kayıt satırlarından cihaz ve sohbet listesi
 - Presence: hangi cihaz çevrimiçi
 
-### 4. Mesaj gönderme
+### 4. Sohbete devam etme — panelin asıl işi
 - Cihaz rölesine `role=client` bağlantısı
-- Hedef cihaz + sohbet seçip mesaj gönderme
-- Cevabın akışını izleme
+- `WatchDocMessages` ile transkript
+- `QueueCommand` ile mesaj yazma
+- Cevabın akışını canlı izleme
 
-### 5. Transkript (isteğe bağlı)
-- `loro-crdt` + `edge/src/session-doc/` ile sohbet içeriği
+### 5. Cilalama
+- Yeniden bağlanma, host çevrimdışıyken açık durum bildirimi
+- Mobil düzen
+
+## Uçtan uca şifreleme YAPILMIYOR
+
+Bilinçli karar. Sonuçları açıkça yazılı olmalı:
+
+- Sunucuyu işleten sohbet içeriğini **okuyabilir**. Kendi sunucunuzda tek
+  kullanıcıyken bu bir sorun değil; başkalarına kayıt açıldığında onların
+  bunu bilmesi gerekir.
+- Veritabanı yedeği sohbetlerin düz kopyasıdır; nereye konduğu önemlidir.
+
+Buna karşılık panel mümkün oluyor: şifreli olsaydı host'un materyalize ettiği
+transkripti panele taşımak anahtarı tarayıcıya koymayı gerektirirdi ve bu
+şifrelemenin söylediğini zaten zayıflatırdı.
 
 ## Açık riskler
 
-**Uçtan uca şifreleme paneli kısıtlıyor.** Planda E2EE kayıt açılmadan önce
-geliyor. Şifreleme devreye girdiğinde sunucu sohbet içeriğini okuyamaz — panel
-de okuyamaz. Tarayıcıda çözmek anahtarı oraya koymak demek ve E2EE'nin
-söylediğini zayıflatır. Karar Aşama 5'ten önce verilmeli: panel içeriği görsün
-mü, yoksa yalnızca gönderme ve durum paneli mi olsun.
-
 **Röle üzerinden terminal akışı çalışmıyor** (issue #5). Panelde uzaktan
-terminal düşünülüyorsa önce o kapatılmalı.
+terminal düşünülüyorsa önce o kapatılmalı. Sohbete devam etmek bundan
+etkilenmiyor — o ayrı bir RPC yolu.
 
 **Kayıt açmak kota gerektirir.** Bugün sunucuda kullanıcı başına sınır yok;
 herkese açık kayıt bunu zorunlu kılar.
+
+**Bilgisayar kapalıyken sohbet açılamaz.** Tasarımın kendisi, ama arayüzde
+bunun net görünmesi gerekiyor: kullanıcı boş bir ekranla değil "bu cihaz
+çevrimdışı" ile karşılaşmalı.
