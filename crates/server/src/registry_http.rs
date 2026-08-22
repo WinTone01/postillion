@@ -30,7 +30,7 @@ pub async fn get_rows(
 ) -> Result<Response, StatusCode> {
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !crate::ownership::permits(
@@ -88,7 +88,7 @@ pub async fn post_push(
 ) -> Result<Response, StatusCode> {
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !crate::ownership::permits(
@@ -149,7 +149,7 @@ pub async fn get_presence(
 ) -> Result<Response, StatusCode> {
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !crate::ownership::permits(

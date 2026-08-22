@@ -104,7 +104,17 @@ impl Auth {
     }
 
     /// İsteğin arkasındaki kimlik; jeton geçersizse `None`.
-    pub async fn identify(&self, headers: &HeaderMap, query_token: Option<&str>) -> Option<Identity> {
+    ///
+    /// `query_act_as` başlığın sorgu dizesindeki ikizi. Jetonun kendisi de
+    /// aynı sebeple iki yoldan geliyor: WebSocket istemcileri el sıkışmaya
+    /// başlık koyamıyor — ne tarayıcının API'si ne de Node'un yerleşik
+    /// `WebSocket`'i buna izin veriyor, ve panel röleye oradan bağlanıyor.
+    pub async fn identify(
+        &self,
+        headers: &HeaderMap,
+        query_token: Option<&str>,
+        query_act_as: Option<&str>,
+    ) -> Option<Identity> {
         let presented = query_token
             .map(str::to_string)
             .or_else(|| bearer(headers))?;
@@ -118,7 +128,7 @@ impl Auth {
         if let Some(shared) = &self.shared
             && constant_time_eq(shared, presented)
         {
-            return match act_as(headers) {
+            return match act_as(headers, query_act_as) {
                 // Başlık var ama okunamıyor: paylaşılan kimliğe DÜŞMEK
                 // yerine reddediliyor. Düşseydi, bozuk bir başlık isteği
                 // sessizce yanlış kullanıcı adına çalıştırırdı.
@@ -145,7 +155,7 @@ impl Auth {
     }
 }
 
-/// Panelin "şu kullanıcı adına" başlığı.
+/// Panelin "şu kullanıcı adına" başlığı ya da sorgu parametresi.
 ///
 /// Panel bir SUNUCU, kendi adına konuşmuyor: listeleri veritabanından
 /// okuyor ama canlılık ve transkript sunucuda ve oralara girmek oda
@@ -159,12 +169,15 @@ impl Auth {
 ///
 /// `Some(None)` başlığın var ama çözülemez olduğu durum — çağıran bunu
 /// reddetmeli.
-fn act_as(headers: &HeaderMap) -> Option<Option<i64>> {
-    let raw = headers.get(ACT_AS_HEADER)?;
+fn act_as(headers: &HeaderMap, query: Option<&str>) -> Option<Option<i64>> {
+    let raw: Option<&str> = match query {
+        Some(value) => Some(value),
+        None => headers.get(ACT_AS_HEADER).map(|v| v.to_str().unwrap_or("")),
+    };
     Some(
-        raw.to_str()
+        raw?.trim()
+            .parse::<i64>()
             .ok()
-            .and_then(|v| v.trim().parse::<i64>().ok())
             // Gerçek kullanıcı kimlikleri pozitif; `SHARED_USER` dahil
             // negatif bir değer başlıkla talep edilememeli.
             .filter(|id| *id > 0),
@@ -230,10 +243,10 @@ mod tests {
     #[tokio::test]
     async fn paylasilan_jeton_tek_kullanici_kimligi_veriyor() {
         let auth = Auth::new("gizli");
-        let id = auth.identify(&bearer_headers("gizli"), None).await;
+        let id = auth.identify(&bearer_headers("gizli"), None, None).await;
         assert_eq!(id, Some(Identity { user_id: SHARED_USER }));
         assert!(id.unwrap().is_shared());
-        assert_eq!(auth.identify(&HeaderMap::new(), Some("gizli")).await, id);
+        assert_eq!(auth.identify(&HeaderMap::new(), Some("gizli"), None).await, id);
     }
 
     fn with_act_as(mut headers: HeaderMap, value: &str) -> HeaderMap {
@@ -251,7 +264,7 @@ mod tests {
         let auth = Auth::new("gizli");
         let headers = with_act_as(bearer_headers("gizli"), "42");
         assert_eq!(
-            auth.identify(&headers, None).await,
+            auth.identify(&headers, None, None).await,
             Some(Identity { user_id: 42 })
         );
     }
@@ -270,7 +283,7 @@ mod tests {
 
         let headers = with_act_as(bearer_headers("kullanici-jetonu"), "42");
         assert_eq!(
-            auth.identify(&headers, None).await,
+            auth.identify(&headers, None, None).await,
             Some(Identity { user_id: 7 }),
             "başlık yalnızca paylaşılan jetonla geçerli olmalı"
         );
@@ -282,7 +295,7 @@ mod tests {
         for value in ["abc", "", "-1", "0"] {
             let headers = with_act_as(bearer_headers("gizli"), value);
             assert_eq!(
-                auth.identify(&headers, None).await,
+                auth.identify(&headers, None, None).await,
                 None,
                 "çözülemeyen başlık paylaşılan kimliğe DÜŞMEMELİ: {value:?}"
             );
@@ -292,10 +305,10 @@ mod tests {
     #[tokio::test]
     async fn yanlis_jeton_kimlik_vermiyor() {
         let auth = Auth::new("gizli");
-        assert!(auth.identify(&bearer_headers("baska"), None).await.is_none());
-        assert!(auth.identify(&HeaderMap::new(), None).await.is_none());
+        assert!(auth.identify(&bearer_headers("baska"), None, None).await.is_none());
+        assert!(auth.identify(&HeaderMap::new(), None, None).await.is_none());
         // Uzunluk kontrolü olmasaydı kısa bir ön ek kabul edilebilirdi.
-        assert!(auth.identify(&HeaderMap::new(), Some("giz")).await.is_none());
+        assert!(auth.identify(&HeaderMap::new(), Some("giz"), None).await.is_none());
     }
 
     #[tokio::test]
@@ -309,10 +322,10 @@ mod tests {
 
         let auth = Auth::new_with_store(None, store);
         assert_eq!(
-            auth.identify(&HeaderMap::new(), Some("panel-jetonu")).await,
+            auth.identify(&HeaderMap::new(), Some("panel-jetonu"), None).await,
             Some(Identity { user_id: 42 })
         );
-        assert!(auth.identify(&HeaderMap::new(), Some("baska")).await.is_none());
+        assert!(auth.identify(&HeaderMap::new(), Some("baska"), None).await.is_none());
     }
 
     /// PAYLAŞILAN TEST VEKTÖRÜ — panelin `ApiToken.hash` testiyle aynı değer
@@ -348,11 +361,11 @@ mod tests {
 
         let auth = Auth::new_with_store(Some("paylasilan".into()), store);
         assert_eq!(
-            auth.identify(&HeaderMap::new(), Some("paylasilan")).await,
+            auth.identify(&HeaderMap::new(), Some("paylasilan"), None).await,
             Some(Identity { user_id: SHARED_USER })
         );
         assert_eq!(
-            auth.identify(&HeaderMap::new(), Some("panelin")).await,
+            auth.identify(&HeaderMap::new(), Some("panelin"), None).await,
             Some(Identity { user_id: 9 })
         );
     }

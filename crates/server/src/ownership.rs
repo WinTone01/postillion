@@ -17,6 +17,14 @@ use postillion_sync::SyncError;
 pub enum Scope {
     Chat,
     Registry,
+    /// Cihaz rölesi.
+    ///
+    /// KENDİ ad alanı olmak zorunda. Önce sohbet ad alanında `device:{id}`
+    /// adıyla tutuluyordu, ama sohbet kimliklerini İSTEMCİ seçiyor: saldırgan
+    /// kurbanın cihaz kimliğini öğrenip `device:<uuid>` adında bir sohbet
+    /// açarsa aynı sahiplik satırını ilk o kapıyordu — kurbanın cihazı kendi
+    /// rölesinden dışarıda kalıyor, saldırgan içeri girebiliyordu.
+    Device,
 }
 
 impl Scope {
@@ -24,6 +32,7 @@ impl Scope {
         match self {
             Scope::Chat => "chat",
             Scope::Registry => "registry",
+            Scope::Device => "device",
         }
     }
 }
@@ -110,5 +119,18 @@ mod tests {
         // Aynı ada sahip bir KAYIT odası, sohbet odasının sahipliğini
         // devralmamalı: ikisi ayrı kavram.
         assert!(permits(&store, Scope::Registry, "ayni-ad", 2).await);
+        assert!(permits(&store, Scope::Device, "ayni-ad", 3).await);
+    }
+
+    /// Sohbet kimliğini istemci seçiyor; cihaz odasının sahipliği ona
+    /// dokunamamalı.
+    #[tokio::test]
+    async fn sohbet_adi_cihaz_odasini_kapatamiyor() {
+        let store = MemOwners::default();
+        // Saldırgan kurbanın cihaz kimliğini taşıyan bir sohbet açıyor.
+        assert!(permits(&store, Scope::Chat, "device:kurban", 9).await);
+        // Kurbanın cihazı yine de kendi odasına girebilmeli.
+        assert!(permits(&store, Scope::Device, "kurban", 1).await);
+        assert!(!permits(&store, Scope::Device, "kurban", 9).await);
     }
 }

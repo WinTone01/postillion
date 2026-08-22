@@ -33,6 +33,19 @@ create table if not exists room_owners (
   claimed_at timestamptz not null default now(),
   primary key (scope, room)
 );
+
+-- Cihaz odaları 'chat' ad alanında 'device:{id}' adıyla tutuluyordu. Sahiplik
+-- TAŞINMAK zorunda: taşınmasaydı yükseltmeden sonra her cihaz odası sahipsiz
+-- kalır ve ilk bağlanan sahiplenirdi — sahibin kendi cihazı bile olmayabilir.
+--
+-- Eski satırlar SİLİNMİYOR. Kimliği gerçekten 'device:' ile başlayan bir
+-- sohbet olması ihtimali düşük ama silmek onun sahipliğini de düşürürdü ve
+-- bu, kapatmaya çalıştığımız çakışmanın aynısı olurdu. Ölü satır zararsız.
+insert into room_owners (scope, room, user_id, claimed_at)
+select 'device', substring(room from 8), user_id, claimed_at
+  from room_owners
+ where scope = 'chat' and room like 'device:%'
+on conflict (scope, room) do nothing;
 "#;
 
 #[derive(Clone)]

@@ -108,6 +108,11 @@ struct DeviceQuery {
     role: Option<String>,
     #[serde(rename = "connId")]
     conn_id: Option<String>,
+    /// Panelin "şu kullanıcı adına" değeri. Başlık DEĞİL sorgu, çünkü
+    /// WebSocket istemcileri el sıkışmaya başlık koyamıyor — jetonun da
+    /// burada olmasının sebebi aynı.
+    #[serde(rename = "actAs")]
+    act_as: Option<String>,
 }
 
 async fn device_ws_handler(
@@ -122,13 +127,13 @@ async fn device_ws_handler(
     // izolasyonun en doğrudan ihlali olurdu.
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), query.act_as.as_deref())
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !ownership::permits(
         &*app.owners,
-        ownership::Scope::Chat,
-        &format!("device:{device_id}"),
+        ownership::Scope::Device,
+        &device_id,
         identity.user_id,
     )
     .await
@@ -156,7 +161,7 @@ async fn registry_ws_handler(
 ) -> Result<Response, StatusCode> {
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !ownership::permits(
@@ -185,7 +190,7 @@ async fn chat_ws(
     // reddetmek istemciye düzgün bir HTTP durumu döndüremezdi.
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !ownership::permits(

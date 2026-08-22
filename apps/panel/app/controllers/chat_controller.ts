@@ -91,7 +91,7 @@ export default class ChatController {
     }
 
     try {
-      await sendPrompt(chat.deviceId, params.id, prompt, chat.cwd ?? '')
+      await sendPrompt(chat.deviceId, user.id, params.id, prompt, chat.cwd ?? '')
     } catch (error) {
       // Röle hataları kullanıcıya OLDUĞU GİBİ gösteriliyor ("Cihaz
       // çevrimdışı" gibi); genel bir "gönderilemedi" ne yapacağını

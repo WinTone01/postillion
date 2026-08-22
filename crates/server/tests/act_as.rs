@@ -13,6 +13,34 @@ use common::start_shared_and_users;
 
 const SHARED: &str = "isletmeci-jetonu";
 
+/// Cihaz rölesine yükseltme denemesinin HTTP durumu.
+///
+/// Ham soket: `actAs` SORGU dizesinde, çünkü WebSocket istemcileri el
+/// sıkışmaya başlık koyamıyor ve panel röleye tam olarak böyle bağlanıyor.
+async fn device_status(port: u16, device: &str, token: &str, act_as: Option<&str>) -> u16 {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .expect("bağlanmalı");
+    let extra = act_as.map(|v| format!("&actAs={v}")).unwrap_or_default();
+    stream
+        .write_all(
+            format!(
+                "GET /device/{device}/ws?role=client&connId=c1&token={token}{extra} HTTP/1.1\r\n\
+                 Host: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
+                 Sec-WebSocket-Version: 13\r\n\
+                 Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+            )
+            .as_bytes(),
+        )
+        .await
+        .expect("istek");
+
+    let mut head = [0u8; 12];
+    stream.read_exact(&mut head).await.expect("durum satırı");
+    String::from_utf8_lossy(&head[9..12]).parse().expect("durum")
+}
+
 async fn presence_status(port: u16, org: &str, token: &str, act_as: Option<&str>) -> u16 {
     let mut request = reqwest::Client::new()
         .get(format!("http://127.0.0.1:{port}/registry/{org}/presence"))
@@ -72,5 +100,40 @@ async fn bozuk_baslik_reddediliyor() {
     assert_eq!(
         presence_status(port, "org-x", SHARED, Some("abc")).await,
         401
+    );
+}
+
+/// Panel cihaz rölesine de kullanıcı adına bağlanabilmeli.
+///
+/// Bu uç sohbet göndermenin tek yolu: mesaj cihazdaki motora buradan
+/// gidiyor. Sahiplik denetimi eklendiğinde panel de dışarıda kalırdı.
+#[tokio::test]
+async fn panel_roleye_kullanici_adina_baglaniyor() {
+    let (port, tokens) = start_shared_and_users(SHARED).await;
+    tokens.mint("kullanici-jetonu", 42);
+
+    // Kullanıcının motoru odayı sahipleniyor.
+    assert_eq!(device_status(port, "dizustu", "kullanici-jetonu", None).await, 101);
+
+    assert_eq!(
+        device_status(port, "dizustu", SHARED, None).await,
+        403,
+        "paylaşılan jeton tek başına kullanıcının cihazına giremez"
+    );
+    assert_eq!(device_status(port, "dizustu", SHARED, Some("42")).await, 101);
+}
+
+/// İZİN YÜKSELTME: sorgu ikizi de yalnızca paylaşılan jetonla geçerli.
+#[tokio::test]
+async fn kullanici_jetonu_sorguyla_da_baskasi_olamiyor() {
+    let (port, tokens) = start_shared_and_users(SHARED).await;
+    tokens.mint("ayse", 1);
+    tokens.mint("bora", 2);
+
+    assert_eq!(device_status(port, "ayse-dizustu", "ayse", None).await, 101);
+    assert_eq!(
+        device_status(port, "ayse-dizustu", "bora", Some("1")).await,
+        403,
+        "sorgu parametresi üretilmiş jetona ayrıcalık vermemeli"
     );
 }

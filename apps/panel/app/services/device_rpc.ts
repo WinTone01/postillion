@@ -21,10 +21,23 @@ const TIMEOUT_MS = 15_000
 
 export class RelayError extends Error {}
 
-function wsUrl(deviceId: string, connId: string) {
+/**
+ * Röle adresi.
+ *
+ * `actAs` başlık DEĞİL sorgu parametresi: panelin sunduğu jeton
+ * işletmecinin ve kimliği `SHARED_USER`, cihaz odası ise kullanıcıya ait —
+ * kim adına bağlandığımızı söylemeden sahiplik denetimi 403 veriyor. Başlık
+ * kullanılamıyor çünkü Node'un yerleşik `WebSocket`'i el sıkışmaya başlık
+ * koymaya izin vermiyor; jetonun da burada olmasının sebebi aynı. Sunucu
+ * bunu yalnızca paylaşılan jetonla kabul ediyor (`crates/server/src/auth.rs`).
+ */
+function wsUrl(deviceId: string, connId: string, userId: number) {
   const base = env.get('POSTILLION_SERVER_URL', '').replace(/^http/, 'ws').replace(/\/+$/, '')
   const token = env.get('POSTILLION_SERVER_TOKEN', '')
-  return `${base}/device/${encodeURIComponent(deviceId)}/ws?role=client&connId=${connId}&token=${encodeURIComponent(token)}`
+  return (
+    `${base}/device/${encodeURIComponent(deviceId)}/ws` +
+    `?role=client&connId=${connId}&token=${encodeURIComponent(token)}&actAs=${userId}`
+  )
 }
 
 /**
@@ -35,9 +48,14 @@ function wsUrl(deviceId: string, connId: string) {
  * cihazın kapalı olduğunu söylüyor ve bunu zaman aşımı olarak beklemek
  * kullanıcıyı 15 saniye boşuna bekletirdi.
  */
-export async function call(deviceId: string, method: string, params: unknown): Promise<unknown> {
+export async function call(
+  deviceId: string,
+  userId: number,
+  method: string,
+  params: unknown
+): Promise<unknown> {
   const connId = randomUUID()
-  const socket = new WebSocket(wsUrl(deviceId, connId))
+  const socket = new WebSocket(wsUrl(deviceId, connId, userId))
   socket.binaryType = 'arraybuffer'
 
   try {
@@ -100,9 +118,15 @@ export async function call(deviceId: string, method: string, params: unknown): P
 }
 
 /** Sohbete bir mesaj yazar. */
-export async function sendPrompt(deviceId: string, chatId: string, prompt: string, cwd: string) {
+export async function sendPrompt(
+  deviceId: string,
+  userId: number,
+  chatId: string,
+  prompt: string,
+  cwd: string
+) {
   const messageId = randomUUID()
-  return call(deviceId, 'QueueCommand', {
+  return call(deviceId, userId, 'QueueCommand', {
     chatId,
     command: {
       id: randomUUID(),

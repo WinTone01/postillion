@@ -118,6 +118,45 @@ async fn baskasinin_cihazina_baglanilamiyor() {
     );
 }
 
+/// Sohbet kimliği seçerek başkasının cihaz odası ele geçirilemiyor.
+///
+/// Cihaz sahipliği bir süre sohbet ad alanında `device:{id}` adıyla
+/// tutuluyordu ve sohbet kimliklerini İSTEMCİ seçiyor: kurbanın cihaz
+/// kimliğini taşıyan bir sohbet açmak aynı sahiplik satırını kapıyordu.
+/// Saldırgan önce davranırsa kurbanın motoru kendi rölesinden dışarıda
+/// kalıyor, saldırgan içeri giriyordu.
+#[tokio::test]
+async fn sohbet_adiyla_cihaz_odasi_ele_gecirilemiyor() {
+    let (port, tokens) = start_multi_user().await;
+    tokens.mint("ayse-jetonu", 1);
+    tokens.mint("bora-jetonu", 2);
+
+    // Bora, Ayşe'nin cihazının adını taşıyan bir sohbet açıyor ve
+    // sahipleniyor.
+    assert_eq!(
+        ws_status(port, "/chat2/device:ayse-dizustu/ws", "bora-jetonu").await,
+        101
+    );
+
+    // Ayşe'nin cihazı yine de kendi odasına girebilmeli.
+    assert_eq!(
+        ws_status(port, "/device/ayse-dizustu/ws?role=host", "ayse-jetonu").await,
+        101,
+        "sohbet sahipliği cihaz odasını kapatmamalı"
+    );
+
+    // Ve Bora o odaya hâlâ giremiyor.
+    assert_eq!(
+        ws_status(
+            port,
+            "/device/ayse-dizustu/ws?role=client&connId=c1",
+            "bora-jetonu"
+        )
+        .await,
+        403
+    );
+}
+
 /// Transkript ucu da sahipliğe tabi: içeriği okumak, odaya girmekten daha
 /// hassas.
 #[tokio::test]

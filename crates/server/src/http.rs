@@ -63,7 +63,7 @@ pub async fn get_rows(
 ) -> Result<Response, StatusCode> {
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !crate::ownership::permits(
@@ -115,7 +115,7 @@ pub async fn post_rows(
 ) -> Result<Response, StatusCode> {
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !crate::ownership::permits(
@@ -179,7 +179,7 @@ pub async fn get_messages(
 ) -> Result<Response, StatusCode> {
     let identity = app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .ok_or(StatusCode::UNAUTHORIZED)?;
     if !crate::ownership::permits(
@@ -245,7 +245,7 @@ pub async fn get_checkpoint(
     // (sahiplenme) tetiklerdi.
     if app
         .auth
-        .identify(&headers, query.token.as_deref())
+        .identify(&headers, query.token.as_deref(), None)
         .await
         .is_none()
     {
