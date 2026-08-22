@@ -28,6 +28,9 @@ build/
 # getirmiyor.
 apps/ios/
 apps/postillion/
+# Panel kendi imajını kuruyor ve `node_modules`'ı orada üretiyor.
+apps/panel/node_modules/
+apps/panel/build/
 crates/ui/
 crates/engine/
 crates/harness/

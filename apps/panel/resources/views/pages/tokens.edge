@@ -15,7 +15,7 @@
       </div>
     @end
 
-    <form method="POST" action="/tokens" class="row">
+    <form method="POST" action="/app/tokens" class="row">
       {{ csrfField() }}
       <input type="text" name="name" placeholder="Dizüstü" required maxlength="64" />
       <button class="btn narrow" type="submit">Üret</button>
@@ -35,7 +35,7 @@
                 @end
               </span>
             </div>
-            <form method="POST" action="/tokens/{{ token.id }}?_method=DELETE">
+            <form method="POST" action="/app/tokens/{{ token.id }}?_method=DELETE">
               {{ csrfField() }}
               <button class="link-danger" type="submit">İptal et</button>
             </form>

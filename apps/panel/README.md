@@ -4,6 +4,20 @@ Sohbetlerinize webden devam etmek için yönetim paneli. AdonisJS 6.
 
 Tasarım kararları ve yol haritası: [`docs/panel-plan.md`](../../docs/panel-plan.md).
 
+## Yollar
+
+Tanıtım sayfası ve panel **tek uygulama**, tek alan adı:
+
+| Yol | Ne |
+| --- | --- |
+| `/` | Tanıtım sayfası — `public/index.html`, statik |
+| `/login`, `/register` | Kimlik |
+| `/app` | Panel |
+
+Vite çıktısı `public/build` altında, `public/assets` DEĞİL: ikincisi tanıtım
+sayfasının görsellerinin yeri ve Vite derlemede o dizini temizliyordu —
+yerelde görünmeyen, yalnızca imajda ortaya çıkan bir kayıp.
+
 ## Durum
 
 Aşama 1–5 tamamlandı. Kayıt/giriş, cihaz jetonları, çalışma alanı listesi,

@@ -13,7 +13,8 @@ export default class GuestMiddleware {
   /**
    * The URL to redirect to when user is logged-in
    */
-  redirectTo = '/'
+  // Giriş yapmış kullanıcı kayıt/giriş sayfasını görmemeli; panele gider.
+  redirectTo = '/app'
 
   async handle(
     ctx: HttpContext,

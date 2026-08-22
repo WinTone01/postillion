@@ -37,14 +37,14 @@ test.group('Jetonlar', (group) => {
     const user = await newUser()
 
     const response = await client
-      .post('/tokens')
+      .post('/app/tokens')
       .form({ name: 'Dizüstü' })
       .withCsrfToken()
       .loginAs(user)
       .redirects(0)
     response.assertStatus(302)
 
-    const page = await client.get('/tokens').loginAs(user)
+    const page = await client.get('/app/tokens').loginAs(user)
     page.assertStatus(200)
 
     const stored = await ApiToken.query().where('user_id', user.id).firstOrFail()
@@ -87,7 +87,7 @@ test.group('Jetonlar', (group) => {
     const { token } = await ApiToken.mint(sahip.id, 'Dizüstü')
 
     await client
-      .delete(`/tokens/${token.id}`)
+      .delete(`/app/tokens/${token.id}`)
       .withCsrfToken()
       .loginAs(baskasi)
       .redirects(0)
@@ -105,12 +105,12 @@ test.group('Jetonlar', (group) => {
     })
     const { token } = await ApiToken.mint(user.id, 'Dizüstü')
 
-    await client.delete(`/tokens/${token.id}`).withCsrfToken().loginAs(user).redirects(0)
+    await client.delete(`/app/tokens/${token.id}`).withCsrfToken().loginAs(user).redirects(0)
     assert.isNull(await ApiToken.find(token.id))
   })
 
   test('jeton sayfası kimliksiz açılmıyor', async ({ client }) => {
-    const response = await client.get('/tokens').redirects(0)
+    const response = await client.get('/app/tokens').redirects(0)
     response.assertStatus(302)
   })
 })

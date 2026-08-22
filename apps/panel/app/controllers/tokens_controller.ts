@@ -36,7 +36,7 @@ export default class TokensController {
 
     const { raw } = await ApiToken.mint(user.id, name)
     session.flash('freshToken', raw)
-    return response.redirect('/tokens')
+    return response.redirect('/app/tokens')
   }
 
   async destroy({ params, response, auth }: HttpContext) {
@@ -44,6 +44,6 @@ export default class TokensController {
     // Sorgu kullanıcıyla SINIRLI: kimliği bilinen bir jetonu başkasının
     // silebilmesi, hesabın cihazlarını uzaktan düşürmek olurdu.
     await ApiToken.query().where('id', params.id).andWhere('user_id', user.id).delete()
-    return response.redirect('/tokens')
+    return response.redirect('/app/tokens')
   }
 }

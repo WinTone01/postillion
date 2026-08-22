@@ -170,33 +170,34 @@ kurulmuyor ve eşitleme hiç başlamıyor.
 
 ---
 
-## C. Landing sayfası
+## C. Panel (tanıtım sayfası dahil)
 
-Landing ayrı bir Coolify kaynağı — sayfada bir yazı değiştirmek eşitleme
-sunucusunu yeniden başlatmamalı, sunucuyu güncellemek de sayfayı
-indirmemeli.
+Panel ve tanıtım sayfası **tek kaynak**: aynı alan adında iki dağıtım tutmak,
+uygulamanın statik dosya sunucusunun zaten yaptığı işi ikinci kez kurmak
+olurdu.
+
+| Yol | Ne |
+| --- | --- |
+| `/` | Tanıtım sayfası (statik) |
+| `/login`, `/register` | Kimlik |
+| `/app` | Panel — cihazlar, sohbetler, jetonlar |
 
 Coolify'da: **Yeni Kaynak → Docker Compose**, aynı depoyu seçin ve compose
 dosyası olarak şunu verin:
 
 ```
-docker-compose.landing.yaml
+docker-compose.panel.yaml
 ```
 
-Dağıtımdan sonra **Domains** alanına alan adınızı yazın (örn.
-`postillion.alanadiniz.com`). TLS'i Coolify'ın vekili sonlandırıyor.
+**Domains** alanına ana alan adınızı yazın (örn. `postillion.net`).
 
-Sayfa saf statik; derleme adımı yok, nginx dosyaları olduğu gibi sunuyor.
-Bulunmayan bir yol `404` dönüyor — statik bir sitede her isteği `index.html`'e
-düşürmek kırık bağlantıları sessizce ana sayfa gibi gösterirdi.
-
-İki alan adını da tek sunucuda toplayabilirsiniz; ikisi ayrı kaynak olduğu
-için birbirlerini etkilemiyorlar:
+Veritabanı eşitleme sunucusuyla **AYNI** olmalı — panel kayıt satırlarını ve
+jeton tablosunu oradan okuyor. `PANEL_DB_*` değişkenlerini ona göre girin.
 
 | Alan adı | Kaynak |
 | --- | --- |
-| `postillion.alanadiniz.com` | `docker-compose.landing.yaml` |
-| `sync.alanadiniz.com` | `docker-compose.yaml` |
+| `postillion.net` | `docker-compose.panel.yaml` |
+| `sync.postillion.net` | `docker-compose.yaml` |
 
 Depoda ayrıca Cloudflare Workers'a dağıtan bir iş akışı duruyor
 (`.github/workflows/deploy.yml`). `CLOUDFLARE_API_TOKEN` sırrı tanımlı
