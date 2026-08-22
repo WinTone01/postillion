@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::extract::ws::{Message, WebSocket};
 use futures::{SinkExt as _, StreamExt as _};
+use postillion_sync::keepalive;
 use postillion_rpc::device_room::{
     decode_device_frame, encode_device_frame, DeviceFrameHeader, HOST_CLOSED, HOST_OFFLINE,
     RELAY_KIND,
@@ -148,6 +149,17 @@ pub async fn serve(socket: WebSocket, hub: DeviceHub, device: String, role: Role
         tokio::select! {
             incoming = stream.next() => {
                 let Some(Ok(message)) = incoming else { break };
+                // Metin `"ping"` canlılık yoklaması, protokol çerçevesi değil.
+                // Cevapsız bırakmak host'un soketini 25 saniyede bir kapattırıyor
+                // ve cihaz kalıcı olarak "reconnecting"de kalıyor.
+                if let Message::Text(text) = &message {
+                    if keepalive::is_ping(text)
+                        && sink.send(Message::Text(keepalive::PONG.into())).await.is_err()
+                    {
+                        break;
+                    }
+                    continue;
+                }
                 let Message::Binary(bytes) = message else { continue };
 
                 let Ok((header, payload)) = decode_device_frame(&bytes) else {

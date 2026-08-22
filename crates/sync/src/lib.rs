@@ -13,6 +13,7 @@
 pub mod chat_client;
 pub mod chat_frames;
 pub mod dial;
+pub mod keepalive;
 pub mod net_path;
 pub mod registry;
 pub mod registry_room;

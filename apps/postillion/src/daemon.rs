@@ -113,6 +113,16 @@ pub fn uninstall() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// systemd tells you `Unit postillion.service not found`, which reads like a
+/// broken installation rather than a missing one. macOS already says which
+/// command to run; Linux should too.
+fn require_systemd_unit() -> anyhow::Result<()> {
+    if !systemd_unit_path()?.exists() {
+        bail!("not installed — run `postillion daemon install` first");
+    }
+    Ok(())
+}
+
 pub fn start() -> anyhow::Result<()> {
     if cfg!(target_os = "macos") {
         let plist = launchd_plist_path()?;
@@ -127,6 +137,7 @@ pub fn start() -> anyhow::Result<()> {
         );
         run("launchctl", &["kickstart", &launchd_service_target()?])?;
     } else if cfg!(target_os = "linux") {
+        require_systemd_unit()?;
         run("systemctl", &["--user", "start", SYSTEMD_UNIT])?;
     } else {
         bail!("postillion daemon is only supported on macOS (launchd) and Linux (systemd)");
@@ -140,6 +151,7 @@ pub fn stop() -> anyhow::Result<()> {
         // bootout (not `kill`): with KeepAlive the job would otherwise respawn.
         run("launchctl", &["bootout", &launchd_service_target()?])?;
     } else if cfg!(target_os = "linux") {
+        require_systemd_unit()?;
         run("systemctl", &["--user", "stop", SYSTEMD_UNIT])?;
     } else {
         bail!("postillion daemon is only supported on macOS (launchd) and Linux (systemd)");
@@ -162,6 +174,7 @@ pub fn restart() -> anyhow::Result<()> {
         println!("Restarted.");
         Ok(())
     } else if cfg!(target_os = "linux") {
+        require_systemd_unit()?;
         run("systemctl", &["--user", "restart", SYSTEMD_UNIT])?;
         println!("Restarted.");
         Ok(())
@@ -201,6 +214,10 @@ pub fn status() -> anyhow::Result<()> {
         }
         Ok(())
     } else if cfg!(target_os = "linux") {
+        if !systemd_unit_path()?.exists() {
+            println!("{SYSTEMD_UNIT}: not installed — `postillion daemon install`");
+            return Ok(());
+        }
         // Passthrough; `status` exits nonzero for inactive units, which is not an
         // error for us to report — the output already says it.
         let _ = Command::new("systemctl")

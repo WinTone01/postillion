@@ -5364,6 +5364,7 @@ dependencies = [
  "loro-protocol",
  "postillion-doc",
  "postillion-proto",
+ "postillion-sync",
  "reqwest",
  "rusqlite",
  "serde",

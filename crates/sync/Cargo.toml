@@ -29,6 +29,12 @@ block2 = "0.6"
 mock-server = []
 
 [dev-dependencies]
+# Kendine bağımlılık, `mock-server` özelliğini AÇMAK İÇİN. Modül
+# `cfg(any(test, feature = "mock-server"))` altında ve entegrasyon testleri
+# kasayı dışarıdan görüyor — orada `cfg(test)` yanlış, dolayısıyla özellik
+# açılmadan `tests/registry_client.rs` "unresolved import" ile düşüyor ve
+# `cargo test -p postillion-sync` hiç derlenmiyordu.
+postillion-sync = { path = ".", features = ["mock-server"] }
 chrono.workspace = true
 # chat2_live example only (live checkpoint fetch against a deployed worker).
 reqwest.workspace = true

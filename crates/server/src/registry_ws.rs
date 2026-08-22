@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket};
 use futures::{SinkExt as _, StreamExt as _};
+use postillion_sync::keepalive;
 use postillion_sync::registry_room::{IncomingFrame, RegistrySession, RegistryStore};
 
 use crate::hub::Hub;
@@ -41,12 +42,18 @@ pub async fn serve(
                 let text = match message {
                     Message::Text(text) => text.to_string(),
                     // İstemci taşıma canlılığı için düz metin `"ping"`
-                    // gönderiyor; protokol çerçevesi değil, yok sayılıyor.
+                    // gönderiyor; protokol çerçevesi değil, aşağıda
+                    // karşılanıyor.
                     Message::Ping(_) | Message::Pong(_) => continue,
                     Message::Close(_) => break,
                     _ => continue,
                 };
-                if text == "ping" {
+                // Karşılık ŞART: istemci bunu görmezse sessizlik kirası
+                // doluyor ve soketi sağlıklıyken kapatıyor.
+                if keepalive::is_ping(&text) {
+                    if sink.send(Message::Text(keepalive::PONG.into())).await.is_err() {
+                        break;
+                    }
                     continue;
                 }
 

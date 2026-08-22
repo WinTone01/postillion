@@ -12,6 +12,7 @@ use axum::extract::ws::{Message, WebSocket};
 use futures::future::BoxFuture;
 use futures::{SinkExt as _, StreamExt as _};
 use postillion_sync::chat_frames as wire;
+use postillion_sync::keepalive;
 use postillion_sync::room::{ChatStore, Row, RoomState, Session};
 use postillion_sync::SyncError;
 
@@ -101,8 +102,18 @@ pub async fn serve(socket: WebSocket, store: Arc<dyn ChatStore>, hub: ChatHub, c
                 let Some(Ok(message)) = incoming else {
                     break; // kapandı ya da hata
                 };
+                // Protokol tamamen ikili; tek metin çerçevesi canlılık
+                // yoklaması ve KARŞILIK BEKLİYOR — cevapsız kalırsa istemci
+                // sağlıklı soketi sessizlik kirasıyla kapatıyor.
+                if let Message::Text(text) = &message {
+                    if keepalive::is_ping(text) {
+                        if sink.send(Message::Text(keepalive::PONG.into())).await.is_err() {
+                            return;
+                        }
+                    }
+                    continue;
+                }
                 let Message::Binary(bytes) = message else {
-                    // Protokol tamamen ikili; metin çerçevesi yanlış istemci.
                     continue;
                 };
                 let Some(frame) = wire::decode(&bytes) else {
