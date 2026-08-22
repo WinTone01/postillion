@@ -59,8 +59,12 @@ loro-protocol = "0.3"
 # b68970e rasterizes BackdropBlur in the wgpu renderer (frosted floats on
 # Linux — the Metal path's snapshot/blur/composite, ported).
 #
-# Pinned to WinTone01/zed, our fork of wingleeio/zed: 9ff17b7 carries
-# EdgeFadeParams through the DirectX shader's Quad/PolychromeSprite structs.
+# Pinned to WinTone01/zed, our fork of wingleeio/zed. The rev is kept
+# reachable by the fork's `postillion` branch — deleting that branch makes
+# the commit unreachable and every clean checkout fails to resolve gpui.
+#
+# 9ff17b7 carries EdgeFadeParams through the DirectX shader's
+# Quad/PolychromeSprite structs.
 # Without it the Windows renderer reads a StructuredBuffer whose stride is
 # 32 bytes short of the Rust `#[repr(C)]` twin — silent scene corruption, no
 # compile error. Rebase this commit when bumping the upstream rev.

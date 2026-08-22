@@ -33,11 +33,18 @@ On **Windows**: download the release zip and run `Install.ps1` (per-user, no adm
 
 Postillion ships **no hosted sync endpoint**. A bare install is local-only and stays that way until you point it at a server you run yourself:
 
+[`deploy/`](deploy/) has everything needed to run `postillion-server` on your own machine, via Coolify or systemd.
+
+`postillion-server` currently authenticates with a **single shared token**, so point the client at the same value the server runs with:
+
 ```bash
 export POSTILLION_EDGE_URL=https://sync.your-domain.example
+export POSTILLION_EDGE_TOKEN=<the server's POSTILLION_SERVER_TOKEN>
 ```
 
-[`deploy/`](deploy/) has everything needed to run `postillion-server` on your own machine, via Coolify or systemd. Hosted sign-in additionally needs your own WorkOS AuthKit tenant in `POSTILLION_WORKOS_CLIENT_ID`.
+Generate it with `openssl rand -hex 32`. Avoid base64 here: the token doubles as the client's user id, which becomes a path segment under the data directory, and base64's `/` would split it.
+
+Anyone holding that token can read every chat on the server, and chat contents are **not yet end-to-end encrypted** — see [`deploy/README.md`](deploy/README.md) for the current limits. Multi-user sign-in over WorkOS AuthKit (`POSTILLION_WORKOS_CLIENT_ID`) targets the upstream Cloudflare edge, not `postillion-server`.
 
 Once an endpoint is configured, sign in only when you want to open your account's synced workspace. Authentication changes the profile selected by the next engine start, so stop the daemon before changing it:
 
