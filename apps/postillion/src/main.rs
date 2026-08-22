@@ -326,6 +326,9 @@ fn dirs_data_dir() -> std::path::PathBuf {
     // slots would mean re-authenticating every saved login. These are upstream
     // directory names on disk, so they stay spelled the old way on purpose.
     if !dir.exists() {
+        // Eski dizin adları BİLEREK duruyor: bunlar marka kalıntısı değil,
+        // mevcut bir kurulumun verisinin bulunduğu yer. Listeden çıkarmak
+        // yükseltme yapan kullanıcının sohbetlerini görünmez kılardı.
         for previous in [".zeron", ".comet-native"] {
             let old = home.join(previous);
             if old.exists() {

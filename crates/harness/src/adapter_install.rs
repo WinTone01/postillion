@@ -228,7 +228,7 @@ pub(crate) async fn ensure_installed(
 /// A postillion-owned shim script materialized INSIDE a managed install dir, for
 /// SDK packages with no bin entry (`@cursor/sdk`): the shim resolves the SDK
 /// from the sibling `node_modules`. Returns the shim path when the install is
-/// complete AND the shim contents match this build (a comet upgrade that
+/// complete AND the shim contents match this build (a Postillion upgrade that
 /// changes the shim rewrites it in place).
 pub(crate) fn installed_shim(pin: &NpmPin, shim_name: &str, contents: &str) -> Option<PathBuf> {
     let dir = install_dir(pin)?;

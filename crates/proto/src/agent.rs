@@ -432,13 +432,13 @@ mod tests {
         // A populated spec round-trips camelCased.
         let req = RunRequest {
             worktree: Some(WorktreeSpec {
-                repo_path: "/repos/comet".into(),
+                repo_path: "/repos/postillion".into(),
                 base: "main".into(),
             }),
             ..req
         };
         let json = serde_json::to_value(&req).unwrap();
-        assert_eq!(json["worktree"]["repoPath"], "/repos/comet");
+        assert_eq!(json["worktree"]["repoPath"], "/repos/postillion");
         let round: RunRequest = serde_json::from_value(json).unwrap();
         assert_eq!(round.worktree, req.worktree);
     }
