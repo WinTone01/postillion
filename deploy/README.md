@@ -204,11 +204,20 @@ değilken hiçbir şey yapmıyor, dolayısıyla Coolify kurulumuyla çakışmıy
 
 | Uç | İş |
 | --- | --- |
+| `GET /` | Sunucuyu tanıtır |
 | `GET /health` | Ayakta mı |
 | `GET /chat2/{id}/ws` | Sohbet soketi (`?token=`) |
 | `GET /chat2/{id}/rows` | WebSocket geçmeyen ağlar için satır çekme |
 | `POST /chat2/{id}/rows` | Aynı yoldan gönderme |
 | `GET /chat2/{id}/checkpoint` | Anlık görüntü — şu an her zaman 404 |
+| `GET /registry/{org}/ws` | Çalışma alanı kaydı: kenar çubuğu satırları, presence |
+| `GET /registry/{org}/rows` | Kaydın HTTP yolu |
+| `POST /registry/{org}/push` | Aynı yoldan yazma |
+| `GET /device/{id}/ws` | Cihazlar arası RPC rölesi (`?role=host\|client`) |
+
+Uygulama bu uçların **hepsine** ihtiyaç duyuyor. Yalnızca `chat2` sunan bir
+sürüm, kayıt ucundan `404` aldığı için sonsuza kadar "Reconnecting" kalıyordu —
+`/health` `200` dönerken.
 
 ## Cloudflare arkasında çalıştırıyorsanız
 

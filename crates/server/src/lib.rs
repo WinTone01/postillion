@@ -12,6 +12,7 @@
 
 pub mod auth;
 pub mod db;
+pub mod device_room;
 pub mod health;
 pub mod registry_db;
 pub mod registry_http;
@@ -30,6 +31,7 @@ use axum::Router;
 use postillion_sync::room::ChatStore;
 use tower_http::trace::TraceLayer;
 
+use crate::device_room::DeviceHub;
 use crate::registry_ws::RegistryHub;
 use crate::rooms::ChatHub;
 
@@ -39,6 +41,7 @@ pub struct App {
     pub registry: Arc<dyn postillion_sync::registry_room::RegistryStore>,
     pub hub: ChatHub,
     pub registry_hub: RegistryHub,
+    pub device_hub: DeviceHub,
     pub auth: auth::Auth,
 }
 
@@ -60,6 +63,8 @@ pub fn router(app: App) -> Router {
         .route("/registry/{org}/ws", get(registry_ws_handler))
         .route("/registry/{org}/rows", get(registry_http::get_rows))
         .route("/registry/{org}/push", axum::routing::post(registry_http::post_push))
+        // Cihazlar arası RPC rölesi: uzaktan terminal, hedef cihaza mesaj.
+        .route("/device/{device_id}/ws", get(device_ws_handler))
         .layer(TraceLayer::new_for_http())
         .with_state(app)
 }
@@ -84,6 +89,37 @@ async fn root() -> &'static str {
 #[derive(serde::Deserialize)]
 struct WsQuery {
     token: Option<String>,
+}
+
+/// Röle bağlantısının rolü ve kimliği.
+#[derive(serde::Deserialize)]
+struct DeviceQuery {
+    token: Option<String>,
+    role: Option<String>,
+    #[serde(rename = "connId")]
+    conn_id: Option<String>,
+}
+
+async fn device_ws_handler(
+    State(app): State<App>,
+    Path(device_id): Path<String>,
+    Query(query): Query<DeviceQuery>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, StatusCode> {
+    if !app.auth.permits(&headers, query.token.as_deref()) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let role = device_room::Role::parse(query.role.as_deref());
+    // `connId` vermeyen istemciye biz üretiyoruz: host'un cevabı bir yere
+    // gitmek zorunda ve kimliksiz bir istemciye yönlendirme yapılamaz.
+    let conn_id = query
+        .conn_id
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    Ok(ws.on_upgrade(move |socket| {
+        device_room::serve(socket, app.device_hub, device_id, role, conn_id)
+    }))
 }
 
 async fn registry_ws_handler(
