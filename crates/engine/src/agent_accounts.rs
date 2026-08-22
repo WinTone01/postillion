@@ -263,7 +263,16 @@ impl AgentAccounts {
     // ── list ────────────────────────────────────────────────────────────────
 
     /// Detect both CLIs, auto-snapshot the live logins, and assemble the view.
-    pub async fn list(&self, force_usage: bool) -> Result<AgentAccountsSnapshot, EngineError> {
+    ///
+    /// `active_only` narrows the usage probe to the live login. Every probe is
+    /// a real authenticated request against the account it names, so a caller
+    /// that only renders the current account's windows must not reach for the
+    /// saved ones.
+    pub async fn list(
+        &self,
+        force_usage: bool,
+        active_only: bool,
+    ) -> Result<AgentAccountsSnapshot, EngineError> {
         if force_usage {
             lock(&self.inner.usage_cache).clear();
         }
@@ -312,7 +321,8 @@ impl AgentAccounts {
             let slots = self.read_slots(harness);
             for slot in &slots {
                 let active = active_key.as_deref() == Some(slot.account_key.as_str());
-                let usage = self.usage_for(harness, slot, active, force_usage).await;
+                let probe = force_usage && (active || !active_only);
+                let usage = self.usage_for(harness, slot, active, probe).await;
                 accounts.push(AgentAccount {
                     id: slot.id.clone(),
                     harness,
@@ -360,7 +370,7 @@ impl AgentAccounts {
         harness: HarnessId,
         account_id: &str,
     ) -> Result<AgentAccountsSnapshot, EngineError> {
-        self.list(false).await?;
+        self.list(false, false).await?;
         let slot = self
             .read_slots(harness)
             .into_iter()
@@ -380,7 +390,7 @@ impl AgentAccounts {
                 )));
             }
         }
-        self.list(false).await
+        self.list(false, false).await
     }
 
     async fn activate_claude(&self, slot: &Slot) -> Result<(), EngineError> {
@@ -457,7 +467,7 @@ impl AgentAccounts {
         {
             return Err(EngineError::Other("Unknown account.".into()));
         }
-        let snapshot = self.list(false).await?;
+        let snapshot = self.list(false, false).await?;
         let active = snapshot
             .accounts
             .iter()
@@ -473,7 +483,7 @@ impl AgentAccounts {
         if file.exists() {
             std::fs::remove_file(&file)?;
         }
-        self.list(false).await
+        self.list(false, false).await
     }
 
     // ── add-account OAuth flows ─────────────────────────────────────────────
@@ -805,7 +815,7 @@ impl AgentAccounts {
             created_at: None,
         })?;
         lock(&self.inner.flows).remove(login_id);
-        self.list(false).await
+        self.list(false, false).await
     }
 
     pub async fn poll_login(&self, login_id: &str) -> Result<AgentLoginPoll, EngineError> {

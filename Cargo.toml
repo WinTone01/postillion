@@ -134,6 +134,15 @@ ignore = "0.4"
 lto = "thin"
 strip = "symbols"
 
+# Iteration profile: release's code quality without its link cost. Thin LTO
+# relinks the whole program for a one-line edit, which is the right trade when
+# shipping and the wrong one in a build-run-tweak loop.
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 256
+incremental = true
+
 [profile.dev]
 # gpui is slow unoptimized; match zed's approach for deps
 opt-level = 0
