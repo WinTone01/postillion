@@ -30,11 +30,22 @@ export default await Env.create(new URL('../', import.meta.url), {
   | Variables for configuring database connection
   |----------------------------------------------------------
   */
-  DB_HOST: Env.schema.string({ format: 'host' }),
-  DB_PORT: Env.schema.number(),
-  DB_USER: Env.schema.string(),
+  /*
+  |----------------------------------------------------------
+  | Veritabanı
+  |----------------------------------------------------------
+  |
+  | `DATABASE_URL` tek başına yeterli ve dağıtımda kullanılan yol bu:
+  | eşitleme sunucusuyla AYNI dizeyi alıyor, beş ayrı değişken yerine bir
+  | tane. Parçalı `DB_*` değişkenleri yerel geliştirme için duruyor ve bu
+  | yüzden hepsi isteğe bağlı — biri eksikse bağlantı dizesi kullanılıyor.
+  */
+  DATABASE_URL: Env.schema.string.optional(),
+  DB_HOST: Env.schema.string.optional({ format: 'host' }),
+  DB_PORT: Env.schema.number.optional(),
+  DB_USER: Env.schema.string.optional(),
   DB_PASSWORD: Env.schema.string.optional(),
-  DB_DATABASE: Env.schema.string(),
+  DB_DATABASE: Env.schema.string.optional(),
 
   /*
   |----------------------------------------------------------
