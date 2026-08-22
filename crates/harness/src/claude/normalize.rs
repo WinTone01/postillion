@@ -126,6 +126,27 @@ pub(crate) fn decode_tool_use(name: &str, input: &Value) -> ToolCall {
                 input: (!input.is_null()).then(|| input.clone()),
             }
         }
+        // Arka plan görevleri. Claude bir komutu `run_in_background` ile
+        // çalıştırdığında sonraki `BashOutput`/`KillShell` çağrıları buraya
+        // düşüyordu ve çip ham JSON'la "Tool · BashOutput" diye görünüyordu.
+        //
+        // `Agent: <açıklama>` ile aynı kalıp: yeni bir `ToolCall` çeşidi
+        // eklemek doc şemasını değiştirir ve eşitlenmiş eski belgeleri
+        // etkilerdi; okunur bir ad yeterli.
+        "BashOutput" => ToolCall::Unknown {
+            name: match str_field(input, "bash_id") {
+                id if id.is_empty() => "Background output".into(),
+                id => format!("Background output: {id}"),
+            },
+            input: (!input.is_null()).then(|| input.clone()),
+        },
+        "KillShell" => ToolCall::Unknown {
+            name: match str_field(input, "shell_id") {
+                id if id.is_empty() => "Stop background task".into(),
+                id => format!("Stop background task: {id}"),
+            },
+            input: (!input.is_null()).then(|| input.clone()),
+        },
         // MCP tools arrive as `mcp__<server>__<tool>`.
         _ => match name.strip_prefix("mcp__").and_then(|r| r.split_once("__")) {
             Some((server, tool)) => ToolCall::Mcp {
@@ -979,5 +1000,62 @@ mod tests {
             }
             other => panic!("unexpected event: {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod background_task_tests {
+    //! Arka plan görevleri (`run_in_background`) tanınır çip üretmeli.
+    //!
+    //! Kendi depomuzdaki issue #4: bu araçlar haritada olmadığı için ham
+    //! JSON'la "Tool · BashOutput" diye görünüyordu.
+    use super::decode_tool_use;
+    use postillion_proto::ToolCall;
+
+    fn name_of(call: &ToolCall) -> String {
+        match call {
+            ToolCall::Unknown { name, .. } => name.clone(),
+            other => panic!("Unknown bekleniyordu, gelen: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn arka_plan_ciktisi_kimlikle_adlandiriliyor() {
+        let call = decode_tool_use(
+            "BashOutput",
+            &serde_json::json!({ "bash_id": "bash_1" }),
+        );
+        assert_eq!(name_of(&call), "Background output: bash_1");
+        // Girdi korunuyor: çipin ayrıntısı açıldığında görülebilmeli.
+        assert!(matches!(call, ToolCall::Unknown { input: Some(_), .. }));
+    }
+
+    #[test]
+    fn arka_plan_durdurma_kimlikle_adlandiriliyor() {
+        let call = decode_tool_use("KillShell", &serde_json::json!({ "shell_id": "bash_2" }));
+        assert_eq!(name_of(&call), "Stop background task: bash_2");
+    }
+
+    /// Kimlik yoksa ad yine de anlamlı kalmalı; boş bir ":" ekiyle bitmemeli.
+    #[test]
+    fn kimliksiz_cagri_bos_ek_birakmiyor() {
+        assert_eq!(
+            name_of(&decode_tool_use("BashOutput", &serde_json::json!({}))),
+            "Background output"
+        );
+        assert_eq!(
+            name_of(&decode_tool_use("KillShell", &serde_json::json!({}))),
+            "Stop background task"
+        );
+    }
+
+    /// Tanınmayan bir araç hâlâ kendi adıyla düşmeli — bu eşleme yalnızca
+    /// arka plan araçlarını yakalamalı.
+    #[test]
+    fn diger_araclar_etkilenmiyor() {
+        assert_eq!(
+            name_of(&decode_tool_use("SomethingElse", &serde_json::json!({}))),
+            "SomethingElse"
+        );
     }
 }
