@@ -1,5 +1,4 @@
-@layout('layouts/app', { title: (chat ? chat.title : 'Sohbet') + ' — Postillion', captchaScript: false })
-@section('content')
+@component('components/layout', { title: (chat ? chat.title : 'Sohbet') + ' — Postillion', captchaScript: false })
   <div class="card wide" data-chat-id="{{ chat ? chat.id : '' }}" data-head-seq="{{ headSeq }}">
     <div class="head">
       <h1>{{ chat ? chat.title : 'Sohbet' }}</h1>
