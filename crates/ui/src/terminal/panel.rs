@@ -672,6 +672,12 @@ impl TerminalPanel {
 
     // ---- input ----
 
+    /// Page Up/Down that the shell intercepted so they would not be lost
+    /// when the composer was unfocused — send them through to the PTY.
+    pub fn inject_page(&mut self, up: bool, cx: &mut Context<Self>) {
+        self.queue_input(if up { b"\x1b[5~" } else { b"\x1b[6~" }, cx);
+    }
+
     /// Queue keyboard bytes on the active tab (12 ms coalescing window).
     fn queue_input(&mut self, bytes: &[u8], cx: &mut Context<Self>) {
         let Some(chat) = self.selected_chat(cx) else {
