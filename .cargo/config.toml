@@ -1,0 +1,6 @@
+# Windows defaults to MSVC's `link.exe`. rust-lld ships inside the toolchain
+# already, links the same binary far faster, and link time is what dominates a
+# rebuild once the crate graph is warm — on a binary this size that is most of
+# the wall clock spent per edit.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
