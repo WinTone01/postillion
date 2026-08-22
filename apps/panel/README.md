@@ -77,6 +77,22 @@ APP_URL=https://postillion.net
 `MAIL_FROM_ADDRESS` doğrulanmış alan adında olmalı — başka bir alan adı
 yazmak gönderimi reddettirir.
 
+`APP_URL` boş bırakılırsa posta **hiç gönderilmiyor**. Göreli bir bağlantı
+postada işe yaramıyor: tarayıcı ilk parçayı sunucu adı sanıyor ve
+`https://verify/1` açmaya çalışıyor. Coolify'da bu değer compose'daki
+`SERVICE_FQDN_PANEL_3333` üzerinden geliyor; panelin alan adı orada
+tanımlı değilse elle `APP_URL` yazın.
+
+### Yeniden gönderim
+
+Bekleme ekranındaki buton kullanıcı başına dakikada bir çalışıyor. Buton
+bir saldırı aracı: saldırgan başkasının adresiyle kaydolup basmaya devam
+ederek o kutuyu doldurabilirdi.
+
+Süre oturumda değil `users.verification_sent_at` sütununda: oturumda
+tutulsaydı çerezleri silmek onu sıfırlardı. Butonun devre dışı görünmesi
+yalnızca nezaket, şartı uygulayan sunucu.
+
 ## Canlı akış
 
 Sayfa açıkken transkript kendini yeniliyor. Tarayıcı eşitleme sunucusuna

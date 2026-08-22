@@ -1,7 +1,18 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
 import User from '#models/user'
-import { mailConfigured, sendVerification } from '#services/mailer'
+import { mailConfigured, resendCooldownRemaining, sendVerification } from '#services/mailer'
+
+/**
+ * `APP_URL` ayarlanmamışsa postadaki kökü isteğin kendisinden alıyoruz.
+ *
+ * Değişkeni unutmak bağlantıyı göreli bırakıyor ve göreli bir bağlantı
+ * postada işe yaramıyor — tarayıcı ilk parçayı sunucu adı sanıyor. Ters
+ * vekilin arkasında doğru değerler için `trustProxy` gerekiyor (config/app.ts).
+ */
+function requestOrigin(request: HttpContext['request']) {
+  return `${request.protocol()}://${request.host()}`
+}
 
 /**
  * E-posta doğrulama.
@@ -16,6 +27,8 @@ export default class VerifyController {
       email: user.email,
       // Posta hiç gönderilemiyorsa kullanıcı boşuna beklememelidir.
       mailConfigured: mailConfigured(),
+      // Butonu erken basılamaz yapmak nezaket; şartı uygulayan `resend`.
+      cooldown: resendCooldownRemaining(user),
     })
   }
 
@@ -47,13 +60,23 @@ export default class VerifyController {
   }
 
   /** Postayı yeniden gönderir. */
-  async resend({ response, session, auth }: HttpContext) {
+  async resend({ request, response, session, auth }: HttpContext) {
     const user = auth.getUserOrFail()
     if (user.isVerified) {
       return response.redirect('/app')
     }
 
-    const sent = await sendVerification(user)
+    // Bekleme süresi dolmadan gönderim YOK. Kontrol burada değil de yalnızca
+    // arayüzde olsaydı, formu doğrudan POST etmek onu tümüyle atlardı.
+    const wait = resendCooldownRemaining(user)
+    if (wait > 0) {
+      session.flash('errorsBag', {
+        cooldown: `Please wait ${wait} more second${wait === 1 ? '' : 's'} before requesting another e-mail.`,
+      })
+      return response.redirect().back()
+    }
+
+    const sent = await sendVerification(user, requestOrigin(request))
     session.flash(
       sent ? 'notice' : 'errorsBag',
       sent ? 'Verification e-mail sent.' : { mail: 'The e-mail could not be sent.' }

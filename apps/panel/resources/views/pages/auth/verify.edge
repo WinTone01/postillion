@@ -22,7 +22,14 @@
     @if (mailConfigured)
       <form method="POST" action="/verify/resend">
         {{ csrfField() }}
-        <button class="btn" type="submit">Send the e-mail again</button>
+        {{-- Devre dışı buton yalnızca görünüş: gerçek engel sunucuda. --}}
+        <button class="btn" type="submit" {{ cooldown > 0 ? 'disabled' : '' }}>
+          @if (cooldown > 0)
+            Send again in {{ cooldown }}s
+          @else
+            Send the e-mail again
+          @end
+        </button>
       </form>
     @else
       <p class="alt">E-mail delivery is not configured on this installation.</p>

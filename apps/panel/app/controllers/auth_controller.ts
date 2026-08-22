@@ -93,7 +93,7 @@ export default class AuthController {
     // Gönderim kaydın ARDINDAN: postacı erişilemez olsa bile hesap duruyor ve
     // kullanıcı bekleme ekranından yeniden isteyebiliyor.
     if (!user.isVerified) {
-      await sendVerification(user)
+      await sendVerification(user, `${request.protocol()}://${request.host()}`)
       return response.redirect('/verify')
     }
 

@@ -2,7 +2,15 @@ import { test } from '@japa/runner'
 import testUtils from '@adonisjs/core/services/test_utils'
 import router from '@adonisjs/core/services/router'
 import User from '#models/user'
-import { verificationRequired } from '#services/mailer'
+import { DateTime } from 'luxon'
+import {
+  RESEND_COOLDOWN_SECONDS,
+  appBaseUrl,
+  mailConfigured,
+  resendCooldownRemaining,
+  verificationRequired,
+  verificationUrl,
+} from '#services/mailer'
 
 /**
  * E-posta doğrulama.
@@ -99,5 +107,60 @@ test.group('Doğrulama', (group) => {
 
     response.assertStatus(302)
     response.assertHeader('location', '/app')
+  })
+})
+
+/**
+ * Bağlantının MUTLAK olması.
+ *
+ * Bunu yakalayan hiçbir test yoktu ve üretimde `APP_URL` boş kaldı: posta
+ * `/verify/1?signature=…` ile gitti, tarayıcı `verify`'ı sunucu adı sandı ve
+ * kimse hesabını doğrulayamadı. Hiçbir yerde hata görünmedi — bağlantı
+ * geçerli bir imza taşıyordu, yalnızca hiçbir yere gitmiyordu.
+ */
+test.group('Doğrulama bağlantısının kökü', () => {
+  test('APP_URL boşken çağıranın verdiği kök kullanılıyor', async ({ assert }) => {
+    const user = { id: 7 } as User
+    const url = verificationUrl(user, 'https://panel.example.com')
+    assert.isTrue(url.startsWith('https://panel.example.com/verify/7'), url)
+  })
+
+  test('şemasız APP_URL tamamlanıyor', async ({ assert }) => {
+    // `postillion.net` yazmak kolay ve şemasız bir kök yine göreli bir
+    // bağlantı üretirdi.
+    assert.equal(appBaseUrl('postillion.net'), 'https://postillion.net')
+    assert.equal(appBaseUrl('https://postillion.net/'), 'https://postillion.net')
+  })
+
+  test('kök hiç yoksa posta yapılandırılmış SAYILMIYOR', async ({ assert }) => {
+    // Açılmayan bir bağlantı içeren posta göndermek, hiç göndermemekten
+    // kötü: kullanıcı gelen kutusuna bakıp bekler.
+    assert.equal(appBaseUrl(), '')
+    assert.isFalse(mailConfigured())
+  })
+})
+
+/**
+ * Yeniden gönderim bir SPAM ARACI olabilir: saldırgan başkasının adresiyle
+ * kaydolup butona basmaya devam ederse o kutuyu doldurur.
+ */
+test.group('Yeniden gönderim beklemesi', () => {
+  test('taze hesapta bekleme yok', async ({ assert }) => {
+    const user = { verificationSentAt: null } as User
+    assert.equal(resendCooldownRemaining(user), 0)
+  })
+
+  test('az önce gönderilmişse bekleme sürüyor', async ({ assert }) => {
+    const now = DateTime.now()
+    const user = { verificationSentAt: now.minus({ seconds: 5 }) } as User
+    assert.equal(resendCooldownRemaining(user, now), RESEND_COOLDOWN_SECONDS - 5)
+  })
+
+  test('süre dolunca serbest', async ({ assert }) => {
+    const now = DateTime.now()
+    const user = {
+      verificationSentAt: now.minus({ seconds: RESEND_COOLDOWN_SECONDS + 1 }),
+    } as User
+    assert.equal(resendCooldownRemaining(user, now), 0)
   })
 })

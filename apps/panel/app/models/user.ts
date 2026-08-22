@@ -26,6 +26,10 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column.dateTime()
   declare emailVerifiedAt: DateTime | null
 
+  /** Son doğrulama postasının zamanı — yeniden gönderim bekleme süresi. */
+  @column.dateTime()
+  declare verificationSentAt: DateTime | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
