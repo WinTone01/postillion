@@ -231,6 +231,40 @@ fn turkish(source: &str) -> Option<&'static str> {
 
         // ── ayarlar
         "Settings" => "Ayarlar",
+
+        // ── eşitleme sunucusu
+        "Sync" => "Eşitleme",
+        "Postillion ships no hosted endpoint. Point it at a server you run yourself." =>
+            "Postillion hazır bir sunucu sunmuyor. Kendi çalıştırdığınız sunucuya yönlendirin.",
+        "POSTILLION_EDGE_URL is set in the environment and overrides what you save here." =>
+            "POSTILLION_EDGE_URL ortamda tanımlı ve buraya kaydettiğinizi geçersiz kılıyor.",
+        "Server address" => "Sunucu adresi",
+        "https://sync.your-domain.example" => "https://sync.alanadiniz.example",
+        "Token" => "Jeton",
+        "The server's POSTILLION_SERVER_TOKEN" => "Sunucudaki POSTILLION_SERVER_TOKEN",
+        "Anyone with this token can read every chat on the server. Chats are not yet end-to-end encrypted." =>
+            "Bu jetonu bilen herkes sunucudaki bütün sohbetleri okuyabilir. Sohbetler henüz uçtan uca şifreli değil.",
+        "Test connection" => "Bağlantıyı sına",
+        "Testing…" => "Sınanıyor…",
+        "Server reachable." => "Sunucuya ulaşılıyor.",
+        "Saved. Restart Postillion for it to take effect." =>
+            "Kaydedildi. Etkili olması için Postillion'ı yeniden başlatın.",
+        "No data directory — cannot save" => "Veri dizini yok — kaydedilemiyor",
+        "Timed out — is the address right and reachable?" =>
+            "Süre doldu — adres doğru ve erişilebilir mi?",
+        "Could not connect — check the address and TLS" =>
+            "Bağlanılamadı — adresi ve TLS'i kontrol edin",
+        "Blocked before reaching the server — a proxy is refusing non-browser clients" =>
+            "Sunucuya ulaşmadan engellendi — araya giren bir vekil tarayıcı olmayan istemcileri reddediyor",
+        "Unexpected reply:" => "Beklenmeyen cevap:",
+        "Address cannot be empty" => "Adres boş olamaz",
+        "Address must start with https://" => "Adres https:// ile başlamalı",
+        "Token cannot be empty" => "Jeton boş olamaz",
+        "Token cannot contain '/': it splits the profile path" =>
+            "Jeton '/' içeremez: profil yolunu bölüyor",
+        "Token cannot contain '@': it truncates the identity" =>
+            "Jeton '@' içeremez: kimliği kırpıyor",
+        "Token cannot contain whitespace" => "Jeton boşluk içeremez",
         "Accounts" => "Hesaplar",
         "Agents" => "Ajanlar",
         "Appearance" => "Görünüm",

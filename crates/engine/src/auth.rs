@@ -1076,7 +1076,7 @@ fn url_decode(input: &str) -> String {
 }
 
 /// Write a file readable only by the owner (0600). On non-unix targets a plain write.
-fn write_private(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_private(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::io::Write;

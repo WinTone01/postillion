@@ -26,6 +26,7 @@ pub mod local_chats;
 pub mod local_import;
 pub mod profile;
 pub mod processes;
+pub mod sync_config;
 pub mod registry;
 pub mod repos;
 pub mod rpc;
