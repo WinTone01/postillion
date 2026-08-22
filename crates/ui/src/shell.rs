@@ -176,14 +176,12 @@ pub fn apply_keymap(cx: &mut App, keymap: &KeymapConfig) {
         // Fixed: ⌘K summons the add-space palette (the ⌘K chip in its search
         // bar); pressing it again dismisses.
         KeyBinding::new(&platform_combo("mod-k"), AddSpacePalette, None),
-        // Page keys scroll the transcript — the whole point being a mouse
-        // with no working wheel. Bound in the composer's context, not
-        // globally: the terminal reads page keys off its own raw handler and
-        // gpui dispatches matched bindings BEFORE those, so a global binding
-        // would swallow them there. The transcript never takes focus itself,
-        // so the composer is where a chat's keystrokes actually land.
-        KeyBinding::new("pageup", ScrollPageUp, Some("Composer")),
-        KeyBinding::new("pagedown", ScrollPageDown, Some("Composer")),
+        // Page keys scroll the transcript even when the composer is unfocused
+        // (clicking the conversation drops composer focus). The handler
+        // forwards them to a focused terminal so gpui matching them first does
+        // not swallow the PTY's page keys.
+        KeyBinding::new("pageup", ScrollPageUp, None),
+        KeyBinding::new("pagedown", ScrollPageDown, None),
     ]);
 }
 
@@ -1539,6 +1537,19 @@ impl Shell {
     /// The current chat's terminal flag (per-session, in-memory).
     fn terminal_open(&self, cx: &App) -> bool {
         self.panels.get(&self.panel_key(cx)).terminal_open
+    }
+
+    fn page_key_terminal(
+        &self,
+        window: &gpui::Window,
+        cx: &App,
+    ) -> Option<Entity<TerminalPanel>> {
+        for term in self.terminal.iter().chain(self.right_terminal.iter()) {
+            if term.read(cx).focus_handle().is_focused(window) {
+                return Some(term.clone());
+            }
+        }
+        None
     }
 
     fn right_target(&self, cx: &App) -> f32 {
@@ -7009,13 +7020,21 @@ impl Render for Shell {
                 }
             }))
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
-            .on_action(cx.listener(|this, _: &ScrollPageUp, _, cx| {
+            .on_action(cx.listener(|this, _: &ScrollPageUp, window, cx| {
+                if let Some(term) = this.page_key_terminal(window, cx) {
+                    term.update(cx, |term, cx| term.inject_page(true, cx));
+                    return;
+                }
                 if matches!(this.route, Route::Chat) {
                     this.transcript
                         .update(cx, |transcript, cx| transcript.scroll_page(-1.0, cx));
                 }
             }))
-            .on_action(cx.listener(|this, _: &ScrollPageDown, _, cx| {
+            .on_action(cx.listener(|this, _: &ScrollPageDown, window, cx| {
+                if let Some(term) = this.page_key_terminal(window, cx) {
+                    term.update(cx, |term, cx| term.inject_page(false, cx));
+                    return;
+                }
                 if matches!(this.route, Route::Chat) {
                     this.transcript
                         .update(cx, |transcript, cx| transcript.scroll_page(1.0, cx));
