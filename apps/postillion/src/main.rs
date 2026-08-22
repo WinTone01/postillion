@@ -76,11 +76,19 @@ const DEFAULT_EDGE_URL: &str = "";
 /// control. Set `POSTILLION_WORKOS_CLIENT_ID` to enable hosted sign-in.
 const DEFAULT_WORKOS_CLIENT_ID: Option<&str> = None;
 
-fn edge_url_from_env() -> String {
-    std::env::var("POSTILLION_EDGE_URL")
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_EDGE_URL.into())
+/// Eşitleme uç noktası ve jetonu: ortam değişkeni, yoksa panelden kaydedilmiş
+/// yapılandırma.
+///
+/// Yalnızca ortama bakmak, masaüstü kısayolundan açılan bir uygulamada
+/// eşitlemeyi sessizce kapalı bırakıyordu: kısayolun ortamında o değişkenler
+/// yok. Artık ayar diske yazılıyor ve buradan okunuyor; ortam hâlâ kazanıyor,
+/// böylece betikler ve testler tek seferlik yönlendirme yapabiliyor.
+fn sync_config(data_dir: &std::path::Path) -> postillion_engine::sync_config::SyncConfig {
+    let mut resolved = postillion_engine::sync_config::resolve(data_dir);
+    if resolved.edge_url.trim().is_empty() {
+        resolved.edge_url = DEFAULT_EDGE_URL.into();
+    }
+    resolved
 }
 
 /// WorkOS client id resolution: explicit env wins (empty string = dev mode);
@@ -217,7 +225,15 @@ fn main() -> anyhow::Result<()> {
         }
         Some(Command::Update { check }) => {
             let runtime = tokio::runtime::Runtime::new()?;
-            runtime.block_on(update_cli::update(&edge_url_from_env(), check))
+            // Güncelleyici de aynı kaynağı kullanıyor: panelden yapılandırılmış
+            // bir kurulumda `postillion update` boş adrese düşmemeli.
+            runtime.block_on(update_cli::update(
+                &sync_config(&std::env::var_os("POSTILLION_DATA_DIR")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(dirs_data_dir))
+                .edge_url,
+                check,
+            ))
         }
         Some(Command::Daemon { command }) => match command {
             DaemonCommand::Install => daemon::install(&engine_config_from_env().data_dir),
@@ -228,18 +244,20 @@ fn main() -> anyhow::Result<()> {
             DaemonCommand::Status => daemon::status(),
         },
         None => {
-            let edge_token = std::env::var("POSTILLION_EDGE_TOKEN").ok();
+            let data_dir = std::env::var_os("POSTILLION_DATA_DIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(dirs_data_dir);
+            let sync = sync_config(&data_dir);
+            let edge_token = sync.token.clone();
             // Headed: the UI probes POSTILLION_IPC_PORT and connects to a running
             // daemon, or embeds the engine in-process (ARCHITECTURE §1).
             postillion_ui::run_app(postillion_ui::UiConfig {
-                data_dir: std::env::var_os("POSTILLION_DATA_DIR")
-                    .map(std::path::PathBuf::from)
-                    .unwrap_or_else(dirs_data_dir),
+                data_dir,
                 ipc_port: std::env::var("POSTILLION_IPC_PORT")
                     .ok()
                     .and_then(|p| p.parse().ok())
                     .unwrap_or(27654),
-                edge_url: edge_url_from_env(),
+                edge_url: sync.edge_url,
                 workos_client_id: workos_client_id_from_env(&edge_token),
                 edge_token,
                 org_id: std::env::var("POSTILLION_ORG_ID").ok(),
@@ -254,13 +272,18 @@ fn main() -> anyhow::Result<()> {
 /// `logout`, and `status` — one resolution so the CLI auth commands always
 /// operate on the exact session the daemon will load.
 fn engine_config_from_env() -> postillion_engine::EngineConfig {
-    // Dev-mode bearer (no WorkOS): an explicit token enables sync.
-    let edge_token = std::env::var("POSTILLION_EDGE_TOKEN").ok();
+    let data_dir = std::env::var_os("POSTILLION_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(dirs_data_dir);
+    // Dev-mode bearer (no WorkOS): an explicit token enables sync. The headed
+    // app and the CLI resolve this the SAME way — a daemon started from the
+    // CLI has to land on the endpoint the panel configured, or the two would
+    // disagree about which server owns the data.
+    let sync = sync_config(&data_dir);
+    let edge_token = sync.token.clone();
     postillion_engine::EngineConfig {
-        data_dir: std::env::var_os("POSTILLION_DATA_DIR")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(dirs_data_dir),
-        edge_url: edge_url_from_env(),
+        data_dir,
+        edge_url: sync.edge_url,
         ipc_port: std::env::var("POSTILLION_IPC_PORT")
             .ok()
             .and_then(|p| p.parse().ok())

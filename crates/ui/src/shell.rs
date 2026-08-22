@@ -39,6 +39,7 @@ use crate::settings::archived::ArchivedPage;
 use crate::settings::devices::DevicesPage;
 use crate::settings::harnesses::HarnessesPage;
 use crate::settings::notifications::{NotificationsEvent, NotificationsPage};
+use crate::settings::sync::SyncPage;
 use crate::settings::shortcuts::{ShortcutsEvent, ShortcutsPage};
 use crate::settings::{
     KeymapConfig, RIGHT_PANE_DEFAULT, RIGHT_PANE_MAX, RIGHT_PANE_MIN, SAVE_DEBOUNCE_MS,
@@ -184,11 +185,13 @@ pub enum SettingsSection {
     Shortcuts,
     /// Eklentiler, marketplace'ler ve skill'ler — hepsi aynı zincirin halkası.
     Extensions,
+    /// Kendi eşitleme sunucunuzun adresi ve jetonu.
+    Sync,
     Archived,
 }
 
 impl SettingsSection {
-    pub const ALL: [SettingsSection; 8] = [
+    pub const ALL: [SettingsSection; 9] = [
         SettingsSection::Devices,
         SettingsSection::Harnesses,
         SettingsSection::Agents,
@@ -196,6 +199,7 @@ impl SettingsSection {
         SettingsSection::Notifications,
         SettingsSection::Shortcuts,
         SettingsSection::Extensions,
+        SettingsSection::Sync,
         SettingsSection::Archived,
     ];
 
@@ -210,6 +214,7 @@ impl SettingsSection {
             SettingsSection::Notifications => crate::i18n::t("Notifications"),
             SettingsSection::Shortcuts => crate::i18n::t("Shortcuts"),
             SettingsSection::Extensions => crate::i18n::t("Extensions"),
+            SettingsSection::Sync => crate::i18n::t("Sync"),
             SettingsSection::Archived => crate::i18n::t("Archived sessions"),
         }
     }
@@ -848,6 +853,7 @@ pub struct Shell {
     archived_page: Option<Entity<ArchivedPage>>,
     appearance_page: Option<Entity<AppearancePage>>,
     notifications_page: Option<Entity<NotificationsPage>>,
+    sync_page: Option<Entity<SyncPage>>,
     shortcuts_page: Option<Entity<ShortcutsPage>>,
     accounts_page: Option<Entity<AccountsPage>>,
     harnesses_page: Option<Entity<HarnessesPage>>,
@@ -1055,6 +1061,7 @@ impl Shell {
             Some("settings/appearance") => Route::Settings(SettingsSection::Appearance),
             Some("settings/notifications") => Route::Settings(SettingsSection::Notifications),
             Some("settings/shortcuts") => Route::Settings(SettingsSection::Shortcuts),
+            Some("settings/sync") => Route::Settings(SettingsSection::Sync),
             Some("settings/archived") => Route::Settings(SettingsSection::Archived),
             // `new` pins the new-chat canvas (suppresses boot auto-select).
             Some("new") => {
@@ -1115,6 +1122,7 @@ impl Shell {
             archived_page: None,
             appearance_page: None,
             notifications_page: None,
+            sync_page: None,
             shortcuts_page: None,
             accounts_page: None,
             harnesses_page: None,
@@ -2239,6 +2247,16 @@ impl Shell {
                     None => Empty.into_any_element(),
                 }
             }
+            SettingsSection::Sync => {
+                if self.sync_page.is_none() {
+                    let data_dir = self.state.read(cx).data_dir.clone();
+                    self.sync_page = Some(cx.new(|cx| SyncPage::new(data_dir, cx)));
+                }
+                match &self.sync_page {
+                    Some(page) => page.clone().into_any_element(),
+                    None => Empty.into_any_element(),
+                }
+            }
             SettingsSection::Archived => {
                 if self.archived_page.is_none() {
                     let state = self.state.clone();
@@ -3347,6 +3365,7 @@ impl Shell {
             SettingsSection::Notifications => icons::BELL,
             SettingsSection::Shortcuts => icons::KEYBOARD,
             SettingsSection::Extensions => icons::WIDGET,
+            SettingsSection::Sync => icons::CLOUD,
             SettingsSection::Archived => icons::ARCHIVE_MINIMALISTIC,
         };
         // Match the user's dragged sidebar width — the pane container clips to
