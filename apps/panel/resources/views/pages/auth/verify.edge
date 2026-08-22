@@ -1,0 +1,36 @@
+@component('components/layout', { title: 'E-postanızı doğrulayın — Postillion' })
+  <div class="card">
+    <h1>E-postanızı doğrulayın</h1>
+    <p class="sub">
+      <strong>{{ email }}</strong> adresine bir doğrulama bağlantısı gönderdik.
+      Panele girmek için bağlantıya tıklayın.
+    </p>
+
+    @if (flashMessages.has('notice'))
+      <p class="notice">{{ flashMessages.get('notice') }}</p>
+    @end
+
+    @if (flashMessages.has('errorsBag'))
+      <ul class="errors">
+        @each (message in (flashMessages.get('errorsBag') ?? {}))
+          <li>{{ message }}</li>
+        @end
+      </ul>
+    @end
+
+    {{-- Posta sunucusu yapılandırılmamışsa "yeniden gönder" yalan söylerdi. --}}
+    @if (mailConfigured)
+      <form method="POST" action="/verify/resend">
+        {{ csrfField() }}
+        <button class="btn" type="submit">Postayı yeniden gönder</button>
+      </form>
+    @else
+      <p class="alt">Posta gönderimi bu kurulumda yapılandırılmamış.</p>
+    @end
+
+    <form method="POST" action="/logout">
+      {{ csrfField() }}
+      <p class="alt">Başka bir hesap mı? <button class="linkish" type="submit">Çıkış yap</button></p>
+    </form>
+  </div>
+@end

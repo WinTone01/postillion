@@ -1,7 +1,9 @@
 import type { HttpContext } from '@adonisjs/core/http'
+import { DateTime } from 'luxon'
 import env from '#start/env'
 import User from '#models/user'
 import { loginValidator, registerValidator } from '#validators/auth'
+import { mailConfigured, sendVerification, verificationRequired } from '#services/mailer'
 
 /**
  * Kayıt ve giriş.
@@ -67,7 +69,23 @@ export default class AuthController {
     }
 
     const user = await User.create(payload)
+
+    // Posta gönderimi yapılandırılmamışsa hesap DOĞRU KABUL EDİLİYOR: aksi
+    // halde Mailtrap'siz bir kurulumda kimse panele giremezdi.
+    if (!mailConfigured()) {
+      user.emailVerifiedAt = DateTime.now()
+      await user.save()
+    }
+
     await auth.use('web').login(user)
+
+    // Gönderim kaydın ARDINDAN: postacı erişilemez olsa bile hesap duruyor ve
+    // kullanıcı bekleme ekranından yeniden isteyebiliyor.
+    if (!user.isVerified) {
+      await sendVerification(user)
+      return response.redirect('/verify')
+    }
+
     return response.redirect('/app')
   }
 
@@ -85,7 +103,10 @@ export default class AuthController {
     try {
       const user = await User.verifyCredentials(email, password)
       await auth.use('web').login(user)
-      return response.redirect('/app')
+      // Doğrulanmamış hesap giriş YAPABİLİYOR ama panele değil bekleme
+      // ekranına iniyor: kendi durumunu görmesi ve postayı yeniden isteyebilmesi
+      // gerekiyor.
+      return response.redirect(verificationRequired(user.isVerified) ? '/verify' : '/app')
     } catch {
       // Tek ve AYRIM YAPMAYAN mesaj: "böyle bir kullanıcı yok" ile "parola
       // yanlış"ı ayırmak, hangi e-postaların kayıtlı olduğunu sızdırırdı.

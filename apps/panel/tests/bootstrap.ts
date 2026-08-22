@@ -36,7 +36,10 @@ export const plugins: Config['plugins'] = [
  * The teardown functions are executed after all the tests
  */
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
-  setup: [],
+  // Göçler testlerden ÖNCE koşuyor. Elle çalıştırmayı gerektirmek, yeni bir
+  // göç eklendiğinde testlerin "relation does not exist" ile yığınla
+  // patlaması demekti ve hata göçle hiç ilgisi yokmuş gibi görünüyordu.
+  setup: [() => testUtils.db().migrate()],
   teardown: [],
 }
 

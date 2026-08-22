@@ -22,9 +22,23 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column({ serializeAs: null })
   declare password: string
 
+  /** `null` = e-posta doğrulanmadı. */
+  @column.dateTime()
+  declare emailVerifiedAt: DateTime | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
+
+  /**
+   * `!= null` GEVŞEK karşılaştırma ve öyle olmak zorunda: sütunu hiç
+   * atanmamış taze bir model `undefined` taşıyor, veritabanından gelen ise
+   * `null`. Katı `!== null` ilkini "doğrulanmış" sayıyordu — yani yeni
+   * kaydolan herkes doğrulamayı atlıyordu.
+   */
+  get isVerified() {
+    return this.emailVerifiedAt != null
+  }
 }

@@ -90,6 +90,15 @@ services:
       # Boş bırakılırsa captcha ATLANIYOR — üretimde doldurun.
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
       - TURNSTILE_SECRET=${TURNSTILE_SECRET}
+      # E-posta doğrulama. Boş bırakılırsa doğrulama ŞARTI KOŞULMUYOR —
+      # posta gidemezken şart koşmak herkesi dışarıda bırakırdı.
+      - APP_URL=${SERVICE_FQDN_PANEL_3333}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-noreply@postillion.net}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Postillion}
     depends_on:
       db:
         condition: service_healthy

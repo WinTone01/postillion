@@ -4,6 +4,10 @@
     <h1>Giriş yap</h1>
     <p class="sub">Postillion hesabınızla devam edin.</p>
 
+    @if (flashMessages.has('notice'))
+      <p class="notice">{{ flashMessages.get('notice') }}</p>
+    @end
+
     @if (flashMessages.has('errorsBag') || flashMessages.has('errors'))
       <ul class="errors">
         @each (message in (flashMessages.get('errorsBag') ?? {}))

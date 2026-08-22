@@ -123,6 +123,28 @@ body {
   margin-top: 4px;
 }
 
+/* Bilgi şeridi — hata şeridinin aynısı, vurgu rengiyle. */
+.notice {
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* Bağlantı gibi görünen düğme: çıkış POST olmak zorunda (CSRF), ama satır
+   içinde bir bağlantı gibi durmalı. */
+.linkish {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
 /* ── cihaz jetonları ─────────────────────────────────────────────────────── */
 
 .card.wide {

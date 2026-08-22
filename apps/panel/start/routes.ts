@@ -11,6 +11,7 @@ const AuthController = () => import('#controllers/auth_controller')
 const TokensController = () => import('#controllers/tokens_controller')
 const WorkspaceController = () => import('#controllers/workspace_controller')
 const ChatController = () => import('#controllers/chat_controller')
+const VerifyController = () => import('#controllers/verify_controller')
 
 // Giriş yapmış kullanıcı kayıt/giriş sayfasını görmemeli.
 router
@@ -23,6 +24,18 @@ router
   .use(middleware.guest())
 
 router.post('/logout', [AuthController, 'logout']).use(middleware.auth())
+
+// Doğrulama bağlantısı KİMLİK İSTEMİYOR: kullanıcı postayı başka bir
+// tarayıcıda açabilir ve önce giriş yapmaya zorlamak akışı gereksiz kırardı.
+// Güvenliği imza sağlıyor.
+router.get('/verify/:id', [VerifyController, 'verify']).as('verifyEmail')
+
+router
+  .group(() => {
+    router.get('/verify', [VerifyController, 'notice'])
+    router.post('/verify/resend', [VerifyController, 'resend'])
+  })
+  .use(middleware.auth())
 
 // Panel `/app` altında. Kök yol tanıtım sayfası ve statik olarak
 // sunuluyor (`public/index.html`) — aynı alan adında iki ayrı dağıtım
@@ -40,4 +53,6 @@ router
     router.delete('/tokens/:id', [TokensController, 'destroy'])
   })
   .prefix('/app')
-  .use(middleware.auth())
+  // Doğrulanmamış hesap panele giremiyor: oradan gerçek makinelere komut
+  // gidiyor. Giriş yapmak serbest — kendi durumunu görebilmeli.
+  .use([middleware.auth(), middleware.verified()])

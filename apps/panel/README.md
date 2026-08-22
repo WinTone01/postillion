@@ -12,6 +12,7 @@ Tanıtım sayfası ve panel **tek uygulama**, tek alan adı:
 | --- | --- |
 | `/` | Tanıtım sayfası — `public/index.html`, statik |
 | `/login`, `/register` | Kimlik |
+| `/verify` | E-posta doğrulama bekleme ekranı |
 | `/app` | Panel |
 
 Vite çıktısı `public/build` altında, `public/assets` DEĞİL: ikincisi tanıtım
@@ -22,6 +23,22 @@ yerelde görünmeyen, yalnızca imajda ortaya çıkan bir kayıp.
 
 Aşama 1–5 tamamlandı. Kayıt/giriş, cihaz jetonları, çalışma alanı listesi,
 sohbete devam etme ve canlı akış çalışıyor.
+
+## E-posta doğrulama
+
+Kayıttan sonra imzalı bir bağlantı gönderiliyor (Mailtrap ya da herhangi bir
+SMTP). Sunucuda saklanan jeton **yok**: süre imzanın içinde (24 saat) ve
+temizlenmeyi bekleyen bir tablo doğmuyor.
+
+Doğrulanmamış hesap giriş yapabiliyor ama `/app` yerine `/verify` ekranına
+iniyor. Engellenen şey panelin kendisi: oradan gerçek makinelere komut
+gidiyor. Kendi durumunu görmesi ve postayı yeniden isteyebilmesi gerektiği
+için giriş serbest.
+
+`SMTP_HOST`/`SMTP_USERNAME` boşken doğrulama **şartı koşulmuyor** ve posta
+gönderilmiyor. Şart koşulsaydı bağlantı hiç ulaşmayacağı için herkes kalıcı
+olarak dışarıda kalırdı. `APP_URL` doldurulmalı: postadaki bağlantı göreli
+olamaz.
 
 ## Canlı akış
 
@@ -142,6 +159,8 @@ docker run -d --rm --name panel-pg -e POSTGRES_PASSWORD=t -e POSTGRES_USER=panel
 ```bash
 node ace test
 ```
+
+Göçler test koşusunun başında otomatik uygulanıyor.
 
 `.env.test` `SESSION_DRIVER=memory` kullanıyor ve bu şart: test istemcisi
 oturuma sunucu tarafından yazıyor, cookie sürücüsünde bu mümkün değil ve her

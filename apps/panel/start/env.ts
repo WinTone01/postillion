@@ -55,6 +55,23 @@ export default await Env.create(new URL('../', import.meta.url), {
   POSTILLION_SERVER_URL: Env.schema.string.optional(),
   POSTILLION_SERVER_TOKEN: Env.schema.string.optional(),
 
+  /*
+  |----------------------------------------------------------
+  | E-posta (Mailtrap) — doğrulama bağlantısı buradan gidiyor
+  |----------------------------------------------------------
+  |
+  | Hepsi isteğe bağlı: anahtar yoksa gönderim denenmiyor ve kayıt yine
+  | çalışıyor. Üretimde doldurulmazsa kimse hesabını doğrulayamaz.
+  */
+  /** Doğrulama bağlantısının mutlak adresi — postada göreli URL olmaz. */
+  APP_URL: Env.schema.string.optional(),
+  SMTP_HOST: Env.schema.string.optional(),
+  SMTP_PORT: Env.schema.string.optional(),
+  SMTP_USERNAME: Env.schema.string.optional(),
+  SMTP_PASSWORD: Env.schema.string.optional(),
+  MAIL_FROM_ADDRESS: Env.schema.string.optional(),
+  MAIL_FROM_NAME: Env.schema.string.optional(),
+
   TURNSTILE_SITE_KEY: Env.schema.string.optional(),
   TURNSTILE_SECRET: Env.schema.string.optional(),
   RECAPTCHA_SITE_KEY: Env.schema.string.optional(),
