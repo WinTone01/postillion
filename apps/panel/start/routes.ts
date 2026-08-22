@@ -10,6 +10,7 @@ import { middleware } from './kernel.js'
 const AuthController = () => import('#controllers/auth_controller')
 const TokensController = () => import('#controllers/tokens_controller')
 const WorkspaceController = () => import('#controllers/workspace_controller')
+const ChatController = () => import('#controllers/chat_controller')
 
 // Giriş yapmış kullanıcı kayıt/giriş sayfasını görmemeli.
 router
@@ -27,6 +28,8 @@ router.post('/logout', [AuthController, 'logout']).use(middleware.auth())
 router
   .group(() => {
     router.get('/', [WorkspaceController, 'index'])
+    router.get('/chats/:id', [ChatController, 'show'])
+    router.post('/chats/:id/send', [ChatController, 'send'])
     router.get('/tokens', [TokensController, 'index'])
     router.post('/tokens', [TokensController, 'store'])
     // Tarayıcı formları yalnızca GET/POST gönderiyor; `?_method=DELETE`

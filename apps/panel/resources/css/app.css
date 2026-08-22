@@ -283,3 +283,87 @@ body {
   color: var(--accent);
   text-decoration: none;
 }
+
+/* ── transkript ─────────────────────────────────────────────────────────── */
+
+.transcript {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.msg {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.msg .who {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Kullanıcı mesajı hafifçe ayrışsın — masaüstündeki gibi bir plaka değil,
+   yalnızca kenar vurgusu; panelde uzun listeler taranıyor. */
+.msg.user {
+  border-left: 2px solid var(--accent);
+  padding-left: 10px;
+}
+
+.msg .text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg .text + .text {
+  margin-top: 8px;
+}
+
+.msg .tool {
+  margin: 6px 0 0;
+  padding: 5px 9px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.msg .pending {
+  margin-left: 6px;
+  color: var(--warning);
+}
+
+.msg .part-error {
+  margin: 6px 0 0;
+  color: var(--danger-muted);
+  font-size: 13px;
+}
+
+.notice {
+  margin: 18px 0 0;
+  padding: 10px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--accent);
+}
+
+.row.send {
+  margin: 18px 0 0;
+}

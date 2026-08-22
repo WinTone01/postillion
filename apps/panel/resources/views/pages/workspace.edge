@@ -42,11 +42,8 @@
         @each (chat in chats)
           <li>
             <div>
-              <span class="name">{{ chat.title }}</span>
-              <span class="meta">
-                @if (chat.cwd){{ chat.cwd }}@end
-                @if (chat.branch) · {{ chat.branch }}@end
-              </span>
+              <a class="name link" href="/chats/{{ chat.id }}">{{ chat.title }}</a>
+              <span class="meta">{{ chat.location }}</span>
             </div>
             @if (livenessKnown && !chat.deviceOnline)
               {{-- Geçmiş okunabilir, yazmak için cihaz gerekiyor. Sebebi

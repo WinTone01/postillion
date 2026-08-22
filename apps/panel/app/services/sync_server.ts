@@ -45,3 +45,38 @@ export async function presence(org: string): Promise<string[]> {
     | null
   return Object.keys(body?.devices ?? {})
 }
+
+/** Transkriptteki bir parça. Sunucunun `MessagePart` etiketli birleşimi. */
+export interface Part {
+  kind: string
+  text?: string
+  message?: string
+  call?: { kind?: string; command?: string; path?: string; pattern?: string; name?: string }
+  resolved?: boolean
+  isError?: boolean
+}
+
+export interface Message {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  parts: Part[]
+  createdAt: number
+  deviceId: string
+}
+
+/**
+ * Bir sohbetin materyalize edilmiş mesajları.
+ *
+ * Satırlar opak loro güncellemesi; birleştirmeyi SUNUCU yapıyor. Bu yüzden
+ * transkript bilgisayar kapalıyken de okunuyor — host'a soruyor olsaydık
+ * kapalı bir dizüstünde cevap veren kimse olmazdı.
+ *
+ * `null` "ulaşılamadı" demek; boş dizi "sohbet boş". İkisini ayırmak
+ * gerekiyor, yoksa bağlantı arızası boş bir sohbet gibi görünürdü.
+ */
+export async function transcript(chatId: string): Promise<Message[] | null> {
+  const body = (await get(`/chat2/${encodeURIComponent(chatId)}/messages`)) as
+    | { messages?: Message[] }
+    | null
+  return body ? (body.messages ?? []) : null
+}
