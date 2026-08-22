@@ -17,7 +17,10 @@ export const appKey = new Secret(env.get('APP_KEY'))
  */
 export const http = defineConfig({
   generateRequestId: true,
-  allowMethodSpoofing: false,
+  // Tarayıcı formları yalnızca GET ve POST gönderebiliyor. Bu olmadan
+  // "iptal et" için ya POST rotası açmak (yıkıcı bir işlemi POST'a koymak)
+  // ya da JavaScript'e bağımlı olmak gerekirdi.
+  allowMethodSpoofing: true,
 
   /**
    * Enabling async local storage will let you access HTTP context

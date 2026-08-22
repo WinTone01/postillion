@@ -226,6 +226,20 @@ mod tests {
         assert!(auth.identify(&HeaderMap::new(), Some("baska")).await.is_none());
     }
 
+    /// PAYLAŞILAN TEST VEKTÖRÜ — panelin `ApiToken.hash` testiyle aynı değer
+    /// (`apps/panel/tests/functional/tokens.spec.ts`).
+    ///
+    /// İki taraf jetonu farklı özetlerse hiçbir jeton doğrulanmaz ve hata
+    /// yalnızca çalışan sistemde, "jetonum kabul edilmiyor" olarak görünür.
+    /// Sabit bir vektör bunu her iki tarafta da derleme zamanında yakalıyor.
+    #[test]
+    fn ozet_panelle_ayni() {
+        assert_eq!(
+            hash_token("postillion"),
+            "0a32066d31ecf44c0a22ccd8a7c3f9422228893b38c52ac3587fef056d228495"
+        );
+    }
+
     /// Ham jeton ASLA saklanmamalı; depoda yalnızca özeti var.
     #[tokio::test]
     async fn depoda_ham_jeton_bulunmuyor() {

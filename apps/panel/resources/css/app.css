@@ -122,3 +122,114 @@ body {
 .errors li + li {
   margin-top: 4px;
 }
+
+/* ── cihaz jetonları ─────────────────────────────────────────────────────── */
+
+.card.wide {
+  max-width: 560px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.row input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}
+
+.row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn.narrow {
+  width: auto;
+  margin-top: 0;
+  flex: none;
+}
+
+/* Yeni jeton kutusu — bir kez görünen şeyin göze çarpması gerekiyor. */
+.fresh {
+  margin-bottom: 20px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--success) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 22%, transparent);
+  border-radius: 10px;
+}
+
+.fresh-label {
+  margin: 0 0 8px;
+  color: var(--success);
+  font-size: 12px;
+}
+
+.fresh code {
+  display: block;
+  padding: 9px 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.fresh-hint {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.tokens {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tokens li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--border);
+}
+
+.tokens .name {
+  display: block;
+  font-weight: 500;
+}
+
+.tokens .meta {
+  display: block;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.link-danger {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--danger);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.empty {
+  margin: 0;
+  padding: 14px 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+}
