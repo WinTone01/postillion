@@ -176,7 +176,7 @@ async fn claude_slot_swap_round_trip() {
 
     // Live login = Alice. Listing detects + auto-snapshots her into a slot.
     write_claude_login(&config, "alice@example.com", "uuid-alice", "token-alice");
-    let snapshot = accounts.list(false).await.expect("list");
+    let snapshot = accounts.list(false, false).await.expect("list");
     assert_eq!(
         account_emails(&snapshot, HarnessId::ClaudeCode),
         vec![("alice@example.com".to_string(), true)]
@@ -197,7 +197,7 @@ async fn claude_slot_swap_round_trip() {
     // Bob logs in via the CLI (live files replaced) — next list snapshots Bob
     // and shows Alice as a saved, inactive slot.
     write_claude_login(&config, "bob@example.com", "uuid-bob", "token-bob");
-    let snapshot = accounts.list(false).await.expect("list bob");
+    let snapshot = accounts.list(false, false).await.expect("list bob");
     let mut emails = account_emails(&snapshot, HarnessId::ClaudeCode);
     emails.sort();
     assert_eq!(
@@ -273,7 +273,7 @@ async fn codex_slot_swap_and_api_key_detection() {
     let (accounts, config) = test_accounts(tmp.path());
 
     write_codex_login(&config, "carol@example.com", "acct-carol");
-    let snapshot = accounts.list(false).await.expect("list");
+    let snapshot = accounts.list(false, false).await.expect("list");
     let carol = snapshot
         .accounts
         .iter()
@@ -286,7 +286,7 @@ async fn codex_slot_swap_and_api_key_detection() {
 
     // Second login (Dave) becomes live; swap back to Carol.
     write_codex_login(&config, "dave@example.com", "acct-dave");
-    accounts.list(false).await.expect("list dave");
+    accounts.list(false, false).await.expect("list dave");
     let snapshot = accounts
         .activate(HarnessId::Codex, &carol_id)
         .await
@@ -312,7 +312,7 @@ async fn codex_slot_swap_and_api_key_detection() {
         serde_json::json!({ "OPENAI_API_KEY": "sk-test-12345678abcd" }).to_string(),
     )
     .expect("api key auth");
-    let snapshot = accounts.list(false).await.expect("list api key");
+    let snapshot = accounts.list(false, false).await.expect("list api key");
     let key_account = snapshot
         .accounts
         .iter()
@@ -327,7 +327,7 @@ async fn forget_guards_and_removes_slots() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let (accounts, config) = test_accounts(tmp.path());
     write_claude_login(&config, "alice@example.com", "uuid-alice", "token-alice");
-    let snapshot = accounts.list(false).await.expect("list");
+    let snapshot = accounts.list(false, false).await.expect("list");
     let alice_id = snapshot.accounts[0].id.clone();
 
     // Path-shaped ids never reach the filesystem.
@@ -353,7 +353,7 @@ async fn forget_guards_and_removes_slots() {
 
     // A non-active slot forgets cleanly.
     write_claude_login(&config, "bob@example.com", "uuid-bob", "token-bob");
-    accounts.list(false).await.expect("list bob");
+    accounts.list(false, false).await.expect("list bob");
     let snapshot = accounts
         .forget(HarnessId::ClaudeCode, &alice_id)
         .await
@@ -869,7 +869,7 @@ async fn cursor_slot_swap_round_trip() {
 
     // Live SDK login = Erin; listing detects + auto-snapshots her slot.
     write_cursor_login(&config, "erin@example.com", 86_400_000);
-    let snapshot = accounts.list(false).await.expect("list");
+    let snapshot = accounts.list(false, false).await.expect("list");
     assert_eq!(
         account_emails(&snapshot, HarnessId::Cursor),
         vec![("erin@example.com".to_string(), true)]
@@ -885,7 +885,7 @@ async fn cursor_slot_swap_round_trip() {
 
     // A second login (Frank) becomes live; both slots exist, Frank active.
     write_cursor_login(&config, "frank@example.com", 86_400_000);
-    let snapshot = accounts.list(false).await.expect("list");
+    let snapshot = accounts.list(false, false).await.expect("list");
     assert_eq!(
         account_emails(&snapshot, HarnessId::Cursor),
         vec![
@@ -913,7 +913,7 @@ async fn cursor_slot_swap_round_trip() {
 
     // An expired live key detects (card + slot survive) but warns.
     write_cursor_login(&config, "erin@example.com", -1000);
-    let snapshot = accounts.list(false).await.expect("list");
+    let snapshot = accounts.list(false, false).await.expect("list");
     assert!(
         snapshot
             .warnings
@@ -981,7 +981,7 @@ exit 0
         serde_json::from_str(&std::fs::read_to_string(&config.cursor_sdk_auth_file).unwrap())
             .unwrap();
     assert_eq!(live["email"], "grace@example.com");
-    let snapshot = accounts.list(false).await.expect("list");
+    let snapshot = accounts.list(false, false).await.expect("list");
     assert_eq!(
         account_emails(&snapshot, HarnessId::Cursor),
         vec![("grace@example.com".to_string(), true)]

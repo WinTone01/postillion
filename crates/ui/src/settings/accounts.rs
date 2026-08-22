@@ -87,6 +87,7 @@ pub enum LoadTrigger {
 /// list (mount, or retry after a failure) must force, or every first open
 /// renders "Usage unavailable" until a manual Refresh — the old app fetched
 /// usage on every list. Post-Switch/Forget lists ride the still-warm cache.
+/// Loads always pass `activeOnly` so parked accounts are not probed.
 pub fn force_usage_for(trigger: LoadTrigger) -> bool {
     match trigger {
         LoadTrigger::Mount | LoadTrigger::Retry | LoadTrigger::Refresh | LoadTrigger::PostLogin => {
@@ -429,7 +430,10 @@ impl AccountsPage {
             return;
         };
         self.snapshot = Loadable::Loading;
-        let params = self.params(serde_json::json!({ "forceUsage": force_usage }));
+        let params = self.params(serde_json::json!({
+            "forceUsage": force_usage,
+            "activeOnly": true,
+        }));
         self.load_task = Some(cx.spawn(async move |this, cx| {
             let result = engine
                 .client()

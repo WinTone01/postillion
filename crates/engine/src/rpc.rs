@@ -27,7 +27,7 @@
 //!   (replay then live tail), `WriteTerminal {terminalId, data}`, `ResizeTerminal`,
 //!   `CloseTerminal`. M5 is single-user local: per-user owner checks land with
 //!   real multi-account auth in M6.
-//! - Agent accounts (§3.7): `ListAgentAccounts {forceUsage?}` →
+//! - Agent accounts (§3.7): `ListAgentAccounts {forceUsage?, activeOnly?}` →
 //!   `AgentAccountsSnapshot`, `ActivateAgentAccount`/`ForgetAgentAccount`
 //!   `{harness, accountId}` → snapshot, `StartAgentLogin {harness}` →
 //!   `{loginId, url, mode}`, `CompleteAgentLogin {loginId, code}` → snapshot,
@@ -240,6 +240,10 @@ struct ResizeTerminalParams {
 struct ListAgentAccountsParams {
     #[serde(default)]
     force_usage: Option<bool>,
+    /// Probe only the live login's usage. A caller that renders one account's
+    /// windows must not spend the saved accounts' quota to do it.
+    #[serde(default)]
+    active_only: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1974,7 +1978,10 @@ impl RpcService for EngineRpc {
                 let p: ListAgentAccountsParams = parse_params(params)?;
                 let snapshot = self
                     .agent_accounts
-                    .list(p.force_usage.unwrap_or(false))
+                    .list(
+                        p.force_usage.unwrap_or(false),
+                        p.active_only.unwrap_or(false),
+                    )
                     .await
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
                 RpcReply::value(&snapshot)

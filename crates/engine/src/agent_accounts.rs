@@ -33,6 +33,10 @@
 //! the default list stays offline-fast and deterministic; the UI passes
 //! `forceUsage` on page mount/refresh. Cached results (60s TTL) are served to
 //! non-forced lists in between.
+//!
+//! `activeOnly` further limits the probe to the live login. Hitting
+//! `/api/oauth/usage` (or refreshing a parked slot to do it) is a real
+//! authenticated request and can open that account's 5-hour window.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -263,10 +267,15 @@ impl AgentAccounts {
     // ── list ────────────────────────────────────────────────────────────────
 
     /// Detect both CLIs, auto-snapshot the live logins, and assemble the view.
-    pub async fn list(&self, force_usage: bool) -> Result<AgentAccountsSnapshot, EngineError> {
-        if force_usage {
-            lock(&self.inner.usage_cache).clear();
-        }
+    ///
+    /// `active_only` narrows the usage probe to the live login. Every probe is
+    /// a real authenticated request against the account it names, so a caller
+    /// that only renders meters must not spend the saved accounts' quota.
+    pub async fn list(
+        &self,
+        force_usage: bool,
+        active_only: bool,
+    ) -> Result<AgentAccountsSnapshot, EngineError> {
         let mut warnings: Vec<AgentAccountWarning> = Vec::new();
         let mut active_keys: HashMap<HarnessId, String> = HashMap::new();
         let mut unreadable: HashMap<HarnessId, Detected> = HashMap::new();
@@ -312,7 +321,8 @@ impl AgentAccounts {
             let slots = self.read_slots(harness);
             for slot in &slots {
                 let active = active_key.as_deref() == Some(slot.account_key.as_str());
-                let usage = self.usage_for(harness, slot, active, force_usage).await;
+                let probe = force_usage && (active || !active_only);
+                let usage = self.usage_for(harness, slot, active, probe).await;
                 accounts.push(AgentAccount {
                     id: slot.id.clone(),
                     harness,
@@ -360,7 +370,7 @@ impl AgentAccounts {
         harness: HarnessId,
         account_id: &str,
     ) -> Result<AgentAccountsSnapshot, EngineError> {
-        self.list(false).await?;
+        self.list(false, false).await?;
         let slot = self
             .read_slots(harness)
             .into_iter()
@@ -380,7 +390,7 @@ impl AgentAccounts {
                 )));
             }
         }
-        self.list(false).await
+        self.list(false, false).await
     }
 
     async fn activate_claude(&self, slot: &Slot) -> Result<(), EngineError> {
@@ -457,7 +467,7 @@ impl AgentAccounts {
         {
             return Err(EngineError::Other("Unknown account.".into()));
         }
-        let snapshot = self.list(false).await?;
+        let snapshot = self.list(false, false).await?;
         let active = snapshot
             .accounts
             .iter()
@@ -473,7 +483,7 @@ impl AgentAccounts {
         if file.exists() {
             std::fs::remove_file(&file)?;
         }
-        self.list(false).await
+        self.list(false, false).await
     }
 
     // ── add-account OAuth flows ─────────────────────────────────────────────
@@ -803,7 +813,7 @@ impl AgentAccounts {
             created_at: None,
         })?;
         lock(&self.inner.flows).remove(login_id);
-        self.list(false).await
+        self.list(false, false).await
     }
 
     pub async fn poll_login(&self, login_id: &str) -> Result<AgentLoginPoll, EngineError> {
@@ -1145,19 +1155,17 @@ impl AgentAccounts {
         usage
     }
 
-    async fn claude_usage(&self, slot: &Slot, is_active: bool) -> Option<Vec<AgentUsageWindow>> {
+    async fn claude_usage(&self, slot: &Slot, _is_active: bool) -> Option<Vec<AgentUsageWindow>> {
         let oauth = slot.credentials.get("claudeAiOauth")?;
-        let mut access_token = str_field(oauth, "accessToken")?;
+        let access_token = str_field(oauth, "accessToken")?;
         let expires_at = oauth.get("expiresAt").and_then(|v| v.as_i64());
         if let Some(expires_at) = expires_at
             && expires_at < now_ms() + 30_000
         {
-            if is_active {
-                // The CLI owns this token pair — rotating its refresh token out
-                // from under a running Claude Code could force a re-login.
-                return None;
-            }
-            access_token = self.refresh_claude_slot(slot).await?;
+            // Do not refresh here. Rotating a parked account's token and
+            // GETting /oauth/usage is enough for Anthropic to open that
+            // account's 5-hour window. The live CLI owns the active pair.
+            return None;
         }
         let body: serde_json::Value = self
             .inner
@@ -1229,10 +1237,9 @@ impl AgentAccounts {
         (!windows.is_empty()).then_some(windows)
     }
 
-    /// Refresh a saved Claude slot's expired access token so its usage stays
-    /// queryable. NEVER called for the active login. Single-flight per slot:
-    /// OAuth refresh tokens are commonly single-use, and a concurrent second
-    /// POST of the same one would revoke the family and brick the slot.
+    /// Refresh a saved Claude slot's expired access token. Not used by usage
+    /// probes — those must not wake a parked account.
+    #[allow(dead_code)]
     async fn refresh_claude_slot(&self, slot: &Slot) -> Option<String> {
         if !lock(&self.inner.inflight_refreshes).insert(slot.id.clone()) {
             return None;
@@ -1242,6 +1249,7 @@ impl AgentAccounts {
         result
     }
 
+    #[allow(dead_code)]
     async fn refresh_claude_slot_once(&self, slot: &Slot) -> Option<String> {
         let oauth = slot.credentials.get("claudeAiOauth")?.clone();
         let refresh_token = str_field(&oauth, "refreshToken")?;
