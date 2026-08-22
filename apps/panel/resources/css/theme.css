@@ -1,0 +1,30 @@
+/* ÜRETİLMİŞ DOSYA — elle düzenlemeyin.
+ *
+ * Kaynak: crates/ui/src/theme.rs (Theme::dark)
+ * Üreten: crates/ui/tests/panel_theme.rs
+ *
+ * Güncellemek için:
+ *   POSTILLION_UPDATE_PANEL_THEME=1 \
+ *     cargo test -p postillion-ui --test panel_theme
+ */
+
+:root {
+  --bg: hsl(0 0% 2%);
+  --surface: hsl(0 0% 5%);
+  --surface-card: hsl(0 0% 5%);
+  --surface-raised: hsl(0 0% 12%);
+  --element-hover: hsl(0 0% 92% / 0.110);
+  --border: hsl(0 0% 100% / 0.080);
+  --border-strong: hsl(0 0% 100% / 0.140);
+  --text: hsl(0 0% 90%);
+  --text-muted: hsl(0 0% 63%);
+  --text-faint: hsl(0 0% 45%);
+  --accent: hsl(235 100% 74%);
+  --accent-strong: hsl(241 100% 69%);
+  --on-accent: hsl(0 0% 98%);
+  --danger: hsl(359 100% 70%);
+  --danger-muted: hsl(360 100% 82%);
+  --warning: hsl(44 100% 50%);
+  --success: hsl(161 100% 42%);
+  --input-bg: hsl(0 0% 100% / 0.030);
+}

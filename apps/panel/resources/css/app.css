@@ -1,0 +1,124 @@
+/* Panelin kendi stilleri. Renkler `theme.css`'ten geliyor ve o dosya
+ * uygulamanın temasından üretiliyor — buraya sabit renk YAZILMAMALI. */
+@import './theme.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+/* Giriş/kayıt kartı — masaüstündeki `surface_card` düzlemi. */
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.card h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.card .sub {
+  margin: 0 0 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.field span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.field input {
+  width: 100%;
+  padding: 9px 11px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 14px;
+  background: var(--accent-strong);
+  color: var(--on-accent);
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--accent);
+}
+
+.alt {
+  margin: 18px 0 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+.alt a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* Hata şeridi — masaüstündeki `error_strip` ile aynı dil. */
+.errors {
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  list-style: none;
+  background: color-mix(in srgb, var(--danger) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 16%, transparent);
+  border-radius: 10px;
+  color: var(--danger-muted);
+  font-size: 13px;
+}
+
+.errors li + li {
+  margin-top: 4px;
+}
