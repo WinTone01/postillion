@@ -37,7 +37,19 @@ pub type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 /// [`crate::wake::notify_online`] so sibling sockets waiting out a reconnect
 /// backoff redial immediately instead of sleeping through the recovery.
 pub async fn connect_ws(url: &str) -> Result<WsStream, WsError> {
-    let request = url.into_client_request()?;
+    let mut request = url.into_client_request()?;
+    // Kimliğimizi söylüyoruz. `into_client_request` hiç `User-Agent`
+    // koymuyor ve kimliksiz bir istek birçok vekilde şüpheli sayılıyor.
+    //
+    // Bunun bir tarayıcı bütünlük kontrolünü GEÇMEDİĞİNİ bilerek not
+    // ediyorum: Cloudflare gibi kontroller tarayıcı imzası arıyor ve bu
+    // başlık onları tatmin etmiyor — çözüm o tarafta kural yazmak.
+    request.headers_mut().insert(
+        "user-agent",
+        format!("postillion/{}", env!("CARGO_PKG_VERSION"))
+            .parse()
+            .expect("sürüm dizesi geçerli bir başlık değeri"),
+    );
     let uri = request.uri();
     let host = uri
         .host()

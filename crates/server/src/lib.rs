@@ -38,6 +38,7 @@ pub struct App {
 
 pub fn router(app: App) -> Router {
     Router::new()
+        .route("/", get(root))
         .route("/health", get(health))
         .route("/chat2/{chat_id}/ws", get(chat_ws))
         // Uçak-wifi taşıması: WebSocket kurulamayan ağlarda istemci aynı
@@ -54,6 +55,16 @@ pub fn router(app: App) -> Router {
 /// Ters vekilin ve dağıtım betiğinin bakacağı uç.
 async fn health() -> &'static str {
     "ok"
+}
+
+/// Kök yol.
+///
+/// Yalnızca `/health` ve `/chat2/…` olsaydı, adresi tarayıcıya yapıştıran
+/// biri çıplak bir 404 görüp sunucuyu bozuk sanardı — ilk kurulumda tam da
+/// bu oldu. Sürüm bilgisi bilerek yok: kimliğini söylemek yeterli, sürümünü
+/// duyurmak yalnızca saldırganın işini kolaylaştırır.
+async fn root() -> &'static str {
+    "postillion-server\n\nSağlık: /health\nSohbet soketi: /chat2/{chatId}/ws\n"
 }
 
 /// `?token=…` — tarayıcı WebSocket API'si başlık koyamadığı için istemci
