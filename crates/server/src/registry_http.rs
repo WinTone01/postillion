@@ -28,8 +28,20 @@ pub async fn get_rows(
     Query(query): Query<RowsQuery>,
     headers: HeaderMap,
 ) -> Result<Response, StatusCode> {
-    if !app.auth.permits(&headers, query.token.as_deref()) {
-        return Err(StatusCode::UNAUTHORIZED);
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !crate::ownership::permits(
+        &*app.owners,
+        crate::ownership::Scope::Registry,
+        &org,
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
     }
 
     // Aynı `Session` üzerinden geçiyor: cevabın WebSocket'inkiyle birebir aynı
@@ -74,8 +86,20 @@ pub async fn post_push(
     headers: HeaderMap,
     axum::Json(body): axum::Json<PushBody>,
 ) -> Result<Response, StatusCode> {
-    if !app.auth.permits(&headers, query.token.as_deref()) {
-        return Err(StatusCode::UNAUTHORIZED);
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !crate::ownership::permits(
+        &*app.owners,
+        crate::ownership::Scope::Registry,
+        &org,
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
     }
 
     // Cihaz kimliği push gövdesinde değil sorgu dizesinde; oturum doğrudan

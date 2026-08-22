@@ -4,8 +4,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use postillion_server::{
-    auth::Auth, db, device_room::DeviceHub, health, registry_db::PgRegistry,
-    registry_ws::RegistryHub, rooms::ChatHub, App,
+    auth::Auth, db, device_room::DeviceHub, health, identity_db::PgIdentity,
+    registry_db::PgRegistry, registry_ws::RegistryHub, rooms::ChatHub, App,
 };
 
 /// Sunucunun dinleyeceği adres. Konteynerde tüm arayüzler; ağ sınırını
@@ -37,20 +37,35 @@ async fn main() -> anyhow::Result<()> {
     let database_url = std::env::var("DATABASE_URL")
         .map_err(|_| anyhow::anyhow!("DATABASE_URL gerekli (postgres://…)"))?;
 
-    // Aşama 1 tek kullanıcılık: jeton ortamdan geliyor. Aşama 3'te yerini
-    // gerçek oturumlar alacak.
-    let auth = Auth::from_env()?;
+    // Paylaşılan jeton artık TEK yol değil: panelden üretilen jetonlar da
+    // kabul ediliyor. İkisi birlikte çalışıyor çünkü geçiş sırasında ikisi de
+    // kullanımda.
+    let shared = Auth::from_env()?;
 
     let pool = db::connect(&database_url).await?;
     tracing::info!("veritabanı hazır");
 
+    let identity = Arc::new(PgIdentity::new(pool.clone()));
+    if shared.is_none() {
+        tracing::info!("paylaşılan jeton yok; yalnızca panelden üretilen jetonlar kabul ediliyor");
+    } else {
+        // Paylaşılan jeton BÜTÜN odalara açılan bir ana anahtar. Panelden
+        // jeton üretildikten sonra kaldırılmalı; sessizce bırakmak onu
+        // unutulmuş bir arka kapıya çevirirdi.
+        tracing::warn!(
+            "POSTILLION_SERVER_TOKEN tanımlı: tek kullanıcılık kip. \
+             Panelden jeton ürettikten sonra bu değişkeni kaldırın."
+        );
+    }
+
     let app = App {
         store: Arc::new(db::PgStore::new(pool.clone())),
         registry: Arc::new(PgRegistry::new(pool)),
+        owners: identity.clone(),
         hub: ChatHub::new(),
         registry_hub: RegistryHub::new(),
         device_hub: DeviceHub::new(),
-        auth,
+        auth: Auth::new_with_store(shared, identity),
     };
 
     let addr: SocketAddr = bind_addr().parse()?;
