@@ -350,13 +350,29 @@ async fn missing_turn_end_settles_instead_of_working_forever() {
     // The agent answers… and its Done is lost upstream. Nothing else comes.
     rig.feed.send(text("Done — here are the results.")).unwrap();
 
-    // Old behavior: Working forever (heartbeat keeps the row fresh; no
-    // turn timeout). New behavior: the watchdog settles the turn.
+    // Eski davranış: sonsuza kadar Working (kalp atışı satırı taze tutuyor,
+    // tur zaman aşımı yok). Gözcü artık turu kapatıyor — ve bunu GÖRÜNÜR
+    // biçimde yapıyor: arkasında bir steer olan bir tur sessizleştiğinde bu
+    // zorla kapanmadır, temiz bir bitiş değil. `Idle` yazmak onu gerçek bir
+    // bitişten ayırt edilemez kılıyordu (zeronsh/comet#99).
     wait_for(
-        || status(&rig.core) == Some(SessionStatus::Idle),
-        "watchdog settles the turn whose Done was lost",
+        || status(&rig.core) == Some(SessionStatus::Errored),
+        "kaybolan Done'lı tur zorla kapanıyor: Failed",
     )
     .await;
+    assert!(
+        entries(&rig.core).iter().any(|e| {
+            e.parts.iter().any(|p| {
+                matches!(
+                    p,
+                    MessagePart::Error { message, .. }
+                        if message == "Turn settled — agent went quiet."
+                )
+            })
+        }),
+        "zorla kapanma hata çipini bırakmalı, gelen: {:#?}",
+        entries(&rig.core)
+    );
     let texts = assistant_texts(&rig.core);
     assert!(
         texts.iter().any(|(t, s)| {
@@ -487,6 +503,54 @@ async fn stale_tool_echo_stays_parked() {
         status(&rig.core),
         Some(SessionStatus::Idle),
         "a stale tool echo must not resume a parked session"
+    );
+
+    rig.core.sessions.shutdown().await;
+}
+
+/// Akışı başlayıp sonra susan bir prompt turu TEMİZ BİTİŞ gibi görünmemeli.
+///
+/// Gözcü tahmini şimdiye kadar `Completed` + Idle yazıyordu: gerçek bir
+/// bitişten ayırt edilemez, bitiş sesi çalıyor ve geriye hiçbir işaret
+/// kalmıyordu. Koltuktan bakınca çökme gibi görünüyor.
+///
+/// Üst akıştan alındı: zeronsh/comet#99.
+#[tokio::test]
+async fn sessizlesen_prompt_turu_gorunur_bicimde_kapaniyor() {
+    let rig = assemble("ship the connecting-state fix");
+    rig.core
+        .sessions
+        .dispatch(
+            CHAT,
+            HarnessId::Mock,
+            run_request("ship the connecting-state fix"),
+            None,
+        )
+        .await
+        .expect("dispatch");
+
+    rig.feed.send(session_started()).unwrap();
+    rig.feed.send(text("Working on it.")).unwrap();
+
+    wait_for(
+        || status(&rig.core) == Some(SessionStatus::Errored),
+        "sessizleşen ilk prompt Idle değil Failed olmalı",
+    )
+    .await;
+
+    assert!(
+        entries(&rig.core).iter().any(|e| {
+            e.role == MessageRole::Assistant
+                && e.parts.iter().any(|p| {
+                    matches!(
+                        p,
+                        MessagePart::Error { message, .. }
+                            if message == "Turn settled — agent went quiet."
+                    )
+                })
+        }),
+        "zorla kapanan tur hata çipini bırakmalı, gelen: {:#?}",
+        entries(&rig.core)
     );
 
     rig.core.sessions.shutdown().await;

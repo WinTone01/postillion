@@ -3930,6 +3930,10 @@ fn user_bubble_text(
 /// agent's exit status and stderr, and a one-line ellipsis was exactly what
 /// made WinTone01/postillion#95 undiagnosable from the screenshot.
 fn error_chip(message: SharedString, theme: &Theme) -> AnyElement {
+    // Motor ve harness katmanları mesajlarını İngilizce üretiyor (orada i18n
+    // yok). Katalogda karşılığı olanlar burada çevriliyor; olmayanlar olduğu
+    // gibi geçiyor, çünkü `t()` bilmediği dizeyi aynen döndürüyor.
+    let message: SharedString = crate::i18n::t(&message).to_string().into();
     let red_300 = theme.danger_muted; // tailwind red-300
     let danger = theme.danger; // red-400
     div()

@@ -232,6 +232,14 @@ fn turkish(source: &str) -> Option<&'static str> {
         // ── ayarlar
         "Settings" => "Ayarlar",
 
+        // ── motor ve harness hata çipleri
+        //
+        // Bu dizeler motor/harness katmanında üretiliyor (orada i18n yok) ve
+        // arayüzde `error_chip` içinde çevriliyor.
+        "Turn settled — agent went quiet." => "Tur kapandı — ajan sessizleşti.",
+        "Claude had a server error — try again." =>
+            "Claude sunucu hatası verdi — tekrar deneyin.",
+
         // ── eşitleme sunucusu
         "Sync" => "Eşitleme",
         "Postillion ships no hosted endpoint. Point it at a server you run yourself." =>
