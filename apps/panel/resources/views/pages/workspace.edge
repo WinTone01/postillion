@@ -1,0 +1,61 @@
+@layout('layouts/app', { title: 'Postillion', captchaScript: false })
+@section('content')
+  <div class="card wide">
+    <div class="head">
+      <h1>Çalışma alanı</h1>
+      <a class="quiet" href="/tokens">Cihaz jetonları</a>
+    </div>
+
+    @if (!devices.length && !chats.length)
+      <p class="empty">
+        Henüz cihaz bağlanmamış.
+        <a href="/tokens">Bir jeton üretin</a> ve cihazın
+        <em>Ayarlar → Eşitleme</em> ekranına girin.
+      </p>
+    @end
+
+    @if (devices.length)
+      <h2>Cihazlar</h2>
+      <ul class="tokens">
+        @each (device in devices)
+          <li>
+            <div>
+              <span class="name">{{ device.name }}</span>
+              <span class="meta">{{ device.platform }}</span>
+            </div>
+            @if (!livenessKnown)
+              {{-- Sunucuya ulaşılamıyor: "çevrimdışı" demek yanlış olurdu. --}}
+              <span class="dot unknown">durum bilinmiyor</span>
+            @elseif (device.online)
+              <span class="dot online">çevrimiçi</span>
+            @else
+              <span class="dot offline">çevrimdışı</span>
+            @end
+          </li>
+        @end
+      </ul>
+    @end
+
+    @if (chats.length)
+      <h2>Sohbetler</h2>
+      <ul class="tokens">
+        @each (chat in chats)
+          <li>
+            <div>
+              <span class="name">{{ chat.title }}</span>
+              <span class="meta">
+                @if (chat.cwd){{ chat.cwd }}@end
+                @if (chat.branch) · {{ chat.branch }}@end
+              </span>
+            </div>
+            @if (livenessKnown && !chat.deviceOnline)
+              {{-- Geçmiş okunabilir, yazmak için cihaz gerekiyor. Sebebi
+                   yazılı olmalı: kaybolmuş bir buton soru bırakır. --}}
+              <span class="dot offline">cihaz kapalı</span>
+            @end
+          </li>
+        @end
+      </ul>
+    @end
+  </div>
+@end

@@ -36,6 +36,14 @@ export default await Env.create(new URL('../', import.meta.url), {
   DB_PASSWORD: Env.schema.string.optional(),
   DB_DATABASE: Env.schema.string(),
 
+  /*
+  |----------------------------------------------------------
+  | Eşitleme sunucusu — canlılık ve transkript buradan geliyor
+  |----------------------------------------------------------
+  */
+  POSTILLION_SERVER_URL: Env.schema.string.optional(),
+  POSTILLION_SERVER_TOKEN: Env.schema.string.optional(),
+
   TURNSTILE_SITE_KEY: Env.schema.string.optional(),
   TURNSTILE_SECRET: Env.schema.string.optional(),
   RECAPTCHA_SITE_KEY: Env.schema.string.optional(),

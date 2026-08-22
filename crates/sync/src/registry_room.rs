@@ -79,6 +79,17 @@ pub trait RegistryStore: Send + Sync + 'static {
         org: &str,
         ops: Vec<RowOp>,
     ) -> BoxFuture<'static, Result<AppliedBatch, SyncError>>;
+
+    /// Şu an canlı olan cihazlar ve son atış zamanları.
+    ///
+    /// Kalıcı DEĞİL: çevrimiçi kalmak sunucu durumunu büyütmemeli. Varsayılan
+    /// boş harita, presence tutmayan bir depoyu geçerli kılıyor.
+    fn live_presence(&self, _org: &str) -> HashMap<String, i64> {
+        HashMap::new()
+    }
+
+    /// Bir atışı kaydeder.
+    fn note_presence(&self, _org: &str, _device: &str, _at: i64) {}
 }
 
 /// Tek bir bağlantının durumu.
@@ -156,10 +167,10 @@ impl RegistrySession {
                         full,
                         gc_floor: state.gc_floor,
                         rows,
-                        // Presence bu taşımada tutulmuyor: canlı bir ölçü ve
-                        // yeniden bağlanan istemciler beat'lerini kendileri
-                        // gönderiyor.
-                        presence: HashMap::new(),
+                        // Kimin çevrimiçi olduğu `hello`'nun cevabında
+                        // gelmezse, yeniden bağlanan bir istemci ilk atışlar
+                        // düşene kadar odayı boş görüyor.
+                        presence: store.live_presence(org),
                     })?],
                     broadcast: Vec::new(),
                 })
@@ -204,6 +215,7 @@ impl RegistrySession {
                 if !self.ready {
                     return Ok(Reply::default());
                 }
+                store.note_presence(org, &self.device, at);
                 Ok(Reply {
                     to_sender: Vec::new(),
                     broadcast: vec![encode(&ServerFrame::Presence {

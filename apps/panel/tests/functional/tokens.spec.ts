@@ -26,16 +26,15 @@ test.group('Jetonlar', (group) => {
   })
   group.each.setup(() => testUtils.db().withGlobalTransaction())
 
-  async function signedIn(client: any) {
-    const user = await User.create({
+  async function newUser() {
+    return User.create({
       email: `u${Date.now()}${Math.random()}@example.com`,
       password: 'cok-uzun-bir-parola',
     })
-    return { user, request: (r: any) => r.loginAs(user) }
   }
 
   test('jeton üretiliyor ve ham değeri BİR KEZ gösteriliyor', async ({ client, assert }) => {
-    const { user } = await signedIn(client)
+    const user = await newUser()
 
     const response = await client
       .post('/tokens')

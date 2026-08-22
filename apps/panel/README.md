@@ -6,8 +6,23 @@ Tasarım kararları ve yol haritası: [`docs/panel-plan.md`](../../docs/panel-pl
 
 ## Durum
 
-Aşama 1 ve 2 — kimlik ve cihaz jetonları. Kayıt, giriş, çıkış ve
-`/tokens` üzerinden jeton üretme/iptal çalışıyor.
+Aşama 1–3. Kayıt/giriş, cihaz jetonları ve çalışma alanı listesi (cihazlar
+ve sohbetler, canlılık göstergesiyle) çalışıyor.
+
+## Cihaz ve sohbet listesi
+
+Listeler `registry_rows` tablosundan okunuyor: bu satırlar düz JSON,
+dolayısıyla CRDT çalıştırmaya gerek yok ve **bilgisayar kapalıyken de**
+görünüyorlar.
+
+Canlılık farklı bir yerden geliyor. Kayıt satırlarındaki `lastSeenAt` bu
+soruyu CEVAPLAMIYOR — o yalnızca açılış ve kapanışta yazılıyor, dolayısıyla
+açık duran bir cihaz orada saatler öncesinde görünür. Canlı atışlar sunucunun
+belleğinde ve `GET /registry/{org}/presence` ile okunuyor.
+
+`POSTILLION_SERVER_URL` ayarlanmazsa panel yine çalışıyor: listeler
+görünüyor, durum "bilinmiyor" yazıyor. "Çevrimdışı" demiyor — açık bir cihazı
+kapalı göstermek yanlış bilgi olurdu.
 
 ## Cihaz jetonları
 

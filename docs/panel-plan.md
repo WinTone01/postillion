@@ -105,11 +105,11 @@ sunucu sohbeti okuyamadan içine yazamaz.
   duruyor, sunucu açılışta kaldırılmasını hatırlatıyor)
 - ✅ Panelde jeton üretme/iptal arayüzü (`/tokens`)
 
-### 3. Cihazlar ve sohbetler — SIRADAKİ
-- Kayıt satırlarından cihaz ve sohbet listesi
-- Presence: hangi cihaz çevrimiçi
+### 3. Cihazlar ve sohbetler — YAPILDI
+- ✅ Kayıt satırlarından cihaz ve sohbet listesi
+- ✅ Presence: sunucuda bellekte tutuluyor, `GET /registry/{org}/presence`
 
-### 4. Sohbete devam etme — panelin asıl işi
+### 4. Sohbete devam etme — SIRADAKİ, panelin asıl işi
 - Transkript `GET /chat2/{id}/messages` ile (sunucu tarafı hazır)
 - Yazmak için cihaz rölesine `role=client` bağlantısı + `QueueCommand`
 - Cihaz çevrimdışıysa: geçmiş okunur, yazma kapalı ve sebebi yazılı

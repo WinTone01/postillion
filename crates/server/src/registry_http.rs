@@ -132,3 +132,39 @@ pub async fn post_push(
         .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(([(axum::http::header::CONTENT_TYPE, "application/json")], ack).into_response())
 }
+
+/// `GET /registry/{org}/presence` — şu an çevrimiçi cihazlar.
+///
+/// Panel için. Eşitleme istemcileri bunu kullanmıyor: onlar `hello`'nun
+/// cevabında ve canlı atışlarda aynı bilgiyi alıyor.
+///
+/// Kayıt satırlarındaki `lastSeenAt` bu soruyu CEVAPLAMIYOR — o yalnızca
+/// açılış ve kapanışta yazılıyor, dolayısıyla açık duran bir cihaz orada
+/// saatler öncesinde görünüyor.
+pub async fn get_presence(
+    State(app): State<App>,
+    Path(org): Path<String>,
+    Query(query): Query<RowsQuery>,
+    headers: HeaderMap,
+) -> Result<Response, StatusCode> {
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !crate::ownership::permits(
+        &*app.owners,
+        crate::ownership::Scope::Registry,
+        &org,
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(axum::Json(serde_json::json!({
+        "devices": app.registry.live_presence(&org),
+    }))
+    .into_response())
+}
