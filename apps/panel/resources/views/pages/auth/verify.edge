@@ -1,9 +1,9 @@
-@component('components/layout', { title: 'E-postanızı doğrulayın — Postillion' })
+@component('components/layout', { title: 'Verify your e-mail — Postillion' })
   <div class="card">
-    <h1>E-postanızı doğrulayın</h1>
+    <h1>Verify your e-mail</h1>
     <p class="sub">
-      <strong>{{ email }}</strong> adresine bir doğrulama bağlantısı gönderdik.
-      Panele girmek için bağlantıya tıklayın.
+      We sent a verification link to <strong>{{ email }}</strong>.
+      Follow it to reach the panel.
     </p>
 
     @if (flashMessages.has('notice'))
@@ -22,15 +22,15 @@
     @if (mailConfigured)
       <form method="POST" action="/verify/resend">
         {{ csrfField() }}
-        <button class="btn" type="submit">Postayı yeniden gönder</button>
+        <button class="btn" type="submit">Send the e-mail again</button>
       </form>
     @else
-      <p class="alt">Posta gönderimi bu kurulumda yapılandırılmamış.</p>
+      <p class="alt">E-mail delivery is not configured on this installation.</p>
     @end
 
     <form method="POST" action="/logout">
       {{ csrfField() }}
-      <p class="alt">Başka bir hesap mı? <button class="linkish" type="submit">Çıkış yap</button></p>
+      <p class="alt">Different account? <button class="linkish" type="submit">Log out</button></p>
     </form>
   </div>
 @end

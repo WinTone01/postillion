@@ -64,6 +64,7 @@
     "adonis-captcha-guard": "^1.0.1",
     "edge.js": "^6.2.1",
     "luxon": "^3.7.2",
+    "mailtrap": "^4.9.0",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2"
   },

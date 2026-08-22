@@ -12,6 +12,15 @@ import { mailConfigured, sendVerification, verificationRequired } from '#service
  * parola deneme saldırıları: kayıt formunu korumak, giriş formunu açık
  * bırakmak korumanın yarısını atlamak olurdu.
  */
+/**
+ * Captcha jetonunun form alan adı.
+ *
+ * adonis-captcha-guard'ın Turnstile sağlayıcısı bu adı sabitlemiş
+ * (`tokenParamName`); widget'ı ona uydurmak, paketin doğrulamasını
+ * atlayıp jetonu elle POST etmekten daha az kod.
+ */
+export const CAPTCHA_TOKEN_FIELD = 'token'
+
 export default class AuthController {
   private siteKey() {
     return env.get('TURNSTILE_SITE_KEY', '')
@@ -38,10 +47,12 @@ export default class AuthController {
     if (!this.siteKey()) {
       return true
     }
-    // `validate()` jetonu isteğin kendisinden okuyor (`cf-turnstile-response`),
-    // bu yüzden argüman almıyor. Boş jetonu yine de burada eliyoruz: widget
-    // hiç çözülmemişse Cloudflare'e gitmeye gerek yok.
-    if (!ctx.request.input('cf-turnstile-response')) {
+    // Jetonun alan adı `token` — Turnstile'ın varsayılanı DEĞİL.
+    // adonis-captcha-guard `request.input('token')` okuyor ve bulamazsa
+    // 400 fırlatıyor, dolayısıyla widget da o adla göndermek zorunda
+    // (`data-response-field-name`, bkz. login.edge). İki taraf ayrı düşerse
+    // captcha çözülmüş olsa bile giriş 400 ile kırılıyor.
+    if (!ctx.request.input(CAPTCHA_TOKEN_FIELD)) {
       return false
     }
     const result = await ctx.captcha.use('turnstile').validate()
@@ -52,7 +63,7 @@ export default class AuthController {
     const { request, response, session, auth } = ctx
 
     if (!(await this.captchaOk(ctx))) {
-      session.flash('errorsBag', { captcha: 'Doğrulama başarısız, tekrar deneyin.' })
+      session.flash('errorsBag', { captcha: 'Verification failed, please try again.' })
       session.flashOnly(['email'])
       return response.redirect().back()
     }
@@ -63,7 +74,7 @@ export default class AuthController {
     // hata mesajı kullanıcıya bir şey anlatmazdı.
     const existing = await User.findBy('email', payload.email)
     if (existing) {
-      session.flash('errorsBag', { email: 'Bu e-posta zaten kayıtlı.' })
+      session.flash('errorsBag', { email: 'That e-mail address is already registered.' })
       session.flashOnly(['email'])
       return response.redirect().back()
     }
@@ -93,7 +104,7 @@ export default class AuthController {
     const { request, response, session, auth } = ctx
 
     if (!(await this.captchaOk(ctx))) {
-      session.flash('errorsBag', { captcha: 'Doğrulama başarısız, tekrar deneyin.' })
+      session.flash('errorsBag', { captcha: 'Verification failed, please try again.' })
       session.flashOnly(['email'])
       return response.redirect().back()
     }
@@ -110,7 +121,7 @@ export default class AuthController {
     } catch {
       // Tek ve AYRIM YAPMAYAN mesaj: "böyle bir kullanıcı yok" ile "parola
       // yanlış"ı ayırmak, hangi e-postaların kayıtlı olduğunu sızdırırdı.
-      session.flash('errorsBag', { credentials: 'E-posta veya parola hatalı.' })
+      session.flash('errorsBag', { credentials: 'Wrong e-mail address or password.' })
       session.flashOnly(['email'])
       return response.redirect().back()
     }

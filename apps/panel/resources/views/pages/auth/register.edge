@@ -1,8 +1,8 @@
-@component('components/layout', { title: 'Kayıt — Postillion', captchaScript: true })
+@component('components/layout', { title: 'Sign up — Postillion', captchaScript: true })
   <form class="card" method="POST" action="/register">
     {{ csrfField() }}
-    <h1>Hesap oluştur</h1>
-    <p class="sub">Sohbetlerinize webden devam edin.</p>
+    <h1>Create an account</h1>
+    <p class="sub">Pick up your chats from the web.</p>
 
     @if (flashMessages.has('errorsBag') || flashMessages.has('errors'))
       <ul class="errors">
@@ -18,20 +18,24 @@
     @end
 
     <label class="field">
-      <span>E-posta</span>
+      <span>E-mail</span>
       <input type="email" name="email" required autocomplete="email"
              value="{{ flashMessages.get('email') ?? '' }}" />
     </label>
 
     <label class="field">
-      <span>Parola</span>
-      <input type="password" name="password" required autocomplete="new-password" />
+      <span>Password</span>
+      <input type="password" name="password" required autocomplete="new-password"
+             minlength="12" />
     </label>
 
-    {{-- Turnstile widget'ı: doğrulama sunucuda, bu yalnızca jetonu üretiyor. --}}
-    <div class="cf-turnstile" data-sitekey="{{ turnstileSiteKey }}"></div>
+    @if (turnstileSiteKey)
+      {{-- Bkz. login.edge: alan adı `token` olmak ZORUNDA. --}}
+      <div class="cf-turnstile" data-sitekey="{{ turnstileSiteKey }}"
+           data-response-field-name="token"></div>
+    @end
 
-    <button class="btn" type="submit">Kayıt ol</button>
-    <p class="alt">Hesabınız var mı? <a href="/login">Giriş yapın</a></p>
+    <button class="btn" type="submit">Sign up</button>
+    <p class="alt">Already have an account? <a href="/login">Log in</a></p>
   </form>
 @end

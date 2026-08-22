@@ -17,6 +17,7 @@ on:
       - "crates/doc/**"
       - "crates/proto/**"
       - "crates/rpc/**"
+      - "apps/panel/**"
       - "deploy/**"
       - "docker-compose.yaml"
       - ".dockerignore"
@@ -54,6 +55,53 @@ jobs:
           tags: postillion-server:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Panelin kendi test paketi.
+  #
+  # `panel-image` sayfaların açıldığını kanıtlıyor ama davranışa bakmıyor;
+  # captcha alan adı, imzalı doğrulama bağlantısı ve sahiplik izolasyonu
+  # gibi şeyler yalnızca burada ölçülüyor.
+  panel-test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: t
+          POSTGRES_USER: panel
+          POSTGRES_DB: panel
+        options: >-
+          --health-cmd "pg_isready -U panel" --health-interval 5s
+          --health-timeout 5s --health-retries 20
+        ports: ["5432:5432"]
+    defaults:
+      run:
+        working-directory: apps/panel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/panel/package-lock.json
+      - run: npm ci
+      - name: test
+        env:
+          # Uygulama açılışta ortamı DOĞRULUYOR; eksik bir değişken testleri
+          # ilk satırda düşürür, o yüzden hepsi burada.
+          TZ: UTC
+          PORT: "3333"
+          HOST: localhost
+          LOG_LEVEL: info
+          NODE_ENV: test
+          APP_KEY: abcdefghijklmnopqrstuvwxyz123456
+          SESSION_DRIVER: memory
+          DB_HOST: 127.0.0.1
+          DB_PORT: "5432"
+          DB_USER: panel
+          DB_PASSWORD: t
+          DB_DATABASE: panel
+        run: node ace test
 
   # Panel imajı AYRICA çalıştırılıyor.
   #

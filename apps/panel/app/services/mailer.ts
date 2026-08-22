@@ -60,7 +60,7 @@ export async function sendVerification(user: User) {
     await mail.send((message) => {
       message
         .to(user.email)
-        .subject('Postillion — e-postanızı doğrulayın')
+        .subject('Postillion — verify your e-mail address')
         .htmlView('emails/verify', { url })
     })
     return true

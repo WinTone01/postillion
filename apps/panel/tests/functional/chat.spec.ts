@@ -74,7 +74,7 @@ test.group('Sohbet', (group) => {
     const user = await userWithChat('org-c3', 'chat-3')
     const response = await client.get('/app/chats/chat-3').loginAs(user)
     response.assertStatus(200)
-    response.assertTextIncludes('ulaşılamadı')
+    response.assertTextIncludes('could not be reached')
   })
 
   test('sohbet sayfası kimliksiz açılmıyor', async ({ client }) => {

@@ -26,7 +26,7 @@ export default class ChatController {
     // dolayısıyla o denetim burada bir şey kanıtlamıyor.
     const owned = await this.owns(user.id, params.id)
     if (!owned) {
-      return response.notFound('Sohbet bulunamadı')
+      return response.notFound('Chat not found')
     }
 
     const loaded = await transcript(params.id)
@@ -55,7 +55,7 @@ export default class ChatController {
   async messages({ params, request, response, auth }: HttpContext) {
     const user = auth.getUserOrFail()
     if (!(await this.owns(user.id, params.id))) {
-      return response.notFound({ error: 'Sohbet bulunamadı' })
+      return response.notFound({ error: 'Chat not found' })
     }
 
     // `since` yoksa tam transkript isteniyor demek; sayıya çevrilemeyen bir
@@ -64,7 +64,7 @@ export default class ChatController {
     const loaded = await transcript(params.id, Number.isFinite(raw) ? raw : undefined)
 
     if (!loaded) {
-      return response.serviceUnavailable({ error: 'Sunucuya ulaşılamadı' })
+      return response.serviceUnavailable({ error: 'The server could not be reached' })
     }
     return response.json(loaded)
   }
@@ -79,13 +79,13 @@ export default class ChatController {
   async send({ params, request, response, session, auth }: HttpContext) {
     const user = auth.getUserOrFail()
     if (!(await this.owns(user.id, params.id))) {
-      return response.notFound('Sohbet bulunamadı')
+      return response.notFound('Chat not found')
     }
 
     const { prompt } = await request.validateUsing(sendValidator)
     const chat = (await chats(user.id, presence)).find((c) => c.id === params.id)
     if (!chat?.deviceId) {
-      session.flash('errorsBag', { device: 'Bu sohbetin cihazı bilinmiyor.' })
+      session.flash('errorsBag', { device: "This chat's device is unknown." })
       return response.redirect().back()
     }
 
@@ -96,7 +96,7 @@ export default class ChatController {
       // çevrimdışı" gibi); genel bir "gönderilemedi" ne yapacağını
       // söylemezdi.
       session.flash('errorsBag', {
-        send: error instanceof RelayError ? error.message : 'Mesaj gönderilemedi.',
+        send: error instanceof RelayError ? error.message : 'The message could not be sent.',
       })
       session.flashOnly(['prompt'])
     }

@@ -1,8 +1,8 @@
-@component('components/layout', { title: 'Giriş — Postillion', captchaScript: true })
+@component('components/layout', { title: 'Log in — Postillion', captchaScript: true })
   <form class="card" method="POST" action="/login">
     {{ csrfField() }}
-    <h1>Giriş yap</h1>
-    <p class="sub">Postillion hesabınızla devam edin.</p>
+    <h1>Log in</h1>
+    <p class="sub">Continue with your Postillion account.</p>
 
     @if (flashMessages.has('notice'))
       <p class="notice">{{ flashMessages.get('notice') }}</p>
@@ -22,19 +22,26 @@
     @end
 
     <label class="field">
-      <span>E-posta</span>
+      <span>E-mail</span>
       <input type="email" name="email" required autocomplete="email"
              value="{{ flashMessages.get('email') ?? '' }}" />
     </label>
 
     <label class="field">
-      <span>Parola</span>
+      <span>Password</span>
       <input type="password" name="password" required autocomplete="current-password" />
     </label>
 
-    <div class="cf-turnstile" data-sitekey="{{ turnstileSiteKey }}"></div>
+    @if (turnstileSiteKey)
+      {{-- `data-response-field-name` ŞART. Turnstile jetonu varsayılan olarak
+           `cf-turnstile-response` altında gönderiyor ama adonis-captcha-guard
+           onu `token` adıyla arıyor; ad tutmadığında doğrulama, widget çözülmüş
+           olsa bile 400 "Request is missing the token param" ile düşüyor. --}}
+      <div class="cf-turnstile" data-sitekey="{{ turnstileSiteKey }}"
+           data-response-field-name="token"></div>
+    @end
 
-    <button class="btn" type="submit">Giriş yap</button>
-    <p class="alt">Hesabınız yok mu? <a href="/register">Kayıt olun</a></p>
+    <button class="btn" type="submit">Log in</button>
+    <p class="alt">No account yet? <a href="/register">Sign up</a></p>
   </form>
 @end

@@ -25,7 +25,7 @@ export default class VerifyController {
     // kimlik numarası deneyerek hangi hesapların var olduğu öğrenilebilirdi.
     if (!request.hasValidSignature()) {
       session.flash('errorsBag', {
-        link: 'Bağlantı geçersiz ya da süresi dolmuş. Yeni bir tane isteyin.',
+        link: 'That link is invalid or has expired. Request a new one.',
       })
       return response.redirect('/login')
     }
@@ -42,7 +42,7 @@ export default class VerifyController {
       await user.save()
     }
 
-    session.flash('notice', 'E-postanız doğrulandı.')
+    session.flash('notice', 'Your e-mail address is verified.')
     return response.redirect('/login')
   }
 
@@ -56,7 +56,7 @@ export default class VerifyController {
     const sent = await sendVerification(user)
     session.flash(
       sent ? 'notice' : 'errorsBag',
-      sent ? 'Doğrulama postası gönderildi.' : { mail: 'Posta gönderilemedi.' }
+      sent ? 'Verification e-mail sent.' : { mail: 'The e-mail could not be sent.' }
     )
     return response.redirect().back()
   }

@@ -15,7 +15,7 @@ test.group('Kimlik', (group) => {
   test('kayıt formu açılıyor', async ({ client }) => {
     const response = await client.get('/register')
     response.assertStatus(200)
-    response.assertTextIncludes('Hesap oluştur')
+    response.assertTextIncludes('Create an account')
   })
 
   /// Düzen GERÇEKTEN uygulanmalı.

@@ -40,6 +40,43 @@ gönderilmiyor. Şart koşulsaydı bağlantı hiç ulaşmayacağı için herkes 
 olarak dışarıda kalırdı. `APP_URL` doldurulmalı: postadaki bağlantı göreli
 olamaz.
 
+### Mailtrap
+
+Mailtrap'in iki ayrı ürünü var ve karıştırmak kolay:
+
+| | Sandbox | Sending |
+|---|---|---|
+| Sunucu | `sandbox.smtp.mailtrap.io` | `live.smtp.mailtrap.io` |
+| Port | 2525 | 587 |
+| Kullanıcı | kutuya özel | `api` |
+| Parola | kutuya özel | API jetonu |
+| Postayı alan | yalnızca Mailtrap kutusu | gerçek adres |
+
+Sandbox posta **teslim etmiyor**, kendi kutusunda tutuyor. Geliştirmede
+doğru seçim; üretimde kullanıcı doğrulama bağlantısını hiç görmez.
+
+Üretim kurulumu (Sending):
+
+1. **Sending Domains → Add Domain** ile alan adını ekleyin
+   (`postillion.net`), verilen DNS kayıtlarını (SPF, DKIM, DMARC) yayınlayın
+   ve doğrulanmasını bekleyin. Doğrulanmamış alan adından gönderim
+   reddediliyor.
+2. **API Tokens** altından bir jeton üretin.
+3. Coolify'da:
+
+```
+SMTP_HOST=live.smtp.mailtrap.io
+SMTP_PORT=587
+SMTP_USERNAME=api
+SMTP_PASSWORD=<API jetonu>
+MAIL_FROM_ADDRESS=noreply@postillion.net
+MAIL_FROM_NAME=Postillion
+APP_URL=https://postillion.net
+```
+
+`MAIL_FROM_ADDRESS` doğrulanmış alan adında olmalı — başka bir alan adı
+yazmak gönderimi reddettirir.
+
 ## Canlı akış
 
 Sayfa açıkken transkript kendini yeniliyor. Tarayıcı eşitleme sunucusuna

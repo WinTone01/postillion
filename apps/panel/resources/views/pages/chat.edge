@@ -1,8 +1,8 @@
-@component('components/layout', { title: (chat ? chat.title : 'Sohbet') + ' — Postillion', captchaScript: false })
+@component('components/layout', { title: (chat ? chat.title : 'Chat') + ' — Postillion', captchaScript: false })
   <div class="card wide" data-chat-id="{{ chat ? chat.id : '' }}" data-head-seq="{{ headSeq }}">
     <div class="head">
-      <h1>{{ chat ? chat.title : 'Sohbet' }}</h1>
-      <a class="quiet" href="/app">Çalışma alanı</a>
+      <h1>{{ chat ? chat.title : 'Chat' }}</h1>
+      <a class="quiet" href="/app">Workspace</a>
     </div>
 
     @if (chat && chat.location)
@@ -12,15 +12,15 @@
     @if (unreachable)
       {{-- Ulaşılamamak ile boş olmak AYRI: ilki arıza. --}}
       <ul class="errors">
-        <li>Sunucuya ulaşılamadı; transkript gösterilemiyor.</li>
+        <li>The server could not be reached, so the transcript is unavailable.</li>
       </ul>
     @elseif (!messages.length)
-      <p class="empty">Bu sohbette henüz mesaj yok.</p>
+      <p class="empty">No messages in this chat yet.</p>
     @else
       <ol class="transcript">
         @each (message in messages)
           <li class="msg {{ message.role }}">
-            <span class="who">{{ message.role === 'user' ? 'Siz' : 'Ajan' }}</span>
+            <span class="who">{{ message.role === 'user' ? 'You' : 'Agent' }}</span>
             @each (part in message.parts)
               @if (part.kind === 'text')
                 <p class="text">{{ part.text }}</p>
@@ -28,9 +28,9 @@
                 <p class="part-error">{{ part.message }}</p>
               @elseif (part.kind === 'tool')
                 <p class="tool">
-                  {{ part.call && part.call.command ? part.call.command : (part.call && part.call.path ? part.call.path : 'araç') }}
+                  {{ part.call && part.call.command ? part.call.command : (part.call && part.call.path ? part.call.path : 'tool') }}
                   @if (!part.resolved)
-                    <span class="pending">çalışıyor</span>
+                    <span class="pending">running</span>
                   @end
                 </p>
               @end
@@ -51,9 +51,9 @@
     @if (chat && chat.deviceOnline)
       <form class="row send" method="POST" action="/app/chats/{{ chat.id }}/send">
         {{ csrfField() }}
-        <input type="text" name="prompt" placeholder="Mesaj yazın…" required
+        <input type="text" name="prompt" placeholder="Write a message…" required
                maxlength="20000" value="{{ flashMessages.get('prompt') ?? '' }}" />
-        <button class="btn narrow" type="submit">Gönder</button>
+        <button class="btn narrow" type="submit">Send</button>
       </form>
     @end
 
@@ -61,8 +61,8 @@
       {{-- Yazma kapalıysa SEBEBİ yazılı olmalı: kaybolmuş bir kutu soru
            bırakır. Okumak zaten çalışıyor. --}}
       <p class="notice">
-        Bu sohbetin cihazı kapalı. Geçmişi okuyabilirsiniz; yazmak için cihazın
-        açık olması gerekiyor.
+        This chat's device is off. You can read the history; writing needs the
+        device to be running.
       </p>
     @end
   </div>
