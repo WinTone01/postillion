@@ -12,6 +12,9 @@ path = "src/main.rs"
 [dependencies]
 # Protokol mantığı ve codec istemciyle PAYLAŞIMLI: iki ucun kayması imkânsız.
 postillion-sync.workspace = true
+# Kayıt satırlarının birleştirme kuralları — istemcinin çalıştırdığı kodun
+# aynısı, ayrı bir sunucu kopyası yok.
+postillion-doc.workspace = true
 
 axum.workspace = true
 tower-http.workspace = true
@@ -27,3 +30,4 @@ uuid.workspace = true
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true
+postillion-proto.workspace = true

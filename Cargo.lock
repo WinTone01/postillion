@@ -5336,6 +5336,8 @@ dependencies = [
  "anyhow",
  "axum",
  "futures",
+ "postillion-doc",
+ "postillion-proto",
  "postillion-sync",
  "serde",
  "serde_json",

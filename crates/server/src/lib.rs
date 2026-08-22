@@ -13,6 +13,9 @@
 pub mod auth;
 pub mod db;
 pub mod health;
+pub mod registry_db;
+pub mod registry_http;
+pub mod registry_ws;
 pub mod http;
 pub mod hub;
 pub mod rooms;
@@ -27,12 +30,15 @@ use axum::Router;
 use postillion_sync::room::ChatStore;
 use tower_http::trace::TraceLayer;
 
-use crate::hub::Hub;
+use crate::registry_ws::RegistryHub;
+use crate::rooms::ChatHub;
 
 #[derive(Clone)]
 pub struct App {
     pub store: Arc<dyn ChatStore>,
-    pub hub: Hub,
+    pub registry: Arc<dyn postillion_sync::registry_room::RegistryStore>,
+    pub hub: ChatHub,
+    pub registry_hub: RegistryHub,
     pub auth: auth::Auth,
 }
 
@@ -48,6 +54,12 @@ pub fn router(app: App) -> Router {
             get(http::get_rows).post(http::post_rows),
         )
         .route("/chat2/{chat_id}/checkpoint", get(http::get_checkpoint))
+        // Çalışma alanı kaydı: kenar çubuğu satırları ve presence. Uygulama
+        // bu uç olmadan bağlanamıyor — 404 alıp sonsuza kadar yeniden
+        // bağlanmayı deniyor.
+        .route("/registry/{org}/ws", get(registry_ws_handler))
+        .route("/registry/{org}/rows", get(registry_http::get_rows))
+        .route("/registry/{org}/push", axum::routing::post(registry_http::post_push))
         .layer(TraceLayer::new_for_http())
         .with_state(app)
 }
@@ -72,6 +84,21 @@ async fn root() -> &'static str {
 #[derive(serde::Deserialize)]
 struct WsQuery {
     token: Option<String>,
+}
+
+async fn registry_ws_handler(
+    State(app): State<App>,
+    Path(org): Path<String>,
+    Query(query): Query<WsQuery>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, StatusCode> {
+    if !app.auth.permits(&headers, query.token.as_deref()) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    Ok(ws.on_upgrade(move |socket| {
+        registry_ws::serve(socket, app.registry, app.registry_hub, org)
+    }))
 }
 
 async fn chat_ws(

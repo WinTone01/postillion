@@ -10,7 +10,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use futures::future::BoxFuture;
-use postillion_server::{auth::Auth, hub::Hub, App};
+use postillion_doc::{RegistryRow, RowOp};
+use postillion_server::rooms::ChatHub;
+use postillion_server::{auth::Auth, App};
+use postillion_sync::registry_room::{AppliedBatch, RegistryState, RegistryStore};
 use postillion_sync::room::{ChatStore, Row, RoomState};
 use postillion_sync::{ChatDocSink, CheckpointFetcher, SyncError};
 
@@ -78,6 +81,82 @@ impl ChatStore for MemStore {
     }
 }
 
+// ── bellek içi kayıt deposu ────────────────────────────────────────────────
+
+/// Sunucu tarafındaki `PgRegistry` ile aynı sözleşme, Postgres'siz.
+#[derive(Default)]
+pub struct MemRegistry {
+    rows: Mutex<Vec<RegistryRow>>,
+    seq: Mutex<u64>,
+}
+
+impl RegistryStore for MemRegistry {
+    fn state(&self, _org: &str) -> BoxFuture<'static, Result<RegistryState, SyncError>> {
+        let state = RegistryState {
+            seq: *self.seq.lock().unwrap(),
+            gc_floor: 0,
+        };
+        Box::pin(async move { Ok(state) })
+    }
+
+    fn rows_since(
+        &self,
+        _org: &str,
+        since: u64,
+    ) -> BoxFuture<'static, Result<Vec<RegistryRow>, SyncError>> {
+        let rows: Vec<RegistryRow> = self
+            .rows
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|r| r.seq > since)
+            .cloned()
+            .collect();
+        Box::pin(async move { Ok(rows) })
+    }
+
+    fn apply_batch(
+        &self,
+        _org: &str,
+        ops: Vec<RowOp>,
+    ) -> BoxFuture<'static, Result<AppliedBatch, SyncError>> {
+        let mut rows = self.rows.lock().unwrap();
+        let mut seq = self.seq.lock().unwrap();
+        let next = *seq + 1;
+        let mut touched: Vec<RegistryRow> = Vec::new();
+
+        for op in &ops {
+            let before = touched
+                .iter()
+                .find(|r| r.kind == op.kind && r.id == op.id)
+                .cloned()
+                .or_else(|| {
+                    rows.iter()
+                        .find(|r| r.kind == op.kind && r.id == op.id)
+                        .cloned()
+                });
+            let (merged, changed) = postillion_doc::apply_op(before.as_ref(), op);
+            let Some(mut merged) = merged.filter(|_| changed) else {
+                continue;
+            };
+            merged.seq = next;
+            touched.retain(|r| !(r.kind == merged.kind && r.id == merged.id));
+            touched.push(merged);
+        }
+
+        let applied_seq = if touched.is_empty() { *seq } else { next };
+        if !touched.is_empty() {
+            for row in &touched {
+                rows.retain(|r| !(r.kind == row.kind && r.id == row.id));
+                rows.push(row.clone());
+            }
+            *seq = next;
+        }
+        let result = AppliedBatch { rows: touched, seq: applied_seq };
+        Box::pin(async move { Ok(result) })
+    }
+}
+
 // ── istemci tarafı sahteleri ───────────────────────────────────────────────
 
 /// Uygulanan satırları biriktiren, doc yerine geçen alıcı.
@@ -133,11 +212,18 @@ pub async fn start() -> Server {
     Server { port, store }
 }
 
+/// Kayıt uçlarını sınamak için sunucu — sohbet deposu kullanılmıyor.
+pub async fn start_with_registry() -> Server {
+    start().await
+}
+
 /// Verilen depoyla sunucu; portu döndürür.
 pub async fn start_with(store: Arc<dyn ChatStore>) -> u16 {
     let app = App {
         store,
-        hub: Hub::new(),
+        registry: Arc::new(MemRegistry::default()),
+        hub: ChatHub::new(),
+        registry_hub: postillion_server::registry_ws::RegistryHub::new(),
         auth: Auth::new(TOKEN),
     };
     // Port 0: çekirdek boş bir port veriyor, böylece testler paralel koşarken
