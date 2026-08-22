@@ -21,7 +21,8 @@ use gpui::{
 
 use postillion_engine::registry::HarnessDescriptor;
 use postillion_proto::{
-    ChatConfig, FolderListing, HarnessId, Model, ReasoningLevel, RepoRef, SandboxLevel, Space,
+    AgentAccountsSnapshot, AgentUsageWindow, ChatConfig, FolderListing, HarnessId, Model,
+    ReasoningLevel, RepoRef, SandboxLevel, Space,
 };
 use postillion_rpc::methods;
 
@@ -29,6 +30,105 @@ use postillion_rpc::methods;
 /// footer; a flat cap + "Showing X of Y refs" reads the same without
 /// pagination plumbing).
 const MAX_REF_ROWS: usize = 300;
+
+fn percent(fraction: f32) -> i64 {
+    (fraction.clamp(0.0, 1.0) * 100.0).round() as i64
+}
+
+fn usage_window_label(window: &AgentUsageWindow) -> SharedString {
+    match window.label.as_str() {
+        "Session" => SharedString::from(crate::i18n::t("5-hour limit")),
+        "Week" => SharedString::from(crate::i18n::t("Weekly · all models")),
+        other => SharedString::from(other.to_string()),
+    }
+}
+
+fn format_reset_in(
+    resets_at: Option<chrono::DateTime<chrono::Utc>>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<String> {
+    let at = resets_at?;
+    let minutes = at.signed_duration_since(now).num_minutes();
+    if minutes <= 0 {
+        return Some(crate::i18n::t("Resets now").to_string());
+    }
+    if minutes < 22 * 60 {
+        let (hours, minutes) = (minutes / 60, minutes % 60);
+        return Some(if hours > 0 {
+            format!("{} {hours} hr {minutes} min", crate::i18n::t("Resets in"))
+        } else {
+            format!("{} {minutes} min", crate::i18n::t("Resets in"))
+        });
+    }
+    let local = at.with_timezone(&chrono::Local);
+    Some(format!(
+        "{} {}",
+        crate::i18n::t("Resets"),
+        local.format("%a %-I:%M %p")
+    ))
+}
+
+fn usage_row(
+    label: SharedString,
+    fraction: f32,
+    value: Option<SharedString>,
+    reset: Option<SharedString>,
+    theme: &Theme,
+) -> gpui::Div {
+    let fraction = fraction.clamp(0.0, 1.0);
+    let fill = crate::settings::accounts::usage_color(
+        crate::settings::accounts::usage_level(fraction),
+        theme,
+    );
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(5.0))
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .justify_between()
+                .gap(px(8.0))
+                .text_size(px(12.0))
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_color(theme.text.opacity(0.85))
+                        .child(label),
+                )
+                .when_some(value, |el, value| {
+                    el.child(div().flex_none().text_color(theme.text_muted).child(value))
+                }),
+        )
+        .child(
+            div()
+                .w_full()
+                .h(px(5.0))
+                .rounded_full()
+                .overflow_hidden()
+                .bg(crate::theme::ink(0.07))
+                .when(fraction > 0.0, |el| {
+                    el.child(
+                        div()
+                            .h_full()
+                            .w(gpui::relative(fraction.max(0.015)))
+                            .rounded_full()
+                            .bg(fill),
+                    )
+                }),
+        )
+        .when_some(reset, |el, reset| {
+            el.child(
+                div()
+                    .text_size(px(11.0))
+                    .text_color(theme.text_faint)
+                    .child(reset),
+            )
+        })
+}
 
 use crate::composer::{ComposerInput, ComposerInputEvent};
 use crate::motion;
@@ -412,6 +512,8 @@ pub enum PickerKind {
     Device,
     /// Sohbete özel MCP sunucu seçimi (yalnızca açık oturumlarda).
     Mcp,
+    /// Bu turun bağlam maliyeti + aktif hesabın plan limitleri.
+    Usage,
 }
 
 pub struct Pickers {
@@ -439,6 +541,8 @@ pub struct Pickers {
     mcp: Loadable<Vec<String>>,
     /// Silme isteği yolda olan sunucu; satırı kilitler.
     mcp_busy: Option<String>,
+    usage: Loadable<AgentAccountsSnapshot>,
+    usage_task: Option<Task<()>>,
     /// Space id the `refs` slot belongs to (invalidated on space change).
     refs_space: Option<String>,
     /// Highlighted row in the open list (keyboard nav).
@@ -598,6 +702,8 @@ impl Pickers {
             refs: Loadable::Idle,
             mcp: Loadable::Idle,
             mcp_busy: None,
+            usage: Loadable::Idle,
+            usage_task: None,
             refs_space: None,
             active: 0,
             model_scroll: gpui::ScrollHandle::new(),
@@ -853,7 +959,8 @@ impl Pickers {
             },
             PickerKind::Branch => self.selected_ref_index(cx),
             // MCP satırları çoklu seçim; vurgu ilk satırdan başlıyor.
-            PickerKind::Mcp => 0,
+            // Kullanım paneli salt okunur — gezinilecek satırı yok.
+            PickerKind::Mcp | PickerKind::Usage => 0,
             PickerKind::HarnessModel | PickerKind::Traits => self.selected_model_index(cx),
             PickerKind::Space => self.selected_space_index(cx),
             PickerKind::Device => self.selected_device_index(cx),
@@ -912,6 +1019,7 @@ impl Pickers {
             // Force: kullanıcı Claude tarafında sunucu eklemiş olabilir ve
             // liste yalnızca burada tazeleniyor.
             PickerKind::Mcp => self.ensure_mcp(true, cx),
+            PickerKind::Usage => self.ensure_usage(true, cx),
             // Projects and devices are already synced state — nothing to load.
             PickerKind::Space | PickerKind::Device => {}
         }
@@ -1178,6 +1286,133 @@ impl Pickers {
             })
             .ok();
         }));
+    }
+
+    fn ensure_usage(&mut self, force: bool, cx: &mut Context<Self>) {
+        if matches!(self.usage, Loadable::Loading) {
+            return;
+        }
+        if !force && !matches!(self.usage, Loadable::Idle) {
+            return;
+        }
+        let Some(engine) = self.engine(cx) else {
+            return;
+        };
+        if !matches!(self.usage, Loadable::Ready(_)) {
+            self.usage = Loadable::Loading;
+        }
+        let params = serde_json::json!({ "forceUsage": true, "activeOnly": true });
+        self.usage_task = Some(cx.spawn(async move |this, cx| {
+            let result = engine
+                .client()
+                .call(methods::LIST_AGENT_ACCOUNTS, params)
+                .await;
+            this.update(cx, |pickers, cx| {
+                pickers.usage = match result {
+                    Ok(value) => match serde_json::from_value::<AgentAccountsSnapshot>(value) {
+                        Ok(snapshot) => Loadable::Ready(snapshot),
+                        Err(err) => Loadable::Error(err.to_string()),
+                    },
+                    Err(err) => Loadable::Error(err.to_string()),
+                };
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn active_usage(&self, cx: &App) -> Option<(Option<String>, Vec<AgentUsageWindow>)> {
+        let harness = self.effective_harness(cx)?;
+        self.usage
+            .ready()?
+            .accounts
+            .iter()
+            .find(|account| account.active && account.harness == harness)
+            .map(|account| (account.plan_label.clone(), account.usage_windows.clone()))
+    }
+
+    fn usage_label(&self, cx: &App) -> SharedString {
+        match self
+            .active_usage(cx)
+            .and_then(|(_, windows)| windows.first().map(|w| w.used_fraction))
+        {
+            Some(fraction) => SharedString::from(format!("{}%", percent(fraction))),
+            None => SharedString::from(crate::i18n::t("Usage")),
+        }
+    }
+
+    fn render_usage_popover(
+        &mut self,
+        context: Option<(u64, u64)>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = Theme::of(cx).clone();
+        let now = chrono::Utc::now();
+        let active = self.active_usage(cx);
+        let error = match &self.usage {
+            Loadable::Error(message) => Some(message.clone()),
+            _ => None,
+        };
+        let pending = matches!(self.usage, Loadable::Loading | Loadable::Idle);
+
+        let mut panel = div().flex().flex_col().gap(px(12.0)).p(px(10.0));
+
+        if let Some((tokens, window)) = context {
+            panel = panel.child(usage_row(
+                SharedString::from(crate::i18n::t("Context window")),
+                crate::context_meter::context_fraction(tokens, window),
+                Some(SharedString::from(format!(
+                    "{} / {}",
+                    crate::context_meter::format_context(tokens),
+                    crate::context_meter::format_context(window)
+                ))),
+                None,
+                &theme,
+            ));
+        }
+
+        let limits: AnyElement = match (active, error) {
+            (_, Some(message)) => {
+                self.retry_row("usage-retry", &message, PickerKind::Usage, &theme, cx)
+            }
+            (Some((plan, windows)), None) if !windows.is_empty() => {
+                let mut rows = div().flex().flex_col().gap(px(10.0)).child(
+                    div()
+                        .text_size(px(11.0))
+                        .text_color(theme.text_faint)
+                        .child(SharedString::from(match plan {
+                            Some(plan) => {
+                                format!("{} · {plan}", crate::i18n::t("Plan usage limits"))
+                            }
+                            None => crate::i18n::t("Plan usage limits").to_string(),
+                        })),
+                );
+                for window in &windows {
+                    rows = rows.child(usage_row(
+                        usage_window_label(window),
+                        window.used_fraction,
+                        Some(SharedString::from(format!(
+                            "{}%",
+                            percent(window.used_fraction)
+                        ))),
+                        format_reset_in(window.resets_at, now).map(SharedString::from),
+                        &theme,
+                    ));
+                }
+                rows.into_any_element()
+            }
+            (_, None) if pending => {
+                popover::skeleton_rows("usage-skeleton", &theme, 2, cx.entity_id(), cx)
+            }
+            _ => div()
+                .text_size(px(12.0))
+                .text_color(theme.text_faint)
+                .child(SharedString::from(crate::i18n::t(
+                    "No plan limits for this account.",
+                )))
+                .into_any_element(),
+        };
+        panel.child(limits).into_any_element()
     }
 
     /// Sunucu listesi: her satır bir aç/kapa.
@@ -2232,6 +2467,7 @@ impl Pickers {
                     Some(PickerKind::Space) => self.filtered_space_rows(cx).len(),
                     Some(PickerKind::Device) => self.filtered_device_rows(cx).len(),
                     Some(PickerKind::Mcp) => self.mcp.ready().map_or(0, Vec::len),
+                    Some(PickerKind::Usage) => 0,
                     None => 0,
                 };
                 let current = (self.active != NO_ACTIVE_ROW).then_some(self.active);
@@ -2285,6 +2521,7 @@ impl Pickers {
             PickerKind::Space => "picker-space",
             PickerKind::Device => "picker-device",
             PickerKind::Mcp => "picker-mcp",
+            PickerKind::Usage => "picker-usage",
         };
         let open = self.open_kind() == Some(kind);
         // Ghost pill (postillion composer/styles.tsx `pill`): `h-8 rounded-lg px-2.5
@@ -2557,34 +2794,50 @@ impl Pickers {
             // Bağlam ölçeri: turun ödediği bağlam. Git durumundan bağımsız —
             // maliyet her projede aynı şekilde birikiyor, o yüzden git'siz bir
             // projede footer'ın tamamen kaybolması ölçümü de gizlerdi.
-            let meter = self
+            let context = self
                 .state
                 .read(cx)
                 .session_for(&chat.id)
                 .and_then(|s| s.context_tokens)
                 .map(|tokens| {
-                    let window =
-                        crate::context_meter::context_window(chat.config.as_ref());
-                    crate::context_meter::context_meter(tokens, window, &theme)
+                    (
+                        tokens,
+                        crate::context_meter::context_window(chat.config.as_ref()),
+                    )
                 });
+            let meter = context.map(|(tokens, window)| {
+                crate::context_meter::context_meter(tokens, window, &theme)
+            });
 
             // MCP rozeti: sohbete özel sunucu seçimi. Liste açılışta değil
             // rozet tıklanınca yükleniyor — her render'da RPC atmanın anlamı
             // yok ve sunucu kümesi nadiren değişiyor.
             self.ensure_mcp(false, cx);
             let closing = self.open.closing_since();
-            let mut overlay: Option<(PickerKind, AnyElement)> =
-                if self.mounted_kind() == Some(PickerKind::Mcp) {
+            let mut overlay: Option<(PickerKind, AnyElement)> = match self.mounted_kind() {
+                Some(PickerKind::Mcp) => {
                     let content = self.render_mcp_popover(cx);
                     Some((PickerKind::Mcp, self.popover_frame(280.0, content, cx)))
-                } else {
-                    None
-                };
+                }
+                Some(PickerKind::Usage) => {
+                    let content = self.render_usage_popover(context, cx);
+                    Some((PickerKind::Usage, self.popover_frame(268.0, content, cx)))
+                }
+                _ => None,
+            };
             let mcp_chip = self.footer_chip(
                 PickerKind::Mcp,
                 "picker-mcp",
                 crate::icons::WIDGET,
                 self.mcp_label(cx),
+                &theme,
+                cx,
+            );
+            let usage_chip = self.footer_chip(
+                PickerKind::Usage,
+                "picker-usage",
+                crate::icons::TUNING,
+                self.usage_label(cx),
                 &theme,
                 cx,
             );
@@ -2601,11 +2854,18 @@ impl Pickers {
                     .gap(px(4.0))
                     .min_w_0()
                     .when_some(meter, |el, meter| el.child(meter))
-                    .child(attach_overlay_end(
+                    .child(attach_overlay(
                         mcp_chip,
                         &mut overlay,
                         PickerKind::Mcp,
                         "mcp-popover",
+                        closing,
+                    ))
+                    .child(attach_overlay_end(
+                        usage_chip,
+                        &mut overlay,
+                        PickerKind::Usage,
+                        "usage-popover",
                         closing,
                     ));
                 return Some(row().justify_end().child(right).into_any_element());
@@ -2650,6 +2910,13 @@ impl Pickers {
                     "mcp-popover",
                     closing,
                 ))
+                .child(attach_overlay(
+                    usage_chip,
+                    &mut overlay,
+                    PickerKind::Usage,
+                    "usage-popover",
+                    closing,
+                ))
                 .child(Self::footer_label(
                     crate::icons::GIT_BRANCH,
                     chat.branch
@@ -2671,13 +2938,17 @@ impl Pickers {
         // eskiden bütün satır kaybolduğu için rozet de kayboluyordu.
         if !git {
             self.ensure_mcp(false, cx);
-            let mut overlay: Option<(PickerKind, AnyElement)> =
-                if self.mounted_kind() == Some(PickerKind::Mcp) {
+            let mut overlay: Option<(PickerKind, AnyElement)> = match self.mounted_kind() {
+                Some(PickerKind::Mcp) => {
                     let content = self.render_mcp_popover(cx);
                     Some((PickerKind::Mcp, self.popover_frame(280.0, content, cx)))
-                } else {
-                    None
-                };
+                }
+                Some(PickerKind::Usage) => {
+                    let content = self.render_usage_popover(None, cx);
+                    Some((PickerKind::Usage, self.popover_frame(268.0, content, cx)))
+                }
+                _ => None,
+            };
             let chip = self.footer_chip(
                 PickerKind::Mcp,
                 "picker-mcp",
@@ -2686,16 +2957,32 @@ impl Pickers {
                 &theme,
                 cx,
             );
+            let usage_chip = self.footer_chip(
+                PickerKind::Usage,
+                "picker-usage",
+                crate::icons::TUNING,
+                self.usage_label(cx),
+                &theme,
+                cx,
+            );
             let right = div()
                 .flex()
                 .flex_row()
                 .items_center()
+                .gap(px(4.0))
                 .min_w_0()
-                .child(attach_overlay_end(
+                .child(attach_overlay(
                     chip,
                     &mut overlay,
                     PickerKind::Mcp,
                     "mcp-popover",
+                    closing,
+                ))
+                .child(attach_overlay_end(
+                    usage_chip,
+                    &mut overlay,
+                    PickerKind::Usage,
+                    "usage-popover",
                     closing,
                 ));
             return Some(row().justify_end().child(right).into_any_element());
@@ -2726,11 +3013,23 @@ impl Pickers {
             let content = self.render_mcp_popover(cx);
             overlay = Some((PickerKind::Mcp, self.popover_frame(280.0, content, cx)));
         }
+        if self.mounted_kind() == Some(PickerKind::Usage) {
+            let content = self.render_usage_popover(None, cx);
+            overlay = Some((PickerKind::Usage, self.popover_frame(268.0, content, cx)));
+        }
         let draft_mcp_chip = self.footer_chip(
             PickerKind::Mcp,
             "picker-mcp",
             crate::icons::WIDGET,
             self.mcp_label(cx),
+            &theme,
+            cx,
+        );
+        let draft_usage_chip = self.footer_chip(
+            PickerKind::Usage,
+            "picker-usage",
+            crate::icons::TUNING,
+            self.usage_label(cx),
             &theme,
             cx,
         );
@@ -2781,6 +3080,13 @@ impl Pickers {
                 &mut overlay,
                 PickerKind::Mcp,
                 "mcp-popover",
+                closing,
+            ))
+            .child(attach_overlay(
+                draft_usage_chip,
+                &mut overlay,
+                PickerKind::Usage,
+                "usage-popover",
                 closing,
             ))
             .child(attach_overlay_end(
@@ -2868,6 +3174,10 @@ impl Pickers {
                         PickerKind::Mcp => {
                             this.mcp = Loadable::Idle;
                             this.ensure_mcp(false, cx);
+                        }
+                        PickerKind::Usage => {
+                            this.usage = Loadable::Idle;
+                            this.ensure_usage(true, cx);
                         }
                         // Projects/devices load nothing; no retry surface exists.
                         PickerKind::Space | PickerKind::Device => {}
@@ -3925,7 +4235,8 @@ impl Render for Pickers {
             | Some(PickerKind::Checkout)
             | Some(PickerKind::Space)
             | Some(PickerKind::Device)
-            | Some(PickerKind::Mcp) => None,
+            | Some(PickerKind::Mcp)
+            | Some(PickerKind::Usage) => None,
             Some(PickerKind::HarnessModel) => {
                 let content = self.render_harness_model_popover(cx);
                 Some((

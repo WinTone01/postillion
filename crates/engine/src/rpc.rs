@@ -240,6 +240,11 @@ struct ResizeTerminalParams {
 struct ListAgentAccountsParams {
     #[serde(default)]
     force_usage: Option<bool>,
+    /// Probe only the live login's usage. A caller that renders one account's
+    /// windows (the composer's usage panel) must not spend the SAVED accounts'
+    /// quota to do it — each probe is a real request against that account.
+    #[serde(default)]
+    active_only: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1974,7 +1979,10 @@ impl RpcService for EngineRpc {
                 let p: ListAgentAccountsParams = parse_params(params)?;
                 let snapshot = self
                     .agent_accounts
-                    .list(p.force_usage.unwrap_or(false))
+                    .list(
+                        p.force_usage.unwrap_or(false),
+                        p.active_only.unwrap_or(false),
+                    )
                     .await
                     .map_err(|e| RpcError::Failed(e.to_string()))?;
                 RpcReply::value(&snapshot)
