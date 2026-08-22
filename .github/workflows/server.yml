@@ -38,17 +38,74 @@ jobs:
         run: cargo test -p postillion-server -p postillion-sync --lib --tests
 
   image:
-    # İmajın gerçekten kurulduğunu kanıtlayan tek yer. Sır gerektirmiyor:
+    # İmajların gerçekten kurulduğunu kanıtlayan tek yer. Sır gerektirmiyor:
     # yalnızca derleniyor, hiçbir yere gönderilmiyor.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: build image
+      - name: build server image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/Dockerfile
           push: false
+          load: true
+          tags: postillion-server:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Panel imajı AYRICA çalıştırılıyor.
+  #
+  # Derlenmesi yetmiyor: bu uygulamanın üretim hataları derleme zamanında
+  # değil ilk istekte çıkıyor. İki kez oldu — bir kez şablon düzeni hiç
+  # uygulanmadı, bir kez Vite manifest yolu yanlış kaldı — ve ikisi de
+  # testlerden geçti, çünkü testler geliştirme kipinde koşuyor.
+  panel-image:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_USER: ci
+          POSTGRES_DB: ci
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s
+          --health-timeout 5s --health-retries 20
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build panel image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/panel/Dockerfile
+          push: false
+          load: true
+          tags: postillion-panel:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: serve and request
+        run: |
+          docker run -d --name panel --network host \
+            -e APP_KEY=abcdefghijklmnopqrstuvwxyz123456 \
+            -e NODE_ENV=production -e LOG_LEVEL=info -e SESSION_DRIVER=cookie \
+            -e DATABASE_URL=postgres://ci:ci@127.0.0.1:5432/ci \
+            -e HOST=0.0.0.0 -e PORT=3333 postillion-panel:ci
+          for i in $(seq 1 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:3333/ && break
+            sleep 2
+          done
+          fail=0
+          for path in / /login /register; do
+            code=$(curl -sS -o /tmp/body -w '%{http_code}' "http://127.0.0.1:3333$path")
+            echo "$path -> $code"
+            [ "$code" = "200" ] || fail=1
+            # Şablon işlenmediğinde sayfa 200 dönüyor ama HTML belgesi
+            # olmuyor — durum kodu tek başına yetmez.
+            grep -q '<!DOCTYPE html>' /tmp/body || { echo "  belge değil"; fail=1; }
+            grep -q '@component(' /tmp/body && { echo "  şablon işlenmemiş"; fail=1; }
+          done
+          if [ "$fail" != "0" ]; then docker logs panel; exit 1; fi
