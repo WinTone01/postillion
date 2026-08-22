@@ -1,8 +1,13 @@
 # Coolify için Docker Compose kaynağı.
 #
 # Coolify'da: Yeni Kaynak → Docker Compose, deponuzu seçin, "Compose dosyası"
-# olarak `deploy/docker-compose.yaml` verin. Derleme bağlamı depo kökü
-# (`context: ..`), çünkü sunucu birkaç crate'i birden derliyor.
+# olarak `docker-compose.yaml` verin.
+#
+# Dosya depo KÖKÜNDE duruyor ve yollar köke göre yazılı. Coolify proje
+# dizinini depo kökü yapıyor ve `build.context`'i compose dosyasının
+# bulunduğu yere değil ona göre çözüyor; `deploy/` altında `context: ..`
+# yazan bir sürüm bu yüzden `<depo>/../deploy` arayıp düşüyordu. Kökte
+# durunca iki yorumlayıcı da aynı yeri gösteriyor.
 #
 # TLS'i ve alan adını Coolify'ın vekili yönetiyor — WebSocket yükseltmesi
 # dahil. Bu yüzden burada nginx yok.
@@ -29,7 +34,7 @@ services:
 
   server:
     build:
-      context: ..
+      context: .
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
     environment:

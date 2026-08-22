@@ -22,11 +22,13 @@ Coolify panelinde: **Yeni Kaynak → Docker Compose**, bu depoyu seçin ve
 compose dosyası olarak şunu verin:
 
 ```
-deploy/docker-compose.yaml
+docker-compose.yaml
 ```
 
-Derleme bağlamı depo kökü (`context: ..`), çünkü sunucu birkaç crate'i
-birden derliyor.
+Compose dosyaları depo **kökünde** duruyor. Coolify proje dizinini depo kökü
+yapıyor ve derleme bağlamını compose dosyasının bulunduğu yere değil ona göre
+çözüyor; alt dizinde duran bir compose'un göreli yolları bu yüzden
+tutmuyordu.
 
 ### 2. Değişkenler
 
@@ -174,7 +176,7 @@ Coolify'da: **Yeni Kaynak → Docker Compose**, aynı depoyu seçin ve compose
 dosyası olarak şunu verin:
 
 ```
-apps/landing/docker-compose.yaml
+docker-compose.landing.yaml
 ```
 
 Dağıtımdan sonra **Domains** alanına alan adınızı yazın (örn.
@@ -189,8 +191,8 @@ için birbirlerini etkilemiyorlar:
 
 | Alan adı | Kaynak |
 | --- | --- |
-| `postillion.alanadiniz.com` | `apps/landing/docker-compose.yaml` |
-| `sync.alanadiniz.com` | `deploy/docker-compose.yaml` |
+| `postillion.alanadiniz.com` | `docker-compose.landing.yaml` |
+| `sync.alanadiniz.com` | `docker-compose.yaml` |
 
 Depoda ayrıca Cloudflare Workers'a dağıtan bir iş akışı duruyor
 (`.github/workflows/deploy.yml`). `CLOUDFLARE_API_TOKEN` sırrı tanımlı

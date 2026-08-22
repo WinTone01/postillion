@@ -472,11 +472,11 @@ mod tests {
         uploads.append("upload-other", "aGk=", Some(0)).unwrap();
         assert!(racing.exists(), "fresh empty staging dir was reclaimed");
 
+        // Dizinin mtime'ı `filetime` ile geri alınıyor. `File::open` ile
+        // açıp `set_modified` çağırmak yalnızca Linux'ta çalışıyor: Windows
+        // bir dizini normal bir tanıtıcıyla açtırmıyor ("Access is denied").
         let stale = std::time::SystemTime::now() - (STAGING_TTL + Duration::from_secs(60));
-        std::fs::File::open(&racing)
-            .unwrap()
-            .set_modified(stale)
-            .unwrap();
+        filetime::set_file_mtime(&racing, filetime::FileTime::from_system_time(stale)).unwrap();
         uploads.append("upload-other", "aGk=", Some(0)).unwrap();
         assert!(!racing.exists(), "abandoned empty staging dir must be swept");
     }
