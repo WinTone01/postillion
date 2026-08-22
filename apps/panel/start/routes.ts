@@ -9,6 +9,7 @@ import { middleware } from './kernel.js'
 
 const AuthController = () => import('#controllers/auth_controller')
 const TokensController = () => import('#controllers/tokens_controller')
+const WorkspaceController = () => import('#controllers/workspace_controller')
 
 // Giriş yapmış kullanıcı kayıt/giriş sayfasını görmemeli.
 router
@@ -25,7 +26,7 @@ router.post('/logout', [AuthController, 'logout']).use(middleware.auth())
 // Panelin kendisi kimlik ister.
 router
   .group(() => {
-    router.on('/').render('pages/home')
+    router.get('/', [WorkspaceController, 'index'])
     router.get('/tokens', [TokensController, 'index'])
     router.post('/tokens', [TokensController, 'store'])
     // Tarayıcı formları yalnızca GET/POST gönderiyor; `?_method=DELETE`

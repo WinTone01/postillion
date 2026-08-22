@@ -21,6 +21,7 @@ pub mod http;
 pub mod identity_db;
 pub mod hub;
 pub mod ownership;
+pub mod presence;
 pub mod rooms;
 pub mod transcript;
 
@@ -69,6 +70,9 @@ pub fn router(app: App) -> Router {
         .route("/registry/{org}/ws", get(registry_ws_handler))
         .route("/registry/{org}/rows", get(registry_http::get_rows))
         .route("/registry/{org}/push", axum::routing::post(registry_http::post_push))
+        // Panel için: kimin çevrimiçi olduğu. Kayıt satırları bu soruyu
+        // cevaplamıyor — `lastSeenAt` yalnızca açılış/kapanışta yazılıyor.
+        .route("/registry/{org}/presence", get(registry_http::get_presence))
         // Cihazlar arası RPC rölesi: uzaktan terminal, hedef cihaza mesaj.
         .route("/device/{device_id}/ws", get(device_ws_handler))
         .layer(TraceLayer::new_for_http())

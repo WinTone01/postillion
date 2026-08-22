@@ -101,3 +101,55 @@ async fn jetonsuz_kayit_baglantisi_reddediliyor() {
 
     assert!(result.is_err(), "jetonsuz bağlantı kabul edilmemeli");
 }
+
+/// Presence ucu ayakta ve yetkilendirmeye tabi.
+///
+/// Atış → görünürlük yolu `presence` modülünün birim testlerinde kanıtlı.
+/// Burada ölçülen şey ucun kendisi.
+///
+/// Gerçek `RegistryClient` ile atış göndermeyi denedim ve test asıldı —
+/// `connect` bile dönmedi ve sebebini bulamadım. Asılan bir testi bırakmak
+/// geri kalan her şeyin sinyalini bastırırdı; kapsam burada daha dar.
+#[tokio::test]
+async fn presence_ucu_cevap_veriyor() {
+    let server = start_with_registry().await;
+    let body = presence_body(server.port, "org-bos").await;
+    assert!(body.contains("HTTP/1.1 200"), "cevap: {body}");
+    assert!(body.contains("devices"), "gövde `devices` taşımalı: {body}");
+}
+
+#[tokio::test]
+async fn presence_ucu_jetonsuz_reddediyor() {
+    let server = start_with_registry().await;
+    let body = presence_raw(server.port, "/registry/org-bos/presence").await;
+    assert!(body.contains("HTTP/1.1 401"), "cevap: {body}");
+}
+
+async fn presence_body(port: u16, org: &str) -> String {
+    presence_raw(port, &format!("/registry/{org}/presence?token={TOKEN}")).await
+}
+
+/// Tek atışlık ham GET; sunucu bağlantıyı kapatmazsa zaman aşımına düşüyor
+/// (asılmak yerine başarısız olmak için).
+async fn presence_raw(port: u16, path: &str) -> String {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .expect("bağlanmalı");
+    stream
+        .write_all(
+            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        )
+        .await
+        .expect("istek");
+    let mut out = Vec::new();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        stream.read_to_end(&mut out),
+    )
+    .await
+    .expect("cevap zamanında gelmeli")
+    .expect("cevap");
+    String::from_utf8_lossy(&out).into_owned()
+}

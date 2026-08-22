@@ -36,11 +36,21 @@ create index if not exists registry_rows_org_seq on registry_rows (org, seq);
 #[derive(Clone)]
 pub struct PgRegistry {
     pool: PgPool,
+    /// Kimin çevrimiçi olduğu BELLEKTE — bkz. `crate::presence`.
+    presence: crate::presence::Presence,
 }
 
 impl PgRegistry {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            presence: crate::presence::Presence::new(),
+        }
+    }
+
+    /// Panelin okuduğu canlı cihaz listesi.
+    pub fn presence(&self) -> &crate::presence::Presence {
+        &self.presence
     }
 }
 
@@ -67,6 +77,14 @@ fn row_from(record: &sqlx::postgres::PgRow) -> Result<RegistryRow, SyncError> {
 }
 
 impl RegistryStore for PgRegistry {
+    fn live_presence(&self, org: &str) -> std::collections::HashMap<String, i64> {
+        self.presence.live(org)
+    }
+
+    fn note_presence(&self, org: &str, device: &str, at: i64) {
+        self.presence.beat(org, device, at);
+    }
+
     fn state(&self, org: &str) -> BoxFuture<'static, Result<RegistryState, SyncError>> {
         let pool = self.pool.clone();
         let org = org.to_string();

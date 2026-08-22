@@ -233,3 +233,53 @@ body {
   font-size: 13px;
   text-align: center;
 }
+
+/* ── çalışma alanı ───────────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quiet {
+  color: var(--text-faint);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.quiet:hover {
+  color: var(--text-muted);
+}
+
+.card h2 {
+  margin: 22px 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.dot {
+  flex: none;
+  font-size: 12px;
+}
+
+.dot.online {
+  color: var(--success);
+}
+
+.dot.offline {
+  color: var(--text-faint);
+}
+
+.dot.unknown {
+  color: var(--warning);
+}
+
+.empty a {
+  color: var(--accent);
+  text-decoration: none;
+}
