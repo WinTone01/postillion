@@ -4,10 +4,14 @@ Bu dizin `postillion-server`'ı kendi sunucunuza kurmak için gereken parçalar�
 içeriyor. Sunucunun tek işi sohbet satırlarını saklamak ve bağlı cihazlara
 duyurmak — Cloudflare Durable Object'in yaptığı iş.
 
-**Satır içerikleri sunucu için opak.** Protokol mantığı satırları hiç
-açmıyor, oldukları gibi saklayıp iletiyor. Uçtan uca şifreleme henüz
-DEVREDE DEĞİL ama mimari buna hazır: şifreleme eklendiğinde sunucu tarafında
-değişmesi gereken bir şey yok.
+**Sunucu satırları hiç açmıyor**, oldukları gibi saklayıp iletiyor. Ama bu
+gizlilik değil sadeleştirme: içerik şifreli değil, yalnızca sunucunun
+ayrıştırmasına gerek yok. Veritabanına erişen okuyabilir.
+
+Uçtan uca şifreleme **eklenmeyecek** — eksiklik değil, alınmış bir karar
+(gerekçesi: `docs/panel-plan.md`). Web panelinin işi sohbete tarayıcıdan devam
+etmek ve içeriği şifrelemek, göstermek için anahtarı tarayıcıya koymayı
+gerektirirdi.
 
 İki yol var: **Coolify** (önerilen — VPS'inizde zaten kurulu) ya da
 **systemd** ile doğrudan kurulum.
@@ -272,8 +276,10 @@ Cevabın anlamı:
   geçmişini indiriyor. Uzun sohbetlerde katılma süresi büyüyor.
 - **Tek kullanıcı.** Yetkilendirme tek paylaşılan jeton; kullanıcı ayrımı ve
   kota yok. Jetonu bilen herkes bütün sohbetlere erişiyor.
-- **Uçtan uca şifreleme yok.** Sunucuya erişen biri satırların içeriğini
-  okuyabilir. Kayıt açılmadan ÖNCE eklenmesi gerekiyor.
+- **Şifreleme yok, bilerek.** Sunucuyu işleten sohbetleri okuyabilir ve
+  veritabanı yedeği onların düz kopyasıdır. Kendinize ait tek kullanıcılık bir
+  sunucuda sorun değil; başkalarına kayıt açarsanız bunu onlara söylemeniz
+  gerekir.
 
 ## Yedekleme
 
