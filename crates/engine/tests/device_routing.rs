@@ -726,6 +726,13 @@ async fn terminal_stream_proxies_over_the_relay() {
         .workspace
         .create_chat("chat-term", Some("space-term"), None, None, None)
         .expect("chat row on B");
+    // Kabuk SABİTLENİYOR. Aksi hâlde test geliştiricinin `$SHELL`'ini açıyor ve
+    // onun dotfile'larını sınıyor: burada ölçüldü, `zsh -l` PTY'yi Powerlevel10k'nın
+    // yapılandırma sihirbazına verdi, sihirbaz ekranı temizleyip `Choice [ynq]:`
+    // beklemeye geçti, sınanan komut hiç koşmadan kaydı ve iddia 15 saniye sonra
+    // zaman aşımına düştü. Hata bozuk bir röle gibi görünüyordu; röle sağlamdı.
+    #[cfg(not(windows))]
+    core_b.terminals.set_default_shell("/bin/sh");
     let _host = core_b.start_host_relay(&relay_url);
 
     let core_a = assemble(&dirs.path().join("a"), "device-a");
@@ -816,8 +823,6 @@ async fn terminal_stream_proxies_over_the_relay() {
             break;
         }
     }
-    eprintln!("TANI: döngü geçildi, işaret bulundu");
-
     client
         .call(
             methods::CLOSE_TERMINAL,
@@ -825,12 +830,8 @@ async fn terminal_stream_proxies_over_the_relay() {
         )
         .await
         .expect("remote close");
-    eprintln!("TANI: CLOSE_TERMINAL döndü");
-
     core_a.shutdown().await;
-    eprintln!("TANI: core_a kapandı");
     core_b.shutdown().await;
-    eprintln!("TANI: core_b kapandı");
 }
 
 #[tokio::test]

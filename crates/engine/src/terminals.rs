@@ -80,6 +80,8 @@ impl LiveTerminal {
 
 struct TerminalsInner {
     sessions: Mutex<HashMap<String, Arc<Mutex<LiveTerminal>>>>,
+    /// Overrides [`selected_shell`] for every `open` on this device.
+    default_shell: Mutex<Option<String>>,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -129,16 +131,30 @@ impl Terminals {
         let terminals = Self {
             inner: Arc::new(TerminalsInner {
                 sessions: Mutex::new(HashMap::new()),
+                default_shell: Mutex::new(None),
             }),
         };
         tokio::spawn(reaper_task(Arc::downgrade(&terminals.inner)));
         terminals
     }
 
+    /// Pin the shell every later `open` spawns, instead of the user's `$SHELL`.
+    ///
+    /// Tests need this. A test that opens the developer's own login shell is
+    /// testing that developer's dotfiles: measured here, `zsh -l` handed the PTY
+    /// to Powerlevel10k's configuration wizard, which cleared the screen and sat
+    /// waiting at `Choice [ynq]:` — the command under test scrolled away unrun
+    /// and the assertion timed out 15 seconds later. The failure looked like a
+    /// broken relay and was not one.
+    pub fn set_default_shell(&self, shell: impl Into<String>) {
+        *lock(&self.inner.default_shell) = Some(shell.into());
+    }
+
     /// Open a login shell in `cwd`. The PTY outlives every subscriber; it dies on
     /// [`Self::close`], shell exit + TTL, or engine shutdown.
     pub fn open(&self, cwd: &str, cols: u16, rows: u16) -> Result<TerminalSession, EngineError> {
-        self.open_with_shell(cwd, cols, rows, None)
+        let pinned = lock(&self.inner.default_shell).clone();
+        self.open_with_shell(cwd, cols, rows, pinned.as_deref())
     }
 
     /// Explicit shell override (tests use `/bin/sh`).
@@ -213,7 +229,19 @@ impl Terminals {
             .name(format!("pty-read-{id}"))
             .spawn(move || read_pty(reader, raw_tx))
             .map_err(|e| EngineError::Other(format!("pty reader thread: {e}")))?;
-        let wait = tokio::task::spawn_blocking(move || child.wait());
+        // `child.wait()` düz bir OS iş parçacığında, `spawn_blocking`'de DEĞİL:
+        // blocking havuzundaki bir görev çalışma zamanının kapanmasını bekletiyor
+        // ve kabuk kendiliğinden çıkmadığı için bekleme hiç bitmiyordu. Terminal
+        // açmış bir test paniklediğinde `shutdown()` çağrılmıyor, kabuk yaşıyor
+        // ve test ikilisi sonsuza kadar asılı kalıyordu — bir Windows koşusu 20-27
+        // dakikalık ölçüye karşı 112 dakika sonra iptal edildi.
+        let (wait_tx, wait) = tokio::sync::oneshot::channel();
+        std::thread::Builder::new()
+            .name(format!("pty-wait-{id}"))
+            .spawn(move || {
+                let _ = wait_tx.send(child.wait());
+            })
+            .map_err(|e| EngineError::Other(format!("pty wait thread: {e}")))?;
         tokio::spawn(pump_output(Arc::downgrade(&session), raw_rx, wait));
 
         Ok(TerminalSession {
@@ -349,7 +377,7 @@ fn read_pty(mut reader: Box<dyn Read + Send>, tx: mpsc::UnboundedSender<Vec<u8>>
 async fn pump_output(
     session: Weak<Mutex<LiveTerminal>>,
     mut raw_rx: mpsc::UnboundedReceiver<Vec<u8>>,
-    wait: tokio::task::JoinHandle<Result<portable_pty::ExitStatus, std::io::Error>>,
+    wait: tokio::sync::oneshot::Receiver<Result<portable_pty::ExitStatus, std::io::Error>>,
 ) {
     let batch = Duration::from_millis(TERMINAL_OUTPUT_BATCH_MS);
     let emit = |buffer: Vec<u8>| -> bool {
@@ -388,8 +416,8 @@ async fn pump_output(
             tracing::debug!(error = %err, "terminal wait failed");
             -1
         }
-        Err(err) => {
-            tracing::debug!(error = %err, "terminal wait task failed");
+        Err(_) => {
+            tracing::debug!("terminal wait channel dropped");
             -1
         }
     };

@@ -1066,6 +1066,11 @@ async fn rpc_dispatch_for_m5_methods() {
     // worktrees out of $HOME. (Process-global — this is the only test that sets it.)
     unsafe { std::env::set_var("POSTILLION_WORKTREES_DIR", tmp.path().join("worktrees")) };
     let core = assemble(&tmp.path().join("data"));
+    // `OpenTerminal` RPC'si `$SHELL`'i açıyor; test onu sabitliyor. Geliştiricinin
+    // giriş kabuğuna güvenmek, o kabuğun dotfile'larını sınamak demek — ölçüldü,
+    // `zsh -l` PTY'yi Powerlevel10k'nın yapılandırma sihirbazına kaptırıyor.
+    #[cfg(not(windows))]
+    core.terminals.set_default_shell("/bin/sh");
     let client = postillion_rpc::memory_client(core.rpc_service());
 
     // CreateRepo → ListRepos.
@@ -1316,4 +1321,58 @@ async fn rpc_dispatch_for_m5_methods() {
     );
 
     core.shutdown().await;
+}
+
+/// Yaşayan bir kabuk çalışma zamanının kapanmasını ENGELLEMEMELİ.
+///
+/// `child.wait()` bir zamanlar `spawn_blocking` üzerindeydi ve blocking
+/// havuzundaki bir görev `Runtime`'ın düşmesini bekletiyor. Kabuk kendiliğinden
+/// çıkmadığı sürece bekleme hiç bitmiyor: terminal açmış bir test paniklediğinde
+/// test ikilisi özet satırını hiç basmadan asılı kalıyordu. Bir Windows koşusu
+/// 20-27 dakikalık ölçüye karşı 112 dakika sonra iptal edildi.
+///
+/// `Terminals` çalışma zamanından DAHA UZUN yaşıyor ve bu şart: düşerse PTY
+/// master'ı kapanıyor, kabuk EOF alıp çıkıyor ve bekleme kendiliğinden bitiyor.
+/// Gerçekte `Terminals`'ı `EngineCore` tutuyor, yani kabuk yaşamaya devam ediyor —
+/// testin ilk hâli bunu modellemediği için hatalı sürümde de geçiyordu.
+///
+/// Kapanış AYRI bir iş parçacığında: gerileme geri gelirse asılan o olur, testin
+/// kendisi değil, ve süre aşımı okunur bir başarısızlık olarak raporlanır.
+#[test]
+#[cfg(not(windows))]
+fn a_live_shell_does_not_wedge_runtime_shutdown() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cwd = tmp.path().to_string_lossy().to_string();
+    let finished = Arc::new(AtomicBool::new(false));
+
+    let flag = finished.clone();
+    let worker = std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        // Çalışma zamanının dışında tutuluyor — PTY kapanış boyunca açık kalsın.
+        let terminals = runtime.block_on(async {
+            let terminals = Terminals::new();
+            terminals
+                .open_with_shell(&cwd, 80, 24, Some("/bin/sh"))
+                .expect("open sh");
+            terminals
+        });
+        drop(runtime);
+        flag.store(true, Ordering::SeqCst);
+        terminals.shutdown();
+    });
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    while !finished.load(Ordering::SeqCst) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "yaşayan bir kabuk çalışma zamanının kapanmasını engelledi"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    worker.join().expect("kapanış iş parçacığı");
 }
