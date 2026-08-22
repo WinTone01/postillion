@@ -3,7 +3,9 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use postillion_server::{auth::Auth, db, health, hub::Hub, App};
+use postillion_server::{
+    auth::Auth, db, health, registry_db::PgRegistry, registry_ws::RegistryHub, rooms::ChatHub, App,
+};
 
 /// Sunucunun dinleyeceği adres. Konteynerde tüm arayüzler; ağ sınırını
 /// Docker ve vekil çiziyor.
@@ -42,8 +44,10 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("veritabanı hazır");
 
     let app = App {
-        store: Arc::new(db::PgStore::new(pool)),
-        hub: Hub::new(),
+        store: Arc::new(db::PgStore::new(pool.clone())),
+        registry: Arc::new(PgRegistry::new(pool)),
+        hub: ChatHub::new(),
+        registry_hub: RegistryHub::new(),
         auth,
     };
 

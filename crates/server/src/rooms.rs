@@ -17,6 +17,9 @@ use postillion_sync::SyncError;
 
 use crate::hub::Hub;
 
+/// Sohbet odalarının yayın merkezi.
+pub type ChatHub = Hub<Row>;
+
 /// Yazılan satırı yayına da düşüren depo sarmalayıcı.
 ///
 /// Alternatifi, yazmadan önce ve sonra baş sırayı sorup farkı okumaktı —
@@ -24,7 +27,7 @@ use crate::hub::Hub;
 /// elimizde ve `append` sırayı döndürüyor; duyuru bedava.
 pub struct Publishing {
     inner: Arc<dyn ChatStore>,
-    hub: Hub,
+    hub: ChatHub,
 }
 
 impl ChatStore for Publishing {
@@ -76,12 +79,12 @@ impl ChatStore for Publishing {
 
 /// Depoyu yayın sarmalayıcısıyla giydirir. HTTP yolu da kullanıyor: oradan
 /// gelen bir satır da bağlı cihazlara anında ulaşmalı.
-pub fn publishing(inner: Arc<dyn ChatStore>, hub: Hub) -> Arc<dyn ChatStore> {
+pub fn publishing(inner: Arc<dyn ChatStore>, hub: ChatHub) -> Arc<dyn ChatStore> {
     Arc::new(Publishing { inner, hub })
 }
 
 /// Tek bir bağlantıyı sonuna kadar sürer.
-pub async fn serve(socket: WebSocket, store: Arc<dyn ChatStore>, hub: Hub, chat_id: String) {
+pub async fn serve(socket: WebSocket, store: Arc<dyn ChatStore>, hub: ChatHub, chat_id: String) {
     let (mut sink, mut stream) = socket.split();
     let mut session = Session::new();
 

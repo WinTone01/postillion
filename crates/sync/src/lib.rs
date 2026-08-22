@@ -15,6 +15,7 @@ pub mod chat_frames;
 pub mod dial;
 pub mod net_path;
 pub mod registry;
+pub mod registry_room;
 pub mod room;
 mod store;
 mod types;

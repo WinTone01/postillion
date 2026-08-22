@@ -90,9 +90,16 @@ pub enum RegistryEvent {
 
 // ── wire frames (JSON text; mirror edge/src/registry-room.ts) ───────────────
 
+/// İstemcinin gönderdiği çerçeveler.
+///
+/// Ödünç alınmış alanlar bilinçli (gönderim yolunda kopya yok), bu yüzden
+/// `Deserialize` türetilemiyor. Sunucu tarafı sahipli ikizini kullanıyor:
+/// [`crate::registry_room::IncomingFrame`]. İkisinin aynı teli konuştuğu
+/// orada bir gidiş-dönüş testiyle bağlanıyor — istemciyi yavaşlatmadan
+/// sapmayı yakalamanın yolu bu.
 #[derive(Serialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
-enum ClientFrame<'a> {
+pub(crate) enum ClientFrame<'a> {
     Hello {
         cursor: Option<u64>,
         device: &'a str,
@@ -107,9 +114,10 @@ enum ClientFrame<'a> {
     Probe,
 }
 
-#[derive(Deserialize)]
+/// Sunucunun gönderdiği çerçeveler. `Serialize` sunucu tarafı için.
+#[derive(Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
-enum ServerFrame {
+pub(crate) enum ServerFrame {
     State {
         seq: u64,
         full: bool,

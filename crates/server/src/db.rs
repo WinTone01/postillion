@@ -71,7 +71,9 @@ pub async fn connect(url: &str) -> anyhow::Result<PgPool> {
         .execute(&mut *conn)
         .await?;
 
-    let applied = sqlx::raw_sql(SCHEMA).execute(&mut *conn).await;
+    let applied = sqlx::raw_sql(&format!("{SCHEMA}\n{}", crate::registry_db::SCHEMA))
+        .execute(&mut *conn)
+        .await;
 
     // Şema başarısız olsa bile kilit bırakılmalı, yoksa sonraki her açılış
     // sonsuza kadar bekler.

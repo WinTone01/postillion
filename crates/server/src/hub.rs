@@ -15,7 +15,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use postillion_sync::room::Row;
 use tokio::sync::broadcast;
 
 /// Kanal kapasitesi.
@@ -25,18 +24,29 @@ use tokio::sync::broadcast;
 /// yakalıyor — canlı yol bir hızlandırma, doğruluk kaynağı değil.
 const CAPACITY: usize = 256;
 
-#[derive(Clone, Default)]
-pub struct Hub {
-    rooms: Arc<Mutex<HashMap<String, broadcast::Sender<Row>>>>,
+/// `T` yayılan mesaj tipi: sohbet odaları satır taşıyor, kayıt odası kodlanmış
+/// JSON çerçeve. Aynı fanout mantığının iki kopyasını tutmak, birinde
+/// düzeltilen bir hatanın ötekinde kalması demekti.
+#[derive(Clone)]
+pub struct Hub<T: Clone + Send + 'static> {
+    rooms: Arc<Mutex<HashMap<String, broadcast::Sender<T>>>>,
 }
 
-impl Hub {
+impl<T: Clone + Send + 'static> Default for Hub<T> {
+    fn default() -> Self {
+        Self {
+            rooms: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl<T: Clone + Send + 'static> Hub<T> {
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Odanın yayınına abone olur; oda yoksa açılıyor.
-    pub fn subscribe(&self, chat_id: &str) -> broadcast::Receiver<Row> {
+    pub fn subscribe(&self, chat_id: &str) -> broadcast::Receiver<T> {
         let mut rooms = self.rooms.lock().expect("hub kilidi");
         if let Some(tx) = rooms.get(chat_id) {
             return tx.subscribe();
@@ -50,7 +60,7 @@ impl Hub {
     ///
     /// Dinleyici yoksa kanal kaldırılıyor: tek seferlik bir sohbete yazıp
     /// çıkan bir cihaz arkasında kalıcı bir kanal bırakmamalı.
-    pub fn publish(&self, chat_id: &str, row: Row) {
+    pub fn publish(&self, chat_id: &str, row: T) {
         let mut rooms = self.rooms.lock().expect("hub kilidi");
         let Some(tx) = rooms.get(chat_id) else {
             return;
@@ -69,6 +79,9 @@ impl Hub {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use postillion_sync::room::Row;
+
+    type TestHub = Hub<Row>;
 
     fn row(seq: u64, device: &str) -> Row {
         Row {
@@ -81,7 +94,7 @@ mod tests {
 
     #[tokio::test]
     async fn yazilan_satir_abonelere_ulasiyor() {
-        let hub = Hub::new();
+        let hub = TestHub::new();
         let mut a = hub.subscribe("c1");
         let mut b = hub.subscribe("c1");
 
@@ -94,7 +107,7 @@ mod tests {
 
     #[tokio::test]
     async fn odalar_birbirine_sizmiyor() {
-        let hub = Hub::new();
+        let hub = TestHub::new();
         let mut c1 = hub.subscribe("c1");
         let _c2 = hub.subscribe("c2");
 
@@ -105,7 +118,7 @@ mod tests {
 
     #[tokio::test]
     async fn dinleyicisiz_oda_temizleniyor() {
-        let hub = Hub::new();
+        let hub = TestHub::new();
         {
             let _rx = hub.subscribe("c1");
             assert_eq!(hub.open_rooms(), 1);
@@ -121,7 +134,7 @@ mod tests {
     async fn yayin_olmayan_odaya_zarar_vermiyor() {
         // Hiç abonesi olmayan bir odaya yazmak hata değil: cihaz tek başına
         // çalışıyor olabilir.
-        let hub = Hub::new();
+        let hub = TestHub::new();
         hub.publish("hic-acilmamis", row(1, "dev-a"));
         assert_eq!(hub.open_rooms(), 0);
     }
