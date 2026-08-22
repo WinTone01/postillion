@@ -27,6 +27,42 @@ else
   BIN="$ROOT/target/debug/postillion"
 fi
 
+# --- glibc tabanı doğrulaması ------------------------------------------------
+# Dinamik bağlanan bir glibc ikilisi, derlendiği sürümden eskisinde yüklenirken
+# kesin olarak düşüyor; dolayısıyla derleme makinesinin glibc'i sessizce
+# desteklenen en düşük Ubuntu'yu belirliyor. Tabanı burada doğruluyoruz ki
+# bunu bir kullanıcının "cannot open shared object file" raporundan öğrenmeyelim.
+#
+# Ölçü, programın o glibc'e gerçekten İHTİYACI olup olmadığı değil,
+# `.gnu.version_r` içindeki sürüm REFERANSI: Rust std, 2.39 başlıklarıyla
+# derlendiğinde `pidfd_spawnp`/`pidfd_getpid` için zayıf ve çalışma anında
+# yoklanan bir referans yazıyor, `ld.so` ise sembol zayıf olsun olmasın
+# `.gnu.version_r`'daki her girdiyi doğruluyor. Eski dağıtımda derlemek
+# referansın hiç yazılmamasını sağlıyor.
+#
+# Üst akıştan alındı: zeronsh/comet#197.
+GLIBC_MAX="${GLIBC_MAX:-2.35}" # Ubuntu 22.04 — 2027'ye kadar standart destek
+needed="$(readelf -V "$BIN" | sed -n '/Version needs/,$p' \
+  | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sort -Vu | tail -1)"
+if [[ -n "$needed" && "$(printf '%s\nGLIBC_%s\n' "$needed" "$GLIBC_MAX" | sort -V | tail -1)" != "GLIBC_$GLIBC_MAX" ]]; then
+  echo "package-linux.sh: ikili $needed istiyor ama taban GLIBC_$GLIBC_MAX." >&2
+  echo "  $needed'den eski hiçbir sistemde yüklenmeyecek. Bunu çeken semboller:" >&2
+  objdump -T "$BIN" | grep -F "($needed)" | sed 's/^/    /' >&2
+  # Yayınlanan bir tarball yüklenemiyorsa hata; kendi makinesi için paket
+  # yapan bir geliştiriciyi durdurmak ise anlamsız. Güncel bir dağıtımda
+  # (ölçüldü: glibc 2.44) her yerel derleme bu tabanı aşıyor ve katı bir
+  # kontrol geliştiricinin kendi kurulumunu imkânsız kılardı.
+  if [[ -n "${CI:-}" ]]; then
+    echo "  Çözüm: desteklenen en eski koşucuda derleyin (.github/workflows/release.yml)," >&2
+    echo "  ya da eski dağıtımları bilerek bırakmak için GLIBC_MAX'ı yükseltin." >&2
+    exit 1
+  fi
+  echo "  Yerel derleme: paketleme sürüyor. Bu tarball YALNIZCA bu makine ve" >&2
+  echo "  daha yenisi için geçerli; yayınlanacak sürüm CI'da üretilmeli." >&2
+else
+  echo "glibc tabanı uygun: ${needed:-yok} isteniyor (izin verilen en yüksek GLIBC_$GLIBC_MAX)"
+fi
+
 rm -rf "$STAGE" "$TARBALL"
 mkdir -p "$STAGE"
 install -m 755 "$BIN" "$STAGE/postillion"

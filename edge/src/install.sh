@@ -8,11 +8,13 @@
 #
 #   curl -fsSL https://your-host.example/install.sh | POSTILLION_BASE_URL=https://your-host.example sh
 #
-# Installs the self-contained native binary (no runtime deps) to
-# ~/.postillion/app, puts `postillion` on PATH, and runs it as a local-only
-# systemd user service that survives reboots. Signing in is optional and
-# enables sync after a restart. Re-running
-# upgrades in place; ~/.postillion state is preserved.
+# Installs the native binary to ~/.postillion/app, puts `postillion` on PATH,
+# and runs it as a local-only systemd user service that survives reboots.
+# Signing in is optional and enables sync after a restart. Re-running upgrades
+# in place; ~/.postillion state is preserved.
+#
+# It does need a couple of system libraries (libxkbcommon-x11, libxcb) that
+# minimal server images omit — see the preflight check below.
 #
 # The binary ships with production endpoints baked in: no POSTILLION_EDGE_URL or
 # client-id configuration needed. Overrides (if any) go in ~/.postillion/env.
@@ -61,6 +63,71 @@ else
   curl -fSL --progress-bar "$BASE/releases/$file" -o "$tmp/$file"
   mkdir -p "$dest"
   tar -xzf "$tmp/$file" -C "$dest" --strip-components=1
+fi
+
+# --- preflight: sistem kütüphaneleri -----------------------------------------
+# İkili tam anlamıyla kendine yeterli DEĞİL: gpui, libxkbcommon-x11 ve libxcb'yi
+# katı `DT_NEEDED` girdileri olarak bağlıyor, dolayısıyla bunlar yoksa HİÇBİR
+# alt komut yüklenemiyor — pencere açmayan `headless`, `login` ve `status`
+# dahil. Sunucu ve bulut imajlarının çoğu bu kütüphaneleri getirmiyor.
+#
+# Kontrol systemd ikiliye yönlendirilmeden ÖNCE yapılıyor ki hata,
+# `systemctl --user status postillion` altında bir yeniden başlatma döngüsü
+# olarak değil, eksik paketin adıyla görünsün.
+#
+# Ayrıca `current` yeniden yönlendirilmeden önce: yükseltmede, yüklenemeyen bir
+# ikili sorunsuz çalışan sürümün yerini almamalı.
+#
+# Üst akıştan alındı: zeronsh/comet#197.
+if command -v ldd >/dev/null 2>&1; then
+  ldd_out="$(ldd "$dest/postillion" 2>&1 || true)"
+
+  # Yayınlanan sürümün derlendiği glibc'ten eski bir sistem: yükleyici
+  # karşılayamadığı bir sürüm bildiriyor ve kullanıcının kurabileceği hiçbir
+  # paket bunu düzeltmiyor.
+  glibc_want="$(printf '%s\n' "$ldd_out" \
+    | sed -n "s/.*version .\(GLIBC_[0-9.]*\). not found.*/\1/p" | head -1)"
+  if [ -n "$glibc_want" ]; then
+    echo "" >&2
+    echo "postillion install: bu derleme $glibc_want istiyor; bu sistemdeki glibc" >&2
+    echo "  daha eski ($(ldd --version 2>/dev/null | head -1))." >&2
+    echo "" >&2
+    echo "  Yayınlanan ikili bu dağıtım için fazla yeni — bu bir paketleme hatası," >&2
+    echo "  kurarak aşabileceğiniz bir şey değil. Lütfen bildirin:" >&2
+    echo "  https://github.com/WinTone01/postillion/issues" >&2
+    exit 1
+  fi
+
+  missing="$(printf '%s\n' "$ldd_out" | awk '/=> not found/ { print $1 }' | sort -u)"
+  if [ -n "$missing" ]; then
+    if command -v apt-get >/dev/null 2>&1; then
+      hint="sudo apt-get install -y libxkbcommon-x11-0 libxcb1"
+    elif command -v dnf >/dev/null 2>&1; then
+      hint="sudo dnf install -y libxkbcommon-x11 libxcb"
+    elif command -v pacman >/dev/null 2>&1; then
+      hint="sudo pacman -S --needed libxkbcommon-x11 libxcb"
+    elif command -v zypper >/dev/null 2>&1; then
+      hint="sudo zypper install -y libxkbcommon-x11-0 libxcb1"
+    elif command -v apk >/dev/null 2>&1; then
+      hint="sudo apk add libxkbcommon libxcb"
+    else
+      hint=""
+    fi
+    echo "" >&2
+    echo "postillion install: eksik sistem kütüphaneleri:" >&2
+    printf '  %s\n' $missing >&2
+    if [ -n "$hint" ]; then
+      echo "" >&2
+      echo "  şununla kurun:" >&2
+      echo "    $hint" >&2
+      echo "" >&2
+      echo "  sonra bu kurulumu yeniden çalıştırın." >&2
+    else
+      echo "" >&2
+      echo "  bunları sağlayan paketleri kurup kurulumu yeniden çalıştırın." >&2
+    fi
+    exit 1
+  fi
 fi
 
 ln -sfn "$dest" "$app_root/current"
