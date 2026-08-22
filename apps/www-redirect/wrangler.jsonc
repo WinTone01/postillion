@@ -8,7 +8,6 @@
   "name": "postillion-www-redirect",
   "main": "src/index.js",
   "compatibility_date": "2026-07-01",
-  "account_id": "b57dde68ee5964dccc025437b5478a5b",
   "workers_dev": false,
   "routes": [{ "pattern": "www.postillion.invalid/*", "zone_name": "postillion.invalid" }]
 }
