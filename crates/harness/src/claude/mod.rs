@@ -74,16 +74,12 @@ fn resolve_claude_executable() -> Option<PathBuf> {
     {
         return Some(PathBuf::from(p));
     }
-    let exe = if cfg!(windows) {
-        "claude.exe"
-    } else {
-        "claude"
-    };
+    let exe = "claude";
     let mut candidates: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|path| {
             std::env::split_paths(&path)
                 .filter(|d| !d.as_os_str().is_empty())
-                .map(|d| d.join(exe))
+                .flat_map(|d| crate::executables_in(&d, exe))
                 .collect()
         })
         .unwrap_or_default();
@@ -91,19 +87,22 @@ fn resolve_claude_executable() -> Option<PathBuf> {
         candidates.extend(
             std::env::split_paths(shell_path)
                 .filter(|d| !d.as_os_str().is_empty())
-                .map(|d| d.join(exe)),
+                .flat_map(|d| crate::executables_in(&d, exe)),
         );
     }
     if let Some(home) = crate::home_dir() {
-        candidates.push(home.join(".claude").join("local").join("claude"));
-        candidates.push(home.join(".local").join("bin").join("claude"));
+        candidates.extend(crate::executables_in(
+            &home.join(".claude").join("local"),
+            exe,
+        ));
+        candidates.extend(crate::executables_in(&home.join(".local").join("bin"), exe));
     }
     candidates.push(PathBuf::from("/opt/homebrew/bin/claude"));
     candidates.push(PathBuf::from("/usr/local/bin/claude"));
     candidates.extend(
         crate::node_version_manager_bins()
-            .into_iter()
-            .map(|d| d.join(exe)),
+            .iter()
+            .flat_map(|d| crate::executables_in(d, exe)),
     );
     candidates.into_iter().find(|p| p.exists())
 }
@@ -175,6 +174,7 @@ impl ClaudeHarness {
 
     fn build_command(&self, exe: &PathBuf, request: &RunRequest) -> Command {
         let mut cmd = Command::new(exe);
+        crate::hide_console(&mut cmd);
         crate::compose_child_path(&mut cmd, exe);
         cmd.args([
             "--print",
@@ -279,6 +279,7 @@ impl ClaudeHarness {
     async fn discover_commands(&self) -> Result<Vec<SlashCommand>, HarnessError> {
         let exe = self.resolve_executable()?;
         let mut cmd = Command::new(&exe);
+        crate::hide_console(&mut cmd);
         crate::compose_child_path(&mut cmd, &exe);
         cmd.args([
             "--print",

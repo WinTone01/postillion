@@ -786,6 +786,7 @@ struct SystemProcessRunner;
 impl ProcessRunner for SystemProcessRunner {
     async fn run(&self, request: ProcessRequest) -> Result<ProcessOutput, ProcessRunError> {
         let mut command = tokio::process::Command::new(&request.program);
+        postillion_harness::hide_console(&mut command);
         if request.program == "gh" {
             postillion_harness::compose_login_shell_path(&mut command);
         }

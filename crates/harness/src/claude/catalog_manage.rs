@@ -73,7 +73,9 @@ pub fn validate_id(id: &str) -> Result<(), String> {
 /// `claude … --json` çalıştırıp çıktıyı ayrıştırır.
 fn run_json(args: &[&str]) -> Result<Value, String> {
     let exe = super::resolve_claude_executable().ok_or_else(|| "claude bulunamadı".to_string())?;
-    let output = std::process::Command::new(&exe)
+    let mut command = std::process::Command::new(&exe);
+    crate::hide_console_std(&mut command);
+    let output = command
         .args(args)
         .output()
         .map_err(|e| format!("{} çalıştırılamadı: {e}", exe.display()))?;

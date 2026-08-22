@@ -150,6 +150,7 @@ impl Repos {
     /// Run `git <args>` (optionally under `cwd`), returning trimmed stdout.
     async fn git(&self, args: &[&str], cwd: Option<&Path>) -> Result<String, EngineError> {
         let mut cmd = tokio::process::Command::new("git");
+        postillion_harness::hide_console(&mut cmd);
         cmd.args(args);
         if let Some(cwd) = cwd {
             cmd.current_dir(cwd);

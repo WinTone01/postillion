@@ -328,6 +328,7 @@ async fn install_into(
         "installing ACP adapter"
     );
     let mut cmd = tokio::process::Command::new(npm);
+    crate::hide_console(&mut cmd);
     cmd.args([
         "install",
         "--no-audit",

@@ -139,7 +139,7 @@ pub(crate) fn find_on_paths(exe: &str, extra: Vec<PathBuf>) -> Option<PathBuf> {
         .map(|path| {
             std::env::split_paths(&path)
                 .filter(|d| !d.as_os_str().is_empty())
-                .map(|d| d.join(exe))
+                .flat_map(|d| crate::executables_in(&d, exe))
                 .collect()
         })
         .unwrap_or_default();
@@ -147,14 +147,15 @@ pub(crate) fn find_on_paths(exe: &str, extra: Vec<PathBuf>) -> Option<PathBuf> {
         candidates.extend(
             std::env::split_paths(shell_path)
                 .filter(|d| !d.as_os_str().is_empty())
-                .map(|d| d.join(exe)),
+                .flat_map(|d| crate::executables_in(&d, exe)),
         );
     }
+    // `extra` entries are full paths the caller already picked.
     candidates.extend(extra);
     candidates.extend(
         crate::node_version_manager_bins()
-            .into_iter()
-            .map(|d| d.join(exe)),
+            .iter()
+            .flat_map(|d| crate::executables_in(d, exe)),
     );
     candidates.into_iter().find(|p| p.exists())
 }
@@ -741,6 +742,7 @@ impl AcpHarness {
     ) -> Result<(Child, crate::StderrTail), HarnessError> {
         let (exe, args) = self.resolve_program(block_on_install).await?;
         let mut cmd = Command::new(&exe);
+        crate::hide_console(&mut cmd);
         cmd.args(args);
         cmd.args(extra_args);
         crate::compose_child_path(&mut cmd, &exe);
