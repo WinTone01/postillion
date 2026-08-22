@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
-import { configured, presence, transcript } from '#services/sync_server'
+import { presence, transcript } from '#services/sync_server'
 import { chats } from '#services/registry'
 import { RelayError, sendPrompt } from '#services/device_rpc'
 import vine from '@vinejs/vine'
@@ -29,10 +29,10 @@ export default class ChatController {
       return response.notFound('Chat not found')
     }
 
-    const loaded = await transcript(params.id)
+    const loaded = await transcript(params.id, user.id)
     const messages = loaded?.messages ?? null
-    const list = await chats(user.id, presence)
-    const chat = list.find((c) => c.id === params.id)
+    const list = await chats(user.id, (org) => presence(org, user.id))
+    const chat = list.items.find((c) => c.id === params.id)
 
     return view.render('pages/chat', {
       chat,
@@ -41,7 +41,7 @@ export default class ChatController {
       // normal durum ve arayüzde farklı görünmeliler.
       unreachable: loaded === null,
       headSeq: loaded?.headSeq ?? 0,
-      livenessKnown: configured(),
+      livenessKnown: list.livenessKnown,
     })
   }
 
@@ -61,7 +61,7 @@ export default class ChatController {
     // `since` yoksa tam transkript isteniyor demek; sayıya çevrilemeyen bir
     // değer de öyle sayılıyor — bozuk bir sorgu yüzünden boş ekran dönmemeli.
     const raw = Number(request.input('since'))
-    const loaded = await transcript(params.id, Number.isFinite(raw) ? raw : undefined)
+    const loaded = await transcript(params.id, user.id, Number.isFinite(raw) ? raw : undefined)
 
     if (!loaded) {
       return response.serviceUnavailable({ error: 'The server could not be reached' })
@@ -83,7 +83,8 @@ export default class ChatController {
     }
 
     const { prompt } = await request.validateUsing(sendValidator)
-    const chat = (await chats(user.id, presence)).find((c) => c.id === params.id)
+    const { items } = await chats(user.id, (org) => presence(org, user.id))
+    const chat = items.find((c) => c.id === params.id)
     if (!chat?.deviceId) {
       session.flash('errorsBag', { device: "This chat's device is unknown." })
       return response.redirect().back()

@@ -21,13 +21,25 @@ export function configured() {
   return baseUrl().length > 0 && token().length > 0
 }
 
-async function get(path: string): Promise<unknown | null> {
+/**
+ * Panelin sunucuya sunduğu jeton İŞLETMECİNİN anahtarı, kullanıcının değil —
+ * kimliği `SHARED_USER`. Odalar ise kullanıcıya ait ve sahiplik denetimi o
+ * kimliği içeri almıyor: cihazlar çevrimdışı, transkript "ulaşılamadı"
+ * görünüyordu. Bu başlık isteğin kimin adına yapıldığını söylüyor ve sunucu
+ * onu yalnızca paylaşılan jetonla kabul ediyor.
+ */
+const ACT_AS = 'x-postillion-act-as'
+
+async function get(path: string, userId: number): Promise<unknown | null> {
   if (!configured()) {
     return null
   }
   try {
     const response = await fetch(`${baseUrl()}${path}`, {
-      headers: { authorization: `Bearer ${token()}` },
+      headers: {
+        authorization: `Bearer ${token()}`,
+        [ACT_AS]: String(userId),
+      },
       // Sunucu erişilemezse panel AÇILMAYA devam etmeli: liste
       // veritabanından geliyor ve canlılık bilgisi olmadan da işe yarıyor.
       signal: AbortSignal.timeout(5000),
@@ -38,12 +50,18 @@ async function get(path: string): Promise<unknown | null> {
   }
 }
 
-/** Bir kayıt odasındaki canlı cihaz kimlikleri. */
-export async function presence(org: string): Promise<string[]> {
-  const body = (await get(`/registry/${encodeURIComponent(org)}/presence`)) as
-    | { devices?: Record<string, number> }
-    | null
-  return Object.keys(body?.devices ?? {})
+/**
+ * Bir kayıt odasındaki canlı cihaz kimlikleri; ulaşılamazsa `null`.
+ *
+ * "Ulaşılamadı" ile "kimse çevrimiçi değil" AYRI olmak zorunda: ikisini
+ * birleştirmek, açık duran bir cihazı kapalı göstermek demek — kullanıcıya
+ * yanlış bilgi. Panel bunları tam olarak böyle gösteriyordu.
+ */
+export async function presence(org: string, userId: number): Promise<string[] | null> {
+  const body = (await get(`/registry/${encodeURIComponent(org)}/presence`, userId)) as {
+    devices?: Record<string, number>
+  } | null
+  return body === null ? null : Object.keys(body.devices ?? {})
 }
 
 /** Transkriptteki bir parça. Sunucunun `MessagePart` etiketli birleşimi. */
@@ -80,11 +98,17 @@ export interface Transcript {
   messages: Message[] | null
 }
 
-export async function transcript(chatId: string, since?: number): Promise<Transcript | null> {
+export async function transcript(
+  chatId: string,
+  userId: number,
+  since?: number
+): Promise<Transcript | null> {
   const query = since === undefined ? '' : `?since=${since}`
-  const body = (await get(`/chat2/${encodeURIComponent(chatId)}/messages${query}`)) as
-    | { headSeq?: number; messages?: Message[]; unchanged?: boolean }
-    | null
+  const body = (await get(`/chat2/${encodeURIComponent(chatId)}/messages${query}`, userId)) as {
+    headSeq?: number
+    messages?: Message[]
+    unchanged?: boolean
+  } | null
   if (!body) {
     return null
   }

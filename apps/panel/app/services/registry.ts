@@ -82,46 +82,68 @@ function ms(fields: Record<string, unknown>, key: string): number | null {
  * öncesinde görünüyor. Canlı atışlar sunucunun belleğinde ve oradan
  * okunuyor.
  */
-async function onlineIds(userId: number, fetchPresence: PresenceFetcher): Promise<Set<string>> {
+async function onlineIds(userId: number, fetchPresence: PresenceFetcher): Promise<Liveness> {
   const orgs = await orgsOf(userId)
   const ids = new Set<string>()
+  // Odası olmayan kullanıcı için soracak bir şey yok; bunu "bilinmiyor"
+  // saymak boş listeyi gereksizce şüpheli gösterirdi.
+  let known = true
   for (const org of orgs) {
-    for (const id of await fetchPresence(org)) {
+    const live = await fetchPresence(org)
+    if (live === null) {
+      // TEK bir odanın cevapsız kalması bile yeter: eksik bir listeyle
+      // "çevrimdışı" demek, açık bir cihazı kapalı göstermek olur.
+      known = false
+      continue
+    }
+    for (const id of live) {
       ids.add(id)
     }
   }
-  return ids
+  return { known, ids }
 }
 
-/** Bir odadaki canlı cihaz kimliklerini döndürür. */
-export type PresenceFetcher = (org: string) => Promise<string[]>
+/** Canlılık okunabildi mi, ve okunabildiyse kimler açık. */
+interface Liveness {
+  known: boolean
+  ids: Set<string>
+}
 
-export async function devices(userId: number, presence: PresenceFetcher): Promise<Device[]> {
-  const [rows, online] = await Promise.all([
-    rowsOf(userId, 'devices'),
-    onlineIds(userId, presence),
-  ])
+/** Bir odadaki canlı cihaz kimlikleri; sunucuya ulaşılamazsa `null`. */
+export type PresenceFetcher = (org: string) => Promise<string[] | null>
 
-  return rows
+export interface Workspace<T> {
+  items: T[]
+  /** Canlılık okunabildi mi — okunamadıysa arayüz "bilinmiyor" göstermeli. */
+  livenessKnown: boolean
+}
+
+export async function devices(
+  userId: number,
+  presence: PresenceFetcher
+): Promise<Workspace<Device>> {
+  const [rows, online] = await Promise.all([rowsOf(userId, 'devices'), onlineIds(userId, presence)])
+
+  const items = rows
     .map((row) => ({
       id: row.id,
       // Adsız cihaz listede boş bir satır olarak görünmemeli.
       name: str(row.fields, 'name') ?? row.id,
       platform: str(row.fields, 'platform') ?? 'bilinmiyor',
       lastSeenAt: ms(row.fields, 'lastSeenAt'),
-      online: online.has(row.id),
+      online: online.ids.has(row.id),
     }))
     // Çevrimiçi olanlar üstte: panelin işi onlarla.
-    .sort((a, b) => Number(b.online) - Number(a.online) || (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0))
+    .sort(
+      (a, b) => Number(b.online) - Number(a.online) || (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0)
+    )
+  return { items, livenessKnown: online.known }
 }
 
-export async function chats(userId: number, presence: PresenceFetcher): Promise<Chat[]> {
-  const [rows, online] = await Promise.all([
-    rowsOf(userId, 'chats'),
-    onlineIds(userId, presence),
-  ])
+export async function chats(userId: number, presence: PresenceFetcher): Promise<Workspace<Chat>> {
+  const [rows, online] = await Promise.all([rowsOf(userId, 'chats'), onlineIds(userId, presence)])
 
-  return rows
+  const items = rows
     .filter((row) => row.fields.archived !== true)
     .map((row) => {
       const deviceId = str(row.fields, 'deviceId')
@@ -135,8 +157,9 @@ export async function chats(userId: number, presence: PresenceFetcher): Promise<
         branch,
         location: [cwd, branch].filter(Boolean).join(' · '),
         lastMessageAt: ms(row.fields, 'lastMessageAt'),
-        deviceOnline: deviceId !== null && online.has(deviceId),
+        deviceOnline: deviceId !== null && online.ids.has(deviceId),
       }
     })
     .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0))
+  return { items, livenessKnown: online.known }
 }

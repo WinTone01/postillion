@@ -49,7 +49,7 @@ test.group('Çalışma alanı', (group) => {
     const user = await userWithOrg('org-1')
     await row('org-1', 'devices', 'dev-a', { name: 'Dizüstü', platform: 'linux' })
 
-    const list = await devices(user.id, noPresence)
+    const { items: list } = await devices(user.id, noPresence)
     assert.lengthOf(list, 1)
     assert.equal(list[0].name, 'Dizüstü')
     assert.isFalse(list[0].online)
@@ -67,7 +67,7 @@ test.group('Çalışma alanı', (group) => {
       lastSeenAt: 1,
     })
 
-    const list = await devices(user.id, async () => ['dev-a'])
+    const { items: list } = await devices(user.id, async () => ['dev-a'])
     assert.isTrue(list[0].online, 'presence çevrimiçi diyorsa çevrimiçi olmalı')
   })
 
@@ -76,8 +76,10 @@ test.group('Çalışma alanı', (group) => {
     const bora = await userWithOrg('org-bora')
     await row('org-ayse', 'devices', 'dev-ayse', { name: 'Ayşe' })
 
-    assert.lengthOf(await devices(bora.id, noPresence), 0, 'izolasyon panelde de kurulmalı')
-    assert.lengthOf(await devices(ayse.id, noPresence), 1)
+    const boraList = await devices(bora.id, noPresence)
+    assert.lengthOf(boraList.items, 0, 'izolasyon panelde de kurulmalı')
+    const ayseList = await devices(ayse.id, noPresence)
+    assert.lengthOf(ayseList.items, 1)
   })
 
   test('sohbetler listeleniyor ve arşivlenenler gizleniyor', async ({ assert }) => {
@@ -85,7 +87,7 @@ test.group('Çalışma alanı', (group) => {
     await row('org-3', 'chats', 'c1', { title: 'Aktif', deviceId: 'dev-a', lastMessageAt: 200 })
     await row('org-3', 'chats', 'c2', { title: 'Arşiv', archived: true })
 
-    const list = await chats(user.id, noPresence)
+    const { items: list } = await chats(user.id, noPresence)
     assert.lengthOf(list, 1)
     assert.equal(list[0].title, 'Aktif')
   })
@@ -94,7 +96,7 @@ test.group('Çalışma alanı', (group) => {
     const user = await userWithOrg('org-4')
     await row('org-4', 'chats', 'c1', { deviceId: 'dev-a' })
 
-    const list = await chats(user.id, noPresence)
+    const { items: list } = await chats(user.id, noPresence)
     assert.equal(list[0].title, 'Başlıksız')
   })
 
@@ -102,10 +104,12 @@ test.group('Çalışma alanı', (group) => {
     const user = await userWithOrg('org-5')
     await row('org-5', 'chats', 'c1', { title: 'Test', deviceId: 'dev-a' })
 
-    const kapali = await chats(user.id, noPresence)
+    const kapaliList = await chats(user.id, noPresence)
+    const kapali = kapaliList.items
     assert.isFalse(kapali[0].deviceOnline)
 
-    const acik = await chats(user.id, async () => ['dev-a'])
+    const acikList = await chats(user.id, async () => ['dev-a'])
+    const acik = acikList.items
     assert.isTrue(acik[0].deviceOnline, 'yazma bu şarta bağlı')
   })
 
@@ -114,7 +118,62 @@ test.group('Çalışma alanı', (group) => {
       email: `bos${Date.now()}@example.com`,
       password: 'cok-uzun-bir-parola',
     })
-    assert.lengthOf(await devices(user.id, noPresence), 0)
-    assert.lengthOf(await chats(user.id, noPresence), 0)
+    const bosCihaz = await devices(user.id, noPresence)
+    assert.lengthOf(bosCihaz.items, 0)
+    const bosSohbet = await chats(user.id, noPresence)
+    assert.lengthOf(bosSohbet.items, 0)
+  })
+})
+
+/**
+ * Ulaşılamamak ile çevrimdışı olmak AYRI.
+ *
+ * Panel bunları birleştiriyordu: presence çağrısı reddedilince (panel
+ * kullanıcının değil işletmecinin kimliğiyle soruyordu) her cihaz kesin bir
+ * dille "çevrimdışı" görünüyordu — açık duran bir makine için yanlış bilgi.
+ */
+test.group('Canlılık bilinmiyorsa', (group) => {
+  group.each.setup(() => testUtils.db().withGlobalTransaction())
+
+  async function userWithOrg(org: string) {
+    const user = await User.create({
+      email: `l${Date.now()}${Math.random()}@example.com`,
+      password: 'cok-uzun-bir-parola',
+    })
+    await db.table('room_owners').insert({ scope: 'registry', room: org, user_id: user.id })
+    return user
+  }
+
+  const unreachable = async () => null
+
+  test('sunucuya ulaşılamayınca cihaz durumu bilinmiyor sayılıyor', async ({ assert }) => {
+    const user = await userWithOrg('org-ulasilamaz')
+    await db.table('registry_rows').insert({
+      org: 'org-ulasilamaz',
+      kind: 'devices',
+      id: 'dev-x',
+      fields: JSON.stringify({ name: 'Dizüstü', platform: 'linux' }),
+    })
+
+    const list = await devices(user.id, unreachable)
+    assert.lengthOf(list.items, 1, 'liste veritabanından geliyor, yine görünmeli')
+    assert.isFalse(list.livenessKnown, 'çağrı düştüyse canlılık BİLİNMİYOR')
+  })
+
+  test('presence cevap verirse canlılık biliniyor', async ({ assert }) => {
+    const user = await userWithOrg('org-cevapli')
+    const list = await devices(user.id, async () => [])
+    assert.isTrue(list.livenessKnown)
+  })
+
+  test('odası olmayan kullanıcı için canlılık biliniyor sayılıyor', async ({ assert }) => {
+    // Soracak oda yok; bunu "bilinmiyor" saymak boş listeyi gereksizce
+    // şüpheli gösterirdi.
+    const user = await User.create({
+      email: `n${Date.now()}@example.com`,
+      password: 'cok-uzun-bir-parola',
+    })
+    const list = await devices(user.id, unreachable)
+    assert.isTrue(list.livenessKnown)
   })
 })

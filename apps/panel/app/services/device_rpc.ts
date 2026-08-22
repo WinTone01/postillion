@@ -35,11 +35,7 @@ function wsUrl(deviceId: string, connId: string) {
  * cihazın kapalı olduğunu söylüyor ve bunu zaman aşımı olarak beklemek
  * kullanıcıyı 15 saniye boşuna bekletirdi.
  */
-export async function call(
-  deviceId: string,
-  method: string,
-  params: unknown
-): Promise<unknown> {
+export async function call(deviceId: string, method: string, params: unknown): Promise<unknown> {
   const connId = randomUUID()
   const socket = new WebSocket(wsUrl(deviceId, connId))
   socket.binaryType = 'arraybuffer'
@@ -57,18 +53,16 @@ export async function call(
       }
 
       socket.onerror = () => finish(() => reject(new RelayError('Röleye bağlanılamadı')))
-      socket.onclose = () =>
-        finish(() => reject(new RelayError('Bağlantı cevap gelmeden kapandı')))
+      socket.onclose = () => finish(() => reject(new RelayError('Bağlantı cevap gelmeden kapandı')))
 
       socket.onopen = () => {
         const body = JSON.stringify({ id: 1, method, params })
-        socket.send(
-          encode({ s: RPC_KIND, k: RPC_KIND }, new TextEncoder().encode(body))
-        )
+        socket.send(encode({ s: RPC_KIND, k: RPC_KIND }, new TextEncoder().encode(body)))
       }
 
       socket.onmessage = (event) => {
-        let header, payload
+        let header
+        let payload
         try {
           ;({ header, payload } = decode(new Uint8Array(event.data as ArrayBuffer)))
         } catch (error) {

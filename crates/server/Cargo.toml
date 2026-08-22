@@ -36,6 +36,8 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+# Panelin yaptığının aynısını yapan HTTP istemcisi (act_as testleri).
+reqwest.workspace = true
 tokio-tungstenite.workspace = true
 postillion-proto.workspace = true
 postillion-doc.workspace = true

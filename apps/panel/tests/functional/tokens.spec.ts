@@ -86,16 +86,9 @@ test.group('Jetonlar', (group) => {
     })
     const { token } = await ApiToken.mint(sahip.id, 'Dizüstü')
 
-    await client
-      .delete(`/app/tokens/${token.id}`)
-      .withCsrfToken()
-      .loginAs(baskasi)
-      .redirects(0)
+    await client.delete(`/app/tokens/${token.id}`).withCsrfToken().loginAs(baskasi).redirects(0)
 
-    assert.isNotNull(
-      await ApiToken.find(token.id),
-      'başkasının jetonu silinmemeli'
-    )
+    assert.isNotNull(await ApiToken.find(token.id), 'başkasının jetonu silinmemeli')
   })
 
   test('kendi jetonu iptal edilebiliyor', async ({ client, assert }) => {

@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { chats, devices } from '#services/registry'
-import { configured, presence } from '#services/sync_server'
+import { presence } from '#services/sync_server'
 
 /**
  * Panelin ana ekranı: cihazlar ve sohbetler.
@@ -13,17 +13,16 @@ export default class WorkspaceController {
   async index({ view, auth }: HttpContext) {
     const user = auth.getUserOrFail()
 
-    const [deviceList, chatList] = await Promise.all([
-      devices(user.id, presence),
-      chats(user.id, presence),
-    ])
+    const ask = (org: string) => presence(org, user.id)
+    const [deviceList, chatList] = await Promise.all([devices(user.id, ask), chats(user.id, ask)])
 
     return view.render('pages/workspace', {
-      devices: deviceList,
-      chats: chatList,
-      // Sunucu ayarlı değilse canlılık hiç bilinmiyor; arayüz "çevrimdışı"
-      // demek yerine susmalı, yoksa açık bir cihazı kapalı gösterirdi.
-      livenessKnown: configured(),
+      devices: deviceList.items,
+      chats: chatList.items,
+      // Canlılık SORULABİLDİ mi — yapılandırma değil, isteğin kendisi.
+      // Yapılandırmaya bakmak, reddedilen ya da düşen bir çağrıdan sonra
+      // açık duran cihazları "çevrimdışı" göstermek demekti.
+      livenessKnown: deviceList.livenessKnown && chatList.livenessKnown,
     })
   }
 }

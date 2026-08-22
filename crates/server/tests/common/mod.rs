@@ -297,6 +297,34 @@ pub async fn start_multi_user() -> (u16, Arc<MemTokens>) {
     (port, tokens)
 }
 
+/// Paylaşılan jeton VE üretilmiş jetonlar birlikte.
+///
+/// Panelin yolu bu: kendisi paylaşılan jetonla konuşuyor ama odalar
+/// kullanıcılara ait.
+pub async fn start_shared_and_users(shared: &str) -> (u16, Arc<MemTokens>) {
+    let tokens = Arc::new(MemTokens::default());
+    let app = App {
+        store: Arc::new(MemStore::default()),
+        registry: Arc::new(MemRegistry::default()),
+        owners: Arc::new(MemOwners::default()),
+        hub: ChatHub::new(),
+        registry_hub: postillion_server::registry_ws::RegistryHub::new(),
+        device_hub: postillion_server::device_room::DeviceHub::new(),
+        auth: postillion_server::auth::Auth::new_with_store(
+            Some(shared.to_string()),
+            tokens.clone(),
+        ),
+    };
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(listener, postillion_server::router(app))
+            .await
+            .unwrap();
+    });
+    (port, tokens)
+}
+
 /// Verilen depoyla sunucu; portu döndürür.
 pub async fn start_with(store: Arc<dyn ChatStore>) -> u16 {
     let app = App {

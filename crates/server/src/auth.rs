@@ -31,6 +31,9 @@ use sha2::{Digest, Sha256};
 /// kullanıcıya ait görünmüyor.
 pub const SHARED_USER: i64 = -1;
 
+/// Panelin kullanıcı adına konuşurken kullandığı başlık — bkz. [`act_as`].
+pub const ACT_AS_HEADER: &str = "x-postillion-act-as";
+
 /// Bir isteğin arkasındaki kimlik.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Identity {
@@ -115,9 +118,16 @@ impl Auth {
         if let Some(shared) = &self.shared
             && constant_time_eq(shared, presented)
         {
-            return Some(Identity {
-                user_id: SHARED_USER,
-            });
+            return match act_as(headers) {
+                // Başlık var ama okunamıyor: paylaşılan kimliğe DÜŞMEK
+                // yerine reddediliyor. Düşseydi, bozuk bir başlık isteği
+                // sessizce yanlış kullanıcı adına çalıştırırdı.
+                Some(None) => None,
+                Some(Some(user_id)) => Some(Identity { user_id }),
+                None => Some(Identity {
+                    user_id: SHARED_USER,
+                }),
+            };
         }
 
         let store = self.store.as_ref()?;
@@ -133,6 +143,32 @@ impl Auth {
             }
         }
     }
+}
+
+/// Panelin "şu kullanıcı adına" başlığı.
+///
+/// Panel bir SUNUCU, kendi adına konuşmuyor: listeleri veritabanından
+/// okuyor ama canlılık ve transkript sunucuda ve oralara girmek oda
+/// sahipliğine takılıyor. Paylaşılan jetonun kimliği `SHARED_USER` ve
+/// kullanıcıya ait bir odaya o kimlikle girilemiyor — panel bu yüzden
+/// cihazları çevrimdışı, transkripti ulaşılamaz gösteriyordu.
+///
+/// YALNIZCA paylaşılan jetonla geçerli: o zaten işletmecinin ana anahtarı.
+/// Üretilmiş bir kullanıcı jetonuyla da kabul edilseydi, herhangi bir
+/// kullanıcı başka bir kullanıcının kimliğine bürünebilirdi.
+///
+/// `Some(None)` başlığın var ama çözülemez olduğu durum — çağıran bunu
+/// reddetmeli.
+fn act_as(headers: &HeaderMap) -> Option<Option<i64>> {
+    let raw = headers.get(ACT_AS_HEADER)?;
+    Some(
+        raw.to_str()
+            .ok()
+            .and_then(|v| v.trim().parse::<i64>().ok())
+            // Gerçek kullanıcı kimlikleri pozitif; `SHARED_USER` dahil
+            // negatif bir değer başlıkla talep edilememeli.
+            .filter(|id| *id > 0),
+    )
 }
 
 fn bearer(headers: &HeaderMap) -> Option<String> {
@@ -198,6 +234,59 @@ mod tests {
         assert_eq!(id, Some(Identity { user_id: SHARED_USER }));
         assert!(id.unwrap().is_shared());
         assert_eq!(auth.identify(&HeaderMap::new(), Some("gizli")).await, id);
+    }
+
+    fn with_act_as(mut headers: HeaderMap, value: &str) -> HeaderMap {
+        headers.insert(ACT_AS_HEADER, value.parse().unwrap());
+        headers
+    }
+
+    /// Panelin kullanıcı adına konuşabilmesi.
+    ///
+    /// Bu olmadan panel `SHARED_USER` kimliğiyle gidiyor ve kullanıcıya ait
+    /// odalara sahiplik denetimi kapıyı kapatıyordu: cihazlar çevrimdışı,
+    /// transkript "sunucuya ulaşılamadı" görünüyordu.
+    #[tokio::test]
+    async fn paylasilan_jeton_kullanici_adina_konusabiliyor() {
+        let auth = Auth::new("gizli");
+        let headers = with_act_as(bearer_headers("gizli"), "42");
+        assert_eq!(
+            auth.identify(&headers, None).await,
+            Some(Identity { user_id: 42 })
+        );
+    }
+
+    /// İZİN YÜKSELTME testi: bu tutmazsa herhangi bir kullanıcı başka
+    /// birinin bütün sohbetlerini okuyabilir.
+    #[tokio::test]
+    async fn uretilmis_jeton_baskasinin_adina_konusamiyor() {
+        let tokens = Arc::new(MemTokens::default());
+        tokens
+            .rows
+            .lock()
+            .unwrap()
+            .push((hash_token("kullanici-jetonu"), 7));
+        let auth = Auth::new_with_store(Some("gizli".into()), tokens);
+
+        let headers = with_act_as(bearer_headers("kullanici-jetonu"), "42");
+        assert_eq!(
+            auth.identify(&headers, None).await,
+            Some(Identity { user_id: 7 }),
+            "başlık yalnızca paylaşılan jetonla geçerli olmalı"
+        );
+    }
+
+    #[tokio::test]
+    async fn bozuk_act_as_basligi_reddediliyor() {
+        let auth = Auth::new("gizli");
+        for value in ["abc", "", "-1", "0"] {
+            let headers = with_act_as(bearer_headers("gizli"), value);
+            assert_eq!(
+                auth.identify(&headers, None).await,
+                None,
+                "çözülemeyen başlık paylaşılan kimliğe DÜŞMEMELİ: {value:?}"
+            );
+        }
     }
 
     #[tokio::test]

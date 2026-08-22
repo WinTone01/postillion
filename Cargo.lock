@@ -5341,6 +5341,7 @@ dependencies = [
  "postillion-proto",
  "postillion-rpc",
  "postillion-sync",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2",
