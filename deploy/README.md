@@ -192,7 +192,21 @@ docker-compose.panel.yaml
 **Domains** alanına ana alan adınızı yazın (örn. `postillion.net`).
 
 Veritabanı eşitleme sunucusuyla **AYNI** olmalı — panel kayıt satırlarını ve
-jeton tablosunu oradan okuyor. `PANEL_DB_*` değişkenlerini ona göre girin.
+jeton tablosunu oradan okuyor.
+
+Ayarlanacak değişkenler:
+
+| Değişken | Değer |
+| --- | --- |
+| `SERVICE_PASSWORD_PANELKEY` | Coolify üretiyor — oturum çerezlerini imzalıyor |
+| `PANEL_DATABASE_URL` | Sunucununkiyle **aynı** `postgres://…` dizesi |
+| `POSTILLION_SERVER_URL` | `https://sync.alanadiniz.com` |
+| `POSTILLION_SERVER_TOKEN` | Sunucudaki jeton |
+| `TURNSTILE_SITE_KEY` / `_SECRET` | Boş bırakılırsa captcha ATLANIYOR |
+
+Veritabanı tek bir bağlantı dizesiyle veriliyor; parçalı biçimde bir parça
+eksik kalırsa uygulama "eksik değişken" ile hiç açılmıyor ve hangisinin
+eksik olduğunu panelde aramak gerekiyor.
 
 | Alan adı | Kaynak |
 | --- | --- |

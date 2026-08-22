@@ -20,12 +20,12 @@ services:
       - APP_KEY=${SERVICE_PASSWORD_PANELKEY}
       - LOG_LEVEL=info
       - SESSION_DRIVER=cookie
-      # Eşitleme sunucusunun veritabanı.
-      - DB_HOST=${PANEL_DB_HOST}
-      - DB_PORT=${PANEL_DB_PORT:-5432}
-      - DB_USER=${PANEL_DB_USER}
-      - DB_PASSWORD=${PANEL_DB_PASSWORD}
-      - DB_DATABASE=${PANEL_DB_DATABASE}
+      # Eşitleme sunucusunun veritabanı — AYNI dize.
+      #
+      # Tek değişken, beş parça değil: parçalı biçimde biri eksik kalırsa
+      # Adonis "eksik değişken" ile açılmıyor ve hangisinin eksik olduğunu
+      # Coolify arayüzünde aramak gerekiyor.
+      - DATABASE_URL=${PANEL_DATABASE_URL}
       # Canlılık ve transkript buradan geliyor.
       - POSTILLION_SERVER_URL=${POSTILLION_SERVER_URL}
       - POSTILLION_SERVER_TOKEN=${POSTILLION_SERVER_TOKEN}
