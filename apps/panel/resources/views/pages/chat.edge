@@ -1,0 +1,70 @@
+@layout('layouts/app', { title: (chat ? chat.title : 'Sohbet') + ' — Postillion', captchaScript: false })
+@section('content')
+  <div class="card wide">
+    <div class="head">
+      <h1>{{ chat ? chat.title : 'Sohbet' }}</h1>
+      <a class="quiet" href="/">Çalışma alanı</a>
+    </div>
+
+    @if (chat && chat.location)
+      <p class="sub">{{ chat.location }}</p>
+    @end
+
+    @if (unreachable)
+      {{-- Ulaşılamamak ile boş olmak AYRI: ilki arıza. --}}
+      <ul class="errors">
+        <li>Sunucuya ulaşılamadı; transkript gösterilemiyor.</li>
+      </ul>
+    @elseif (!messages.length)
+      <p class="empty">Bu sohbette henüz mesaj yok.</p>
+    @else
+      <ol class="transcript">
+        @each (message in messages)
+          <li class="msg {{ message.role }}">
+            <span class="who">{{ message.role === 'user' ? 'Siz' : 'Ajan' }}</span>
+            @each (part in message.parts)
+              @if (part.kind === 'text')
+                <p class="text">{{ part.text }}</p>
+              @elseif (part.kind === 'error')
+                <p class="part-error">{{ part.message }}</p>
+              @elseif (part.kind === 'tool')
+                <p class="tool">
+                  {{ part.call && part.call.command ? part.call.command : (part.call && part.call.path ? part.call.path : 'araç') }}
+                  @if (!part.resolved)
+                    <span class="pending">çalışıyor</span>
+                  @end
+                </p>
+              @end
+            @end
+          </li>
+        @end
+      </ol>
+    @end
+
+    @if (flashMessages.has('errorsBag'))
+      <ul class="errors">
+        @each (message in (flashMessages.get('errorsBag') ?? {}))
+          <li>{{ message }}</li>
+        @end
+      </ul>
+    @end
+
+    @if (chat && chat.deviceOnline)
+      <form class="row send" method="POST" action="/chats/{{ chat.id }}/send">
+        {{ csrfField() }}
+        <input type="text" name="prompt" placeholder="Mesaj yazın…" required
+               maxlength="20000" value="{{ flashMessages.get('prompt') ?? '' }}" />
+        <button class="btn narrow" type="submit">Gönder</button>
+      </form>
+    @end
+
+    @if (chat && livenessKnown && !chat.deviceOnline)
+      {{-- Yazma kapalıysa SEBEBİ yazılı olmalı: kaybolmuş bir kutu soru
+           bırakır. Okumak zaten çalışıyor. --}}
+      <p class="notice">
+        Bu sohbetin cihazı kapalı. Geçmişi okuyabilirsiniz; yazmak için cihazın
+        açık olması gerekiyor.
+      </p>
+    @end
+  </div>
+@end

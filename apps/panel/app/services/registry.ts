@@ -31,6 +31,8 @@ export interface Chat {
   cwd: string | null
   branch: string | null
   lastMessageAt: number | null
+  /** `cwd · branch` — şablonda birleştirmek yerine burada, tek yerde. */
+  location: string
   /** Sohbeti tutan cihaz şu an açık mı — yazma bu şarta bağlı. */
   deviceOnline: boolean
 }
@@ -123,12 +125,15 @@ export async function chats(userId: number, presence: PresenceFetcher): Promise<
     .filter((row) => row.fields.archived !== true)
     .map((row) => {
       const deviceId = str(row.fields, 'deviceId')
+      const cwd = str(row.fields, 'cwd')
+      const branch = str(row.fields, 'branch')
       return {
         id: row.id,
         title: str(row.fields, 'title') ?? 'Başlıksız',
         deviceId,
-        cwd: str(row.fields, 'cwd'),
-        branch: str(row.fields, 'branch'),
+        cwd,
+        branch,
+        location: [cwd, branch].filter(Boolean).join(' · '),
         lastMessageAt: ms(row.fields, 'lastMessageAt'),
         deviceOnline: deviceId !== null && online.has(deviceId),
       }

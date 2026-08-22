@@ -6,8 +6,23 @@ Tasarım kararları ve yol haritası: [`docs/panel-plan.md`](../../docs/panel-pl
 
 ## Durum
 
-Aşama 1–3. Kayıt/giriş, cihaz jetonları ve çalışma alanı listesi (cihazlar
-ve sohbetler, canlılık göstergesiyle) çalışıyor.
+Aşama 1–4. Kayıt/giriş, cihaz jetonları, çalışma alanı listesi ve
+**sohbete devam etme** çalışıyor.
+
+## Sohbete devam etme
+
+Okumak ve yazmak farklı yollardan geliyor ve şartları farklı:
+
+| | Nereden | Cihaz gerekiyor mu |
+| --- | --- | --- |
+| Transkript | `GET /chat2/{id}/messages` | **Hayır** — satırları sunucu birleştiriyor |
+| Mesaj yazmak | Cihaz rölesi → `QueueCommand` | Evet — ajan orada çalışıyor |
+
+Cihaz kapalıyken geçmiş okunuyor, yazma kutusu görünmüyor ve **sebebi
+yazılı**: kaybolmuş bir kutu soru bırakırdı.
+
+Röle `host_offline` döndürdüğünde kullanıcı bunu anında görüyor — zaman aşımı
+beklemek 15 saniye boşuna bekletirdi.
 
 ## Cihaz ve sohbet listesi
 

@@ -109,12 +109,12 @@ sunucu sohbeti okuyamadan içine yazamaz.
 - ✅ Kayıt satırlarından cihaz ve sohbet listesi
 - ✅ Presence: sunucuda bellekte tutuluyor, `GET /registry/{org}/presence`
 
-### 4. Sohbete devam etme — SIRADAKİ, panelin asıl işi
-- Transkript `GET /chat2/{id}/messages` ile (sunucu tarafı hazır)
-- Yazmak için cihaz rölesine `role=client` bağlantısı + `QueueCommand`
-- Cihaz çevrimdışıysa: geçmiş okunur, yazma kapalı ve sebebi yazılı
+### 4. Sohbete devam etme — YAPILDI
+- ✅ Transkript `GET /chat2/{id}/messages` ile
+- ✅ Cihaz rölesine `role=client` bağlantısı + `QueueCommand`
+- ✅ Cihaz çevrimdışıysa: geçmiş okunur, yazma kapalı ve sebebi yazılı
 
-### 5. Cilalama
+### 5. Cilalama — SIRADAKİ
 - Yeniden bağlanma, host çevrimdışıyken açık durum bildirimi
 - Mobil düzen
 
