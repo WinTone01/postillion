@@ -49,9 +49,7 @@ fn frame_body(frames: Vec<Vec<u8>>) -> Vec<u8> {
     out
 }
 
-fn authorized(app: &App, headers: &HeaderMap, token: Option<&str>) -> bool {
-    app.auth.permits(headers, token)
-}
+
 
 /// `GET /chat2/{id}/rows?after=&device=` — STATE, ROW*, ROWS_DONE.
 pub async fn get_rows(
@@ -60,8 +58,20 @@ pub async fn get_rows(
     Query(query): Query<RowsQuery>,
     headers: HeaderMap,
 ) -> Result<Response, StatusCode> {
-    if !authorized(&app, &headers, query.token.as_deref()) {
-        return Err(StatusCode::UNAUTHORIZED);
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !crate::ownership::permits(
+        &*app.owners,
+        crate::ownership::Scope::Chat,
+        &chat_id,
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
     }
     let device = query.device.unwrap_or_default();
     let mut session = Session::new();
@@ -100,8 +110,20 @@ pub async fn post_rows(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, StatusCode> {
-    if !authorized(&app, &headers, query.token.as_deref()) {
-        return Err(StatusCode::UNAUTHORIZED);
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !crate::ownership::permits(
+        &*app.owners,
+        crate::ownership::Scope::Chat,
+        &chat_id,
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
     }
     let Some(batch_id) = query.batch_id else {
         return Err(StatusCode::BAD_REQUEST);
@@ -152,8 +174,20 @@ pub async fn get_messages(
     Query(query): Query<RowsQuery>,
     headers: HeaderMap,
 ) -> Result<Response, StatusCode> {
-    if !authorized(&app, &headers, query.token.as_deref()) {
-        return Err(StatusCode::UNAUTHORIZED);
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !crate::ownership::permits(
+        &*app.owners,
+        crate::ownership::Scope::Chat,
+        &chat_id,
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
     }
 
     let rows = app
@@ -180,7 +214,15 @@ pub async fn get_checkpoint(
     Query(query): Query<RowsQuery>,
     headers: HeaderMap,
 ) -> StatusCode {
-    if !authorized(&app, &headers, query.token.as_deref()) {
+    // Sahiplik denetimi YOK: bu uç her zaman 404 dönüyor ve hiçbir şey
+    // sızdırmıyor, dolayısıyla oda sahibini sorgulamak boşuna bir yazma
+    // (sahiplenme) tetiklerdi.
+    if app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .is_none()
+    {
         return StatusCode::UNAUTHORIZED;
     }
     StatusCode::NOT_FOUND

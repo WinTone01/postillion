@@ -13,6 +13,8 @@ use futures::future::BoxFuture;
 use postillion_doc::{RegistryRow, RowOp};
 use postillion_server::rooms::ChatHub;
 use postillion_server::{auth::Auth, App};
+use postillion_server::auth::TokenStore;
+use postillion_server::ownership::{OwnerStore, Scope};
 use postillion_sync::registry_room::{AppliedBatch, RegistryState, RegistryStore};
 use postillion_sync::room::{ChatStore, Row, RoomState};
 use postillion_sync::{ChatDocSink, CheckpointFetcher, SyncError};
@@ -78,6 +80,59 @@ impl ChatStore for MemStore {
             payload,
         });
         Box::pin(async move { Ok((seq, false)) })
+    }
+}
+
+// ── bellek içi kimlik ve sahiplik ─────────────────────────────────────────
+
+/// Panelden üretilmiş jetonların bellek içi karşılığı.
+#[derive(Default)]
+pub struct MemTokens {
+    pub rows: Mutex<Vec<(String, i64)>>,
+}
+
+impl MemTokens {
+    /// Jetonu bir kullanıcıya bağlar; ham jeton döner (panelin yaptığı gibi).
+    pub fn mint(&self, token: &str, user_id: i64) {
+        self.rows
+            .lock()
+            .unwrap()
+            .push((postillion_server::auth::hash_token(token), user_id));
+    }
+}
+
+impl TokenStore for MemTokens {
+    fn lookup(&self, token_hash: &str) -> BoxFuture<'static, Result<Option<i64>, SyncError>> {
+        let found = self
+            .rows
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(h, _)| h == token_hash)
+            .map(|(_, id)| *id);
+        Box::pin(async move { Ok(found) })
+    }
+}
+
+#[derive(Default)]
+pub struct MemOwners {
+    pub rows: Mutex<HashMap<(String, String), i64>>,
+}
+
+impl OwnerStore for MemOwners {
+    fn claim(
+        &self,
+        scope: Scope,
+        room: &str,
+        user_id: i64,
+    ) -> BoxFuture<'static, Result<i64, SyncError>> {
+        let owner = *self
+            .rows
+            .lock()
+            .unwrap()
+            .entry((scope.as_str().to_string(), room.to_string()))
+            .or_insert(user_id);
+        Box::pin(async move { Ok(owner) })
     }
 }
 
@@ -217,11 +272,37 @@ pub async fn start_with_registry() -> Server {
     start().await
 }
 
+/// Çok kullanıcılı sunucu: paylaşılan jeton YOK, yalnızca üretilmiş jetonlar.
+///
+/// Paylaşılan jetonun bulunmaması bilinçli: o bütün odalara açılan bir ana
+/// anahtar ve izolasyon testleri onun varlığında hiçbir şey kanıtlamazdı.
+pub async fn start_multi_user() -> (u16, Arc<MemTokens>) {
+    let tokens = Arc::new(MemTokens::default());
+    let app = App {
+        store: Arc::new(MemStore::default()),
+        registry: Arc::new(MemRegistry::default()),
+        owners: Arc::new(MemOwners::default()),
+        hub: ChatHub::new(),
+        registry_hub: postillion_server::registry_ws::RegistryHub::new(),
+        device_hub: postillion_server::device_room::DeviceHub::new(),
+        auth: postillion_server::auth::Auth::new_with_store(None, tokens.clone()),
+    };
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(listener, postillion_server::router(app))
+            .await
+            .unwrap();
+    });
+    (port, tokens)
+}
+
 /// Verilen depoyla sunucu; portu döndürür.
 pub async fn start_with(store: Arc<dyn ChatStore>) -> u16 {
     let app = App {
         store,
         registry: Arc::new(MemRegistry::default()),
+        owners: Arc::new(MemOwners::default()),
         hub: ChatHub::new(),
         registry_hub: postillion_server::registry_ws::RegistryHub::new(),
         device_hub: postillion_server::device_room::DeviceHub::new(),

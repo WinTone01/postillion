@@ -20,6 +20,8 @@ postillion-rpc.workspace = true
 # Sohbet içeriğini sunucuda materyalize etmek için (panel, bilgisayar kapalıyken
 # de transkripti göstermeli).
 loro.workspace = true
+# Jeton özetleri için — bkz. auth.rs (parola değil, yüksek entropili dize).
+sha2 = "0.10"
 
 axum.workspace = true
 tower-http.workspace = true

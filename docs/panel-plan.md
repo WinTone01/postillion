@@ -98,11 +98,12 @@ sunucu sohbeti okuyamadan içine yazamaz.
 - Shield ve captcha-guard kurulumu
 - Uygulamanın renk teması (`crates/ui/src/theme.rs` → CSS değişkenleri)
 
-### 2. Sunucu tarafı kimlik
-- `api_tokens` tablosu ve sunucuda doğrulama
-- Panelde jeton üretme/iptal arayüzü
-- Tek paylaşılan jeton kaldırılıyor
-- Kullanıcı ayrımı: her sorgu kullanıcıyla sınırlı
+### 2. Sunucu tarafı kimlik — SUNUCU TARAFI YAPILDI
+- ✅ `api_tokens` tablosu ve sunucuda doğrulama (SHA-256 özeti)
+- ✅ Kullanıcı ayrımı: odalar "ilk yazan sahiplenir" kuralıyla korunuyor
+- ✅ Paylaşılan jeton tek yol olmaktan çıktı (geriye dönük uyumluluk için
+  duruyor, sunucu açılışta kaldırılmasını hatırlatıyor)
+- ⏳ Panelde jeton üretme/iptal arayüzü
 
 ### 3. Cihazlar ve sohbetler
 - Kayıt satırlarından cihaz ve sohbet listesi

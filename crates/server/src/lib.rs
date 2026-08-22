@@ -18,7 +18,9 @@ pub mod registry_db;
 pub mod registry_http;
 pub mod registry_ws;
 pub mod http;
+pub mod identity_db;
 pub mod hub;
+pub mod ownership;
 pub mod rooms;
 pub mod transcript;
 
@@ -43,6 +45,7 @@ pub struct App {
     pub hub: ChatHub,
     pub registry_hub: RegistryHub,
     pub device_hub: DeviceHub,
+    pub owners: Arc<dyn ownership::OwnerStore>,
     pub auth: auth::Auth,
 }
 
@@ -110,8 +113,23 @@ async fn device_ws_handler(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, StatusCode> {
-    if !app.auth.permits(&headers, query.token.as_deref()) {
-        return Err(StatusCode::UNAUTHORIZED);
+    // Cihaz odası sahipliği cihazın KENDİSİNE bağlı: bir kullanıcının
+    // cihazına başka bir kullanıcının host ya da istemci olarak bağlanması,
+    // izolasyonun en doğrudan ihlali olurdu.
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !ownership::permits(
+        &*app.owners,
+        ownership::Scope::Chat,
+        &format!("device:{device_id}"),
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
     }
     let role = device_room::Role::parse(query.role.as_deref());
     // `connId` vermeyen istemciye biz üretiyoruz: host'un cevabı bir yere
@@ -132,8 +150,20 @@ async fn registry_ws_handler(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, StatusCode> {
-    if !app.auth.permits(&headers, query.token.as_deref()) {
-        return Err(StatusCode::UNAUTHORIZED);
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !ownership::permits(
+        &*app.owners,
+        ownership::Scope::Registry,
+        &org,
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
     }
     Ok(ws.on_upgrade(move |socket| {
         registry_ws::serve(socket, app.registry, app.registry_hub, org)
@@ -149,8 +179,20 @@ async fn chat_ws(
 ) -> Result<Response, StatusCode> {
     // Yükseltmeden ÖNCE doğrulanıyor: yükseltme tamamlandıktan sonra
     // reddetmek istemciye düzgün bir HTTP durumu döndüremezdi.
-    if !app.auth.permits(&headers, query.token.as_deref()) {
-        return Err(StatusCode::UNAUTHORIZED);
+    let identity = app
+        .auth
+        .identify(&headers, query.token.as_deref())
+        .await
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    if !ownership::permits(
+        &*app.owners,
+        ownership::Scope::Chat,
+        &chat_id,
+        identity.user_id,
+    )
+    .await
+    {
+        return Err(StatusCode::FORBIDDEN);
     }
 
     Ok(ws.on_upgrade(move |socket| rooms::serve(socket, app.store, app.hub, chat_id)))

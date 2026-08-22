@@ -271,12 +271,32 @@ Cevabın anlamı:
 | `403` | Cloudflare engelliyor; WAF kuralı eksik ya da yanlış alan adında |
 | `400` | Büyük ihtimalle `--http1.1` unutulmuş |
 
+## Kimlik ve izolasyon
+
+İki jeton kaynağı var:
+
+| Kaynak | Kim |
+| --- | --- |
+| `POSTILLION_SERVER_TOKEN` | Tek kullanıcılık kip — bütün odalara erişir |
+| Panelden üretilen jetonlar | Kendi kullanıcısının odalarına erişir |
+
+Odalar **ilk yazan sahiplenir** kuralıyla korunuyor: sahipsiz bir odaya giren
+ilk kimlik onu alıyor, sonrakiler reddediliyor (`403`). Oda kimlikleri
+(`chatId`, `org`, cihaz kimliği) istemci tarafından üretildiği ve tahmin
+edilebilir olduğu için tek koruma bu.
+
+Jetonlar veritabanında yalnızca **SHA-256 özeti** olarak duruyor; ham jeton
+hiçbir yerde saklanmıyor.
+
 ## Bilinen sınırlar
 
 - **Anlık görüntü yok.** Odalar hiç budanmıyor: her yeni cihaz sohbetin tüm
   geçmişini indiriyor. Uzun sohbetlerde katılma süresi büyüyor.
-- **Tek kullanıcı.** Yetkilendirme tek paylaşılan jeton; kullanıcı ayrımı ve
-  kota yok. Jetonu bilen herkes bütün sohbetlere erişiyor.
+- **Kota yok.** Kullanıcı başına sınır bulunmuyor; herkese açık kayıt bunu
+  zorunlu kılar.
+- **Paylaşılan jeton bir ANA ANAHTAR.** `POSTILLION_SERVER_TOKEN` bütün
+  odalara erişiyor ve sahiplik denetimini atlıyor. Panelden jeton
+  ürettikten sonra kaldırın; sunucu açılışta bunu uyarı olarak yazıyor.
 - **Şifreleme yok, bilerek.** Sunucuyu işleten sohbetleri okuyabilir ve
   veritabanı yedeği onların düz kopyasıdır. Kendinize ait tek kullanıcılık bir
   sunucuda sorun değil; başkalarına kayıt açarsanız bunu onlara söylemeniz

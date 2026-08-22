@@ -71,7 +71,11 @@ pub async fn connect(url: &str) -> anyhow::Result<PgPool> {
         .execute(&mut *conn)
         .await?;
 
-    let applied = sqlx::raw_sql(&format!("{SCHEMA}\n{}", crate::registry_db::SCHEMA))
+    let applied = sqlx::raw_sql(&format!(
+        "{SCHEMA}\n{}\n{}",
+        crate::registry_db::SCHEMA,
+        crate::identity_db::SCHEMA
+    ))
         .execute(&mut *conn)
         .await;
 
