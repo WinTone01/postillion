@@ -33,9 +33,10 @@ use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
 use gpui::{
-    AnyElement, BorderStyle, ClipboardItem, Context, Entity, ListAlignment, ListOffset,
-    ListScrollEvent, ListState, ObjectFit, SharedString, StyledImage as _, StyledText,
-    Subscription, Task, TextRun, Window, canvas, div, img, list, prelude::*, px, quad,
+    AnyElement, BorderStyle, ClipboardItem, Context, CursorStyle, Entity, ListAlignment, ListOffset,
+    ListScrollEvent, ListState, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ObjectFit, SharedString, StyledImage as _, StyledText, Subscription, Task, TextRun, Window,
+    canvas, div, img, list, point, prelude::*, px, quad,
 };
 
 use postillion_doc::{MessagePart, MessageRole, MessageStatus, SessionMessageEntry, SubagentStatus};
@@ -60,6 +61,12 @@ pub const STICK_THRESHOLD_PX: f32 = 70.0;
 pub const OVERDRAW_PX: f32 = 320.0;
 /// Show the scroll-to-bottom button beyond this distance from the end.
 pub const SCROLL_BUTTON_THRESHOLD_PX: f32 = 320.0;
+/// Overlap kept between screens when paging with Page Up/Down.
+pub const PAGE_KEY_OVERLAP_PX: f32 = 60.0;
+/// Overlay scrollbar on the conversation — gpui's list has no built-in thumb.
+const SCROLLBAR_WIDTH: f32 = 10.0;
+const SCROLLBAR_PAD: f32 = 2.0;
+const SCROLLBAR_MIN_THUMB: f32 = 28.0;
 /// Vertical gap opening a new turn (new message entry).
 pub const GAP_TURN: f32 = 14.0;
 /// Vertical gap between blocks within a turn.
@@ -1513,7 +1520,15 @@ pub struct Transcript {
     /// recently (click "Show full output" after a diff → see the output).
     blob_fetch_order: HashMap<SharedString, u64>,
     blob_fetch_counter: u64,
+    /// Pointer grab on the overlay scrollbar, or a middle-button pan.
+    pointer_scroll: Option<PointerScroll>,
     _observe: Subscription,
+}
+
+/// In-flight pointer scroll: overlay thumb, or middle-button drag-to-pan.
+enum PointerScroll {
+    Thumb { grab: f32 },
+    Pan { last_y: f32 },
 }
 
 /// One sidecar blob fetch's lifecycle.
@@ -1650,6 +1665,7 @@ impl Transcript {
             blob_details: HashMap::new(),
             blob_fetch_order: HashMap::new(),
             blob_fetch_counter: 0,
+            pointer_scroll: None,
             _observe: observe,
         };
         this.sync(cx);
@@ -2196,6 +2212,236 @@ impl Transcript {
     /// more than [`SCROLL_BUTTON_THRESHOLD_PX`] off the end, unpinned).
     pub fn jump_button_shown(&self) -> bool {
         self.show_jump_button
+    }
+
+    /// Page Up/Down: move by a viewport less [`PAGE_KEY_OVERLAP_PX`], so a
+    /// couple of lines carry over and the eye keeps its place. `pages` is
+    /// signed — negative scrolls up, positive down.
+    ///
+    /// Unlike the wheel this never reaches [`Self::handle_scroll`] (the list
+    /// fires that handler only from its own input path), so the pin, the
+    /// own-send hold and the jump button are settled here by hand.
+    pub fn scroll_page(&mut self, pages: f32, cx: &mut Context<Self>) {
+        let viewport = f32::from(self.list.viewport_bounds().size.height);
+        if viewport <= 0.0 {
+            return;
+        }
+        // Paging up is user intent to leave the bottom. Release the pin AND
+        // any own-send hold before moving: both would otherwise drag the view
+        // straight back — the hold treats the bottom as a hard stop.
+        if pages < 0.0 {
+            self.pinned = false;
+            self.spring.reset();
+            self.spring_last_tick = None;
+            if let Some(anchor) = self.own_turn.as_mut() {
+                anchor.held = false;
+            }
+            self.own_turn_last_tick = None;
+        }
+        self.list
+            .scroll_by(px((viewport - PAGE_KEY_OVERLAP_PX).max(1.0) * pages));
+        self.note_manual_scroll(pages < 0.0, cx);
+    }
+
+    /// User moved the viewport by a key, the overlay scrollbar, or a middle
+    /// drag — never the list's wheel handler. Release the pin (and an own-send
+    /// hold when leaving the bottom) so the spring cannot yank the view back.
+    fn note_manual_scroll(&mut self, away_from_bottom: bool, cx: &mut Context<Self>) {
+        if away_from_bottom {
+            self.pinned = false;
+            self.spring.reset();
+            self.spring_last_tick = None;
+            if let Some(anchor) = self.own_turn.as_mut() {
+                anchor.held = false;
+            }
+            self.own_turn_last_tick = None;
+        }
+        let distance = self.distance_from_bottom();
+        self.last_scroll_distance = distance;
+        if !away_from_bottom && distance <= STICK_THRESHOLD_PX {
+            self.engage_pin(cx);
+            return;
+        }
+        self.show_jump_button = distance > SCROLL_BUTTON_THRESHOLD_PX && !self.pinned;
+        cx.notify();
+    }
+
+    fn scrollbar_metrics(&self) -> Option<(f32, f32, f32, f32)> {
+        let viewport = f32::from(self.list.viewport_bounds().size.height);
+        let max = f32::from(self.list.max_offset_for_scrollbar().y);
+        if viewport <= 1.0 || max <= 1.0 {
+            return None;
+        }
+        let track = (viewport - SCROLLBAR_PAD * 2.0).max(1.0);
+        let thumb = (viewport / (viewport + max) * track).clamp(SCROLLBAR_MIN_THUMB, track);
+        let travel = (track - thumb).max(0.0);
+        let offset = (-f32::from(self.list.scroll_px_offset_for_scrollbar().y)).clamp(0.0, max);
+        let thumb_top = if max > 0.0 {
+            (offset / max) * travel
+        } else {
+            0.0
+        };
+        Some((max, track, thumb, thumb_top))
+    }
+
+    fn apply_scrollbar_offset(&mut self, offset: f32, cx: &mut Context<Self>) {
+        let Some((max, _, _, _)) = self.scrollbar_metrics() else {
+            return;
+        };
+        let offset = offset.clamp(0.0, max);
+        self.list
+            .set_offset_from_scrollbar(point(px(0.0), px(-offset)));
+        self.note_manual_scroll(offset + STICK_THRESHOLD_PX < max, cx);
+    }
+
+    fn on_scrollbar_down(
+        &mut self,
+        event: &MouseDownEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some((max, track, thumb, thumb_top)) = self.scrollbar_metrics() else {
+            return;
+        };
+        let bounds = self.list.viewport_bounds();
+        let y = f32::from(event.position.y - bounds.origin.y) - SCROLLBAR_PAD;
+        self.list.scrollbar_drag_started();
+        let grab = if y >= thumb_top && y <= thumb_top + thumb {
+            y - thumb_top
+        } else {
+            let travel = (track - thumb).max(0.0);
+            let top = (y - thumb / 2.0).clamp(0.0, travel);
+            self.apply_scrollbar_offset((top / travel.max(1.0)) * max, cx);
+            thumb / 2.0
+        };
+        self.pointer_scroll = Some(PointerScroll::Thumb { grab });
+        cx.notify();
+    }
+
+    fn on_middle_down(
+        &mut self,
+        event: &MouseDownEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.scrollbar_metrics().is_none() {
+            return;
+        }
+        self.pointer_scroll = Some(PointerScroll::Pan {
+            last_y: f32::from(event.position.y),
+        });
+        cx.notify();
+    }
+
+    fn on_pointer_scroll_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match self.pointer_scroll {
+            Some(PointerScroll::Thumb { grab }) => {
+                let Some((max, track, thumb, _)) = self.scrollbar_metrics() else {
+                    return;
+                };
+                let bounds = self.list.viewport_bounds();
+                let y = f32::from(event.position.y - bounds.origin.y) - SCROLLBAR_PAD;
+                let travel = (track - thumb).max(1.0);
+                let top = (y - grab).clamp(0.0, travel);
+                self.apply_scrollbar_offset((top / travel) * max, cx);
+            }
+            Some(PointerScroll::Pan { last_y }) => {
+                let y = f32::from(event.position.y);
+                let delta = y - last_y;
+                if delta.abs() < 0.5 {
+                    return;
+                }
+                self.pointer_scroll = Some(PointerScroll::Pan { last_y: y });
+                self.list.scroll_by(px(-delta));
+                self.note_manual_scroll(delta > 0.0, cx);
+            }
+            None => {}
+        }
+    }
+
+    fn on_pointer_scroll_up(
+        &mut self,
+        _: &MouseUpEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match self.pointer_scroll.take() {
+            Some(PointerScroll::Thumb { .. }) => {
+                self.list.scrollbar_drag_ended();
+                cx.notify();
+            }
+            Some(PointerScroll::Pan { .. }) => {
+                cx.notify();
+            }
+            None => {}
+        }
+    }
+
+    fn render_scrollbar(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let (_, track, thumb, thumb_top) = self.scrollbar_metrics()?;
+        let theme = Theme::of(cx);
+        let dragging = matches!(self.pointer_scroll, Some(PointerScroll::Thumb { .. }));
+        Some(
+            div()
+                .id("transcript-scrollbar")
+                .absolute()
+                .top(px(SCROLLBAR_PAD))
+                .bottom(px(SCROLLBAR_PAD))
+                .right(px(SCROLLBAR_PAD))
+                .w(px(SCROLLBAR_WIDTH))
+                .occlude()
+                .cursor(CursorStyle::Arrow)
+                .on_mouse_down(MouseButton::Left, cx.listener(Self::on_scrollbar_down))
+                .child(
+                    div()
+                        .absolute()
+                        .left(px(2.0))
+                        .w(px(SCROLLBAR_WIDTH - 4.0))
+                        .h(px(track))
+                        .rounded_full()
+                        .bg(crate::theme::ink(0.06)),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .top(px(thumb_top))
+                        .left(px(1.0))
+                        .w(px(SCROLLBAR_WIDTH - 2.0))
+                        .h(px(thumb))
+                        .rounded_full()
+                        .bg(if dragging {
+                            theme.text.opacity(0.45)
+                        } else {
+                            theme.text.opacity(0.28)
+                        }),
+                )
+                .into_any_element(),
+        )
+    }
+
+    fn render_scroll_capture(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if self.pointer_scroll.is_none() {
+            return None;
+        }
+        Some(
+            div()
+                .id("transcript-scroll-capture")
+                .absolute()
+                .inset_0()
+                .occlude()
+                .cursor(CursorStyle::Arrow)
+                .on_mouse_move(cx.listener(Self::on_pointer_scroll_move))
+                .on_mouse_up(MouseButton::Left, cx.listener(Self::on_pointer_scroll_up))
+                .on_mouse_up(MouseButton::Middle, cx.listener(Self::on_pointer_scroll_up))
+                .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_pointer_scroll_up))
+                .on_mouse_up_out(MouseButton::Middle, cx.listener(Self::on_pointer_scroll_up))
+                .into_any_element(),
+        )
     }
 
     /// The scroll-to-bottom pill's click: glide back to the end and re-pin.
@@ -4527,6 +4773,7 @@ impl Render for Transcript {
         // notifies, which re-enters render and schedules the next frame until
         // the spring parks. Reduced motion never schedules (sync snaps).
         if self.pinned
+            && self.pointer_scroll.is_none()
             && !motion::reduced_motion(cx)
             && !self.spring_scheduled
             && self.spring_should_run()
@@ -4581,7 +4828,10 @@ impl Render for Transcript {
             // (document paint order = selection order; see markdown/render.rs).
             .child(crate::markdown::render::selection_frame_reset())
             .child(content)
-            .child(rail);
+            .child(rail)
+            .children(self.render_scrollbar(cx))
+            .children(self.render_scroll_capture(cx))
+            .on_mouse_down(MouseButton::Middle, cx.listener(Self::on_middle_down));
         // Full-size viewer for a clicked user-bubble thumbnail
         // (AttachmentPreviewDialog: bare lightbox, click closes).
         if let Some(preview) = self.attachment_preview.clone() {

@@ -61,7 +61,14 @@ use spaces::{AddSpaceFlow, RenameSpaceDialog};
 
 actions!(
     shell,
-    [ToggleSidebar, ToggleChanges, AddSpacePalette, NewSession]
+    [
+        ToggleSidebar,
+        ToggleChanges,
+        AddSpacePalette,
+        NewSession,
+        ScrollPageUp,
+        ScrollPageDown
+    ]
 );
 
 // ---------------------------------------------------------------------------
@@ -169,6 +176,12 @@ pub fn apply_keymap(cx: &mut App, keymap: &KeymapConfig) {
         // Fixed: ⌘K summons the add-space palette (the ⌘K chip in its search
         // bar); pressing it again dismisses.
         KeyBinding::new(&platform_combo("mod-k"), AddSpacePalette, None),
+        // Page keys scroll the transcript even when the composer is unfocused
+        // (clicking the conversation drops composer focus). The handler
+        // forwards them to a focused terminal so gpui matching them first does
+        // not swallow the PTY's page keys.
+        KeyBinding::new("pageup", ScrollPageUp, None),
+        KeyBinding::new("pagedown", ScrollPageDown, None),
     ]);
 }
 
@@ -1524,6 +1537,19 @@ impl Shell {
     /// The current chat's terminal flag (per-session, in-memory).
     fn terminal_open(&self, cx: &App) -> bool {
         self.panels.get(&self.panel_key(cx)).terminal_open
+    }
+
+    fn page_key_terminal(
+        &self,
+        window: &gpui::Window,
+        cx: &App,
+    ) -> Option<Entity<TerminalPanel>> {
+        for term in self.terminal.iter().chain(self.right_terminal.iter()) {
+            if term.read(cx).focus_handle().is_focused(window) {
+                return Some(term.clone());
+            }
+        }
+        None
     }
 
     fn right_target(&self, cx: &App) -> f32 {
@@ -6994,6 +7020,26 @@ impl Render for Shell {
                 }
             }))
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
+            .on_action(cx.listener(|this, _: &ScrollPageUp, window, cx| {
+                if let Some(term) = this.page_key_terminal(window, cx) {
+                    term.update(cx, |term, cx| term.inject_page(true, cx));
+                    return;
+                }
+                if matches!(this.route, Route::Chat) {
+                    this.transcript
+                        .update(cx, |transcript, cx| transcript.scroll_page(-1.0, cx));
+                }
+            }))
+            .on_action(cx.listener(|this, _: &ScrollPageDown, window, cx| {
+                if let Some(term) = this.page_key_terminal(window, cx) {
+                    term.update(cx, |term, cx| term.inject_page(false, cx));
+                    return;
+                }
+                if matches!(this.route, Route::Chat) {
+                    this.transcript
+                        .update(cx, |transcript, cx| transcript.scroll_page(1.0, cx));
+                }
+            }))
             // New session works from anywhere — `open_new_session` routes back
             // to chat itself, so Settings is not a dead spot.
             .on_action(cx.listener(|this, _: &NewSession, _, cx| this.open_new_session(cx)))
