@@ -113,6 +113,7 @@ impl CursorHarness {
     async fn discover_models(&self) -> Result<Vec<Model>, HarnessError> {
         let (exe, args) = self.resolve_shim().await?;
         let mut cmd = Command::new(&exe);
+        crate::hide_console(&mut cmd);
         cmd.args(&args);
         crate::compose_child_path(&mut cmd, &exe);
         cmd.arg("models")
@@ -169,6 +170,7 @@ impl CursorHarness {
 pub async fn login_command(store_path: &std::path::Path) -> Result<Command, HarnessError> {
     let (exe, args) = CursorHarness::default().resolve_shim().await?;
     let mut cmd = Command::new(&exe);
+    crate::hide_console(&mut cmd);
     cmd.args(&args);
     crate::compose_child_path(&mut cmd, &exe);
     cmd.arg("login").arg(store_path);
@@ -233,6 +235,7 @@ impl Harness for CursorHarness {
     ) -> Result<BoxStream<'static, Result<AgentEvent, HarnessError>>, HarnessError> {
         let (exe, args) = self.resolve_shim().await?;
         let mut cmd = Command::new(&exe);
+        crate::hide_console(&mut cmd);
         cmd.args(&args);
         crate::compose_child_path(&mut cmd, &exe);
         if !request.cwd.is_empty() {

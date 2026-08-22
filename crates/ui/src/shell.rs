@@ -61,7 +61,14 @@ use spaces::{AddSpaceFlow, RenameSpaceDialog};
 
 actions!(
     shell,
-    [ToggleSidebar, ToggleChanges, AddSpacePalette, NewSession]
+    [
+        ToggleSidebar,
+        ToggleChanges,
+        AddSpacePalette,
+        NewSession,
+        ScrollPageUp,
+        ScrollPageDown
+    ]
 );
 
 // ---------------------------------------------------------------------------
@@ -169,6 +176,14 @@ pub fn apply_keymap(cx: &mut App, keymap: &KeymapConfig) {
         // Fixed: ⌘K summons the add-space palette (the ⌘K chip in its search
         // bar); pressing it again dismisses.
         KeyBinding::new(&platform_combo("mod-k"), AddSpacePalette, None),
+        // Page keys scroll the transcript — the whole point being a mouse
+        // with no working wheel. Bound in the composer's context, not
+        // globally: the terminal reads page keys off its own raw handler and
+        // gpui dispatches matched bindings BEFORE those, so a global binding
+        // would swallow them there. The transcript never takes focus itself,
+        // so the composer is where a chat's keystrokes actually land.
+        KeyBinding::new("pageup", ScrollPageUp, Some("Composer")),
+        KeyBinding::new("pagedown", ScrollPageDown, Some("Composer")),
     ]);
 }
 
@@ -6994,6 +7009,18 @@ impl Render for Shell {
                 }
             }))
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
+            .on_action(cx.listener(|this, _: &ScrollPageUp, _, cx| {
+                if matches!(this.route, Route::Chat) {
+                    this.transcript
+                        .update(cx, |transcript, cx| transcript.scroll_page(-1.0, cx));
+                }
+            }))
+            .on_action(cx.listener(|this, _: &ScrollPageDown, _, cx| {
+                if matches!(this.route, Route::Chat) {
+                    this.transcript
+                        .update(cx, |transcript, cx| transcript.scroll_page(1.0, cx));
+                }
+            }))
             // New session works from anywhere — `open_new_session` routes back
             // to chat itself, so Settings is not a dead spot.
             .on_action(cx.listener(|this, _: &NewSession, _, cx| this.open_new_session(cx)))

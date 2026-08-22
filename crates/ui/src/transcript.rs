@@ -60,6 +60,8 @@ pub const STICK_THRESHOLD_PX: f32 = 70.0;
 pub const OVERDRAW_PX: f32 = 320.0;
 /// Show the scroll-to-bottom button beyond this distance from the end.
 pub const SCROLL_BUTTON_THRESHOLD_PX: f32 = 320.0;
+/// Overlap kept between screens when paging with Page Up/Down.
+pub const PAGE_KEY_OVERLAP_PX: f32 = 60.0;
 /// Vertical gap opening a new turn (new message entry).
 pub const GAP_TURN: f32 = 14.0;
 /// Vertical gap between blocks within a turn.
@@ -2196,6 +2198,44 @@ impl Transcript {
     /// more than [`SCROLL_BUTTON_THRESHOLD_PX`] off the end, unpinned).
     pub fn jump_button_shown(&self) -> bool {
         self.show_jump_button
+    }
+
+    /// Page Up/Down: move by a viewport less [`PAGE_KEY_OVERLAP_PX`], so a
+    /// couple of lines carry over and the eye keeps its place. `pages` is
+    /// signed — negative scrolls up, positive down.
+    ///
+    /// Unlike the wheel this never reaches [`Self::handle_scroll`] (the list
+    /// fires that handler only from its own input path), so the pin, the
+    /// own-send hold and the jump button are settled here by hand.
+    pub fn scroll_page(&mut self, pages: f32, cx: &mut Context<Self>) {
+        let viewport = f32::from(self.list.viewport_bounds().size.height);
+        if viewport <= 0.0 {
+            return;
+        }
+        // Paging up is user intent to leave the bottom. Release the pin AND
+        // any own-send hold before moving: both would otherwise drag the view
+        // straight back — the hold treats the bottom as a hard stop.
+        if pages < 0.0 {
+            self.pinned = false;
+            self.spring.reset();
+            self.spring_last_tick = None;
+            if let Some(anchor) = self.own_turn.as_mut() {
+                anchor.held = false;
+            }
+            self.own_turn_last_tick = None;
+        }
+        self.list
+            .scroll_by(px((viewport - PAGE_KEY_OVERLAP_PX).max(1.0) * pages));
+        let distance = self.distance_from_bottom();
+        self.last_scroll_distance = distance;
+        // Landing back inside the stick band re-engages the pin, matching the
+        // wheel's own re-stick rule.
+        if pages > 0.0 && distance <= STICK_THRESHOLD_PX {
+            self.engage_pin(cx);
+            return;
+        }
+        self.show_jump_button = distance > SCROLL_BUTTON_THRESHOLD_PX && !self.pinned;
+        cx.notify();
     }
 
     /// The scroll-to-bottom pill's click: glide back to the end and re-pin.

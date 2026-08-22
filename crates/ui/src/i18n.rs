@@ -45,8 +45,36 @@ fn detect() -> Language {
         }
         return from_locale(&value);
     }
+    // Windows has no `LANG`/`LC_*` — those are POSIX. Ask the OS for the
+    // user's UI locale instead, otherwise a Turkish Windows always fell
+    // through to English below.
+    #[cfg(windows)]
+    if let Some(locale) = windows_locale() {
+        return from_locale(&locale);
+    }
+
     Language::English
 }
+
+/// The user's UI locale as a BCP-47 tag (`tr-TR`), straight from Windows.
+#[cfg(windows)]
+fn windows_locale() -> Option<String> {
+    /// `LOCALE_NAME_MAX_LENGTH`.
+    const MAX: usize = 85;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetUserDefaultLocaleName(name: *mut u16, len: i32) -> i32;
+    }
+    let mut buf = [0u16; MAX];
+    // Returns the character count *including* the terminating null, 0 on error.
+    let len = unsafe { GetUserDefaultLocaleName(buf.as_mut_ptr(), MAX as i32) };
+    let len = usize::try_from(len).ok()?.checked_sub(1)?;
+    if len == 0 {
+        return None;
+    }
+    Some(String::from_utf16_lossy(&buf[..len]))
+}
+
 
 fn from_locale(locale: &str) -> Language {
     // `tr_TR.UTF-8` → `tr`. Yalnızca dil kısmı önemli.

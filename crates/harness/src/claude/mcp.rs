@@ -271,7 +271,9 @@ pub fn remove_args(name: &str) -> Result<Vec<String>, String> {
 pub fn run_claude(args: &[String]) -> Result<(), String> {
     let exe = crate::claude::resolve_claude_executable()
         .ok_or_else(|| "claude bulunamadı".to_string())?;
-    let output = Command::new(&exe)
+    let mut command = Command::new(&exe);
+    crate::hide_console_std(&mut command);
+    let output = command
         .args(args)
         .output()
         .map_err(|e| format!("{} çalıştırılamadı: {e}", exe.display()))?;

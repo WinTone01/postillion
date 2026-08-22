@@ -76,12 +76,12 @@ fn resolve_codex_executable() -> Option<PathBuf> {
     {
         return Some(PathBuf::from(p));
     }
-    let exe = if cfg!(windows) { "codex.exe" } else { "codex" };
+    let exe = "codex";
     let mut candidates: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|path| {
             std::env::split_paths(&path)
                 .filter(|d| !d.as_os_str().is_empty())
-                .map(|d| d.join(exe))
+                .flat_map(|d| crate::executables_in(&d, exe))
                 .collect()
         })
         .unwrap_or_default();
@@ -89,20 +89,23 @@ fn resolve_codex_executable() -> Option<PathBuf> {
         candidates.extend(
             std::env::split_paths(shell_path)
                 .filter(|d| !d.as_os_str().is_empty())
-                .map(|d| d.join(exe)),
+                .flat_map(|d| crate::executables_in(&d, exe)),
         );
     }
     if let Some(home) = crate::home_dir() {
-        candidates.push(home.join(".local").join("bin").join("codex"));
-        candidates.push(home.join(".codex").join("bin").join("codex"));
-        candidates.push(home.join(".npm-global").join("bin").join("codex"));
+        candidates.extend(crate::executables_in(&home.join(".local").join("bin"), exe));
+        candidates.extend(crate::executables_in(&home.join(".codex").join("bin"), exe));
+        candidates.extend(crate::executables_in(
+            &home.join(".npm-global").join("bin"),
+            exe,
+        ));
     }
     candidates.push(PathBuf::from("/opt/homebrew/bin/codex"));
     candidates.push(PathBuf::from("/usr/local/bin/codex"));
     candidates.extend(
         crate::node_version_manager_bins()
-            .into_iter()
-            .map(|d| d.join(exe)),
+            .iter()
+            .flat_map(|d| crate::executables_in(d, exe)),
     );
     candidates.into_iter().find(|p| p.exists())
 }
@@ -172,6 +175,7 @@ impl CodexHarness {
     async fn discover_commands(&self) -> Result<Vec<SlashCommand>, HarnessError> {
         let exe = self.resolve_executable()?;
         let mut cmd = Command::new(&exe);
+        crate::hide_console(&mut cmd);
         cmd.arg("app-server");
         crate::compose_child_path(&mut cmd, &exe);
         cmd.stdin(Stdio::piped())
@@ -329,6 +333,7 @@ impl Harness for CodexHarness {
         // kills every command.
         request.sandbox = postillion_proto::SandboxLevel::DangerFullAccess;
         let mut cmd = Command::new(&exe);
+        crate::hide_console(&mut cmd);
         cmd.arg("app-server");
         crate::compose_child_path(&mut cmd, &exe);
         if !request.cwd.is_empty() {

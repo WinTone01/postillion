@@ -627,6 +627,7 @@ struct Capture {
 /// the cap is hit, so an arbitrarily large repository diff never buffers fully.
 async fn capture_git(cwd: &Path, args: &[&str], max_bytes: usize) -> Result<Capture, EngineError> {
     let mut cmd = tokio::process::Command::new("git");
+    postillion_harness::hide_console(&mut cmd);
     cmd.arg("-C").arg(cwd).args(args);
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::piped());
@@ -1238,6 +1239,7 @@ pub async fn snapshot_tree(root: &Path) -> Result<String, EngineError> {
     ));
     let run = |args: &[&str]| {
         let mut cmd = tokio::process::Command::new("git");
+        postillion_harness::hide_console(&mut cmd);
         cmd.arg("-C").arg(root).args(args);
         cmd.env("GIT_INDEX_FILE", &index);
         cmd.stdin(std::process::Stdio::null());

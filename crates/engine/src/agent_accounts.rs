@@ -548,7 +548,9 @@ impl AgentAccounts {
             .root_dir()
             .join(format!(".login-{login_id}"));
         std::fs::create_dir_all(&home)?;
-        let child = match tokio::process::Command::new("codex")
+        let mut command = tokio::process::Command::new("codex");
+        postillion_harness::hide_console(&mut command);
+        let child = match command
             .arg("login")
             .env("CODEX_HOME", &home)
             .stdin(std::process::Stdio::null())
