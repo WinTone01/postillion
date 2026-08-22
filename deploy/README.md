@@ -49,7 +49,7 @@ Coolify sürümünüz bu değişkenleri kendiliğinden üretmezse panelden elle
 girin; üretmek için:
 
 ```bash
-openssl rand -base64 48
+openssl rand -hex 32
 ```
 
 ### 3. Dağıtın ve doğrulayın
@@ -132,7 +132,7 @@ sudo chmod 600 /etc/postillion/server.env
 Jeton üretmek için:
 
 ```bash
-openssl rand -base64 48
+openssl rand -hex 32
 ```
 
 ### 4. Servis ve ters vekil
