@@ -239,6 +239,24 @@ curl -sS -o /dev/null -w '%{http_code}\n' -H 'User-Agent:' https://sync.alanadin
 
 `200` dönmeli. `403` dönüyorsa kontrol hâlâ açık.
 
+Asıl sınama WebSocket yükseltmesi. `--http1.1` ŞART: `curl` TLS üzerinde
+varsayılan olarak HTTP/2 pazarlıyor ve klasik `Upgrade` el sıkışması HTTP/2'de
+geçersiz, dolayısıyla istek sunucuya varmadan `400` ile reddediliyor — bu
+sunucunun değil komutun hatası olur. Rust istemcisi HTTP/1.1 ile el sıkışıyor.
+
+```bash
+curl -sS --http1.1 -o /dev/null -w '%{http_code}\n' -H 'User-Agent:' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "https://sync.alanadiniz.com/chat2/deneme/ws?token=JETON"
+```
+
+Cevabın anlamı:
+
+| Kod | Ne demek |
+| --- | --- |
+| `101` | Her şey yolunda: Cloudflare geçildi, jeton kabul edildi, soket açıldı |
+| `401` | Jeton yanlış — sunucuya ulaşıyorsunuz, kimlik denetimi reddediyor |
+| `403` | Cloudflare engelliyor; WAF kuralı eksik ya da yanlış alan adında |
+| `400` | Büyük ihtimalle `--http1.1` unutulmuş |
+
 ## Bilinen sınırlar
 
 - **Anlık görüntü yok.** Odalar hiç budanmıyor: her yeni cihaz sohbetin tüm

@@ -775,12 +775,25 @@ async fn terminal_stream_proxies_over_the_relay() {
         )
         .await
         .expect("remote subscribe");
+    // The marker has to be COMPUTED by the shell, never typed: the terminal
+    // echoes the input line back, so writing a literal `r3lay-22` would let
+    // this assertion pass against a shell that never ran. Both forms below
+    // make the shell produce the 22.
+    //
+    // Windows runs `cmd` (`COMSPEC`), which has neither `$(( ))` nor delayed
+    // expansion, so the value is computed on one line and read on the next —
+    // `%n%` on a single combined line would expand before `set` had run.
+    #[cfg(not(windows))]
+    let script = "echo r3lay-$((20+2))\n";
+    #[cfg(windows)]
+    let script = "set /a n=20+2 > nul\r\necho r3lay-%n%\r\n";
+
     client
         .call(
             methods::WRITE_TERMINAL,
             serde_json::json!({
                 "terminalId": terminal_id,
-                "data": BASE64.encode("echo r3lay-$((20+2))\n"),
+                "data": BASE64.encode(script),
                 "targetDeviceId": "device-b",
             }),
         )
