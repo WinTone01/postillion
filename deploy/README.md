@@ -182,31 +182,32 @@ olurdu.
 | `/login`, `/register` | Kimlik |
 | `/app` | Panel — cihazlar, sohbetler, jetonlar |
 
-Coolify'da: **Yeni Kaynak → Docker Compose**, aynı depoyu seçin ve compose
-dosyası olarak şunu verin:
+Panel ve sunucu **AYNI compose dosyasında** — tek Coolify kaynağı. Ayrı
+kaynaklar olsalardı ayrı ağlarda olurlardı ve panelin veritabanının `db`
+adını çözmesi mümkün olmazdı; bağlantı bilgilerini elle girmek gerekirdi.
 
-```
-docker-compose.panel.yaml
-```
+**Domains** alanında her servise ayrı alan adı verin:
 
-**Domains** alanına ana alan adınızı yazın (örn. `postillion.net`).
+| Servis | Alan adı |
+| --- | --- |
+| `panel` | `postillion.net` |
+| `server` | `sync.postillion.net` |
 
-Veritabanı eşitleme sunucusuyla **AYNI** olmalı — panel kayıt satırlarını ve
-jeton tablosunu oradan okuyor.
+**Veritabanı bilgisi girmiyorsunuz.** Panel aynı ağda olduğu için `db:5432`'yi
+ve sunucuyu `http://server:8787` üzerinden doğrudan çözüyor; bağlantı dizesi
+compose'da hazır.
 
-Ayarlanacak değişkenler:
+Panelin sunucuya İÇ ağdan gitmesi ayrıca Cloudflare'in bot korumasını hiç
+devreye sokmuyor — dışarıdan gitseydi aynı `1010` engeline takılırdı.
+
+Ayarlanacak tek şey:
 
 | Değişken | Değer |
 | --- | --- |
+| `SERVICE_PASSWORD_POSTGRES` | Coolify üretiyor |
+| `SERVICE_PASSWORD_POSTILLIONTOKEN` | Coolify üretiyor — cihaz jetonu |
 | `SERVICE_PASSWORD_PANELKEY` | Coolify üretiyor — oturum çerezlerini imzalıyor |
-| `PANEL_DATABASE_URL` | Sunucununkiyle **aynı** `postgres://…` dizesi |
-| `POSTILLION_SERVER_URL` | `https://sync.alanadiniz.com` |
-| `POSTILLION_SERVER_TOKEN` | Sunucudaki jeton |
-| `TURNSTILE_SITE_KEY` / `_SECRET` | Boş bırakılırsa captcha ATLANIYOR |
-
-Veritabanı tek bir bağlantı dizesiyle veriliyor; parçalı biçimde bir parça
-eksik kalırsa uygulama "eksik değişken" ile hiç açılmıyor ve hangisinin
-eksik olduğunu panelde aramak gerekiyor.
+| `TURNSTILE_SITE_KEY` / `_SECRET` | Sizin Cloudflare anahtarlarınız; boş bırakılırsa captcha ATLANIYOR |
 
 | Alan adı | Kaynak |
 | --- | --- |
