@@ -179,3 +179,41 @@ async fn saglik_kontrolu_kapali_olani_yakaliyor() {
         "kapalı sunucu sağlıklı görünmemeli"
     );
 }
+
+#[tokio::test]
+async fn kok_yol_sunucuyu_tanitiyor() {
+    // Adresi tarayıcıya yapıştıran biri çıplak bir 404 görmemeli: ilk
+    // kurulumda bu, çalışan bir sunucunun bozuk sanılmasına yol açtı.
+    let server = start().await;
+    let body = reqwest_get(server.port, "/").await;
+    assert!(body.starts_with("HTTP/1.1 200"), "kök yol cevabı: {body}");
+    assert!(body.contains("postillion-server"), "kimlik yok: {body}");
+    // Sürüm duyurulmamalı — saldırganın işini kolaylaştırmaktan başka bir
+    // işe yaramıyor.
+    assert!(
+        !body.contains(env!("CARGO_PKG_VERSION")),
+        "sürüm sızdırılmamalı: {body}"
+    );
+}
+
+/// Tek atışlık ham HTTP isteği — sunucuya bir HTTP istemcisi bağımlılığı
+/// eklemeden durum satırını ve gövdeyi okumak için.
+async fn reqwest_get(port: u16, path: &str) -> String {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .expect("bağlanmalı");
+    stream
+        .write_all(
+            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        )
+        .await
+        .expect("istek yazılmalı");
+    let mut out = String::new();
+    stream
+        .read_to_string(&mut out)
+        .await
+        .expect("cevap okunmalı");
+    out
+}

@@ -210,6 +210,35 @@ değilken hiçbir şey yapmıyor, dolayısıyla Coolify kurulumuyla çakışmıy
 | `POST /chat2/{id}/rows` | Aynı yoldan gönderme |
 | `GET /chat2/{id}/checkpoint` | Anlık görüntü — şu an her zaman 404 |
 
+## Cloudflare arkasında çalıştırıyorsanız
+
+Alan adınız Cloudflare vekilinden (turuncu bulut) geçiyorsa **Browser
+Integrity Check / Bot Fight Mode eşitlemeyi tamamen kırıyor.** Bu kontroller
+tarayıcı imzası arıyor; masaüstü istemcisi bir tarayıcı değil ve WebSocket
+yükseltmesi `error code: 1010` ile reddediliyor. Tarayıcıdan `/health`
+çağırdığınızda `ok` görmeniz yanıltıcı: tarayıcı kontrolü geçiyor, istemci
+geçmiyor.
+
+Üç seçenek var:
+
+1. **WAF kuralı (önerilen).** Cloudflare panelinde Security → WAF → Custom
+   rules: `Hostname eşittir sync.alanadiniz.com` için eylem **Skip** →
+   Browser Integrity Check. Alan adının geri kalanı korumalı kalıyor.
+2. **Alt alan adını gri buluta çekin.** DNS kaydını "DNS only" yapın; TLS'i
+   Coolify sonlandırır. En basiti, ama sunucunun IP'si açığa çıkar ve
+   Cloudflare'in DDoS koruması devreden çıkar.
+3. Bot Fight Mode'u tüm bölge için kapatın — landing sayfasını da
+   korumasız bırakır, o yüzden en az tercih edileni.
+
+Doğru yapılandırdığınızı şöyle sınayabilirsiniz — tarayıcı User-Agent'ı
+OLMADAN istemek önemli, kontrolü tetikleyen şey tam olarak bu:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'User-Agent:' https://sync.alanadiniz.com/health
+```
+
+`200` dönmeli. `403` dönüyorsa kontrol hâlâ açık.
+
 ## Bilinen sınırlar
 
 - **Anlık görüntü yok.** Odalar hiç budanmıyor: her yeni cihaz sohbetin tüm
