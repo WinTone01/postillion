@@ -1272,6 +1272,24 @@ fn expand_home(cwd: &str) -> String {
     }
 }
 
+/// Çözülmemiş araçlar (canlı plan çipi hariç) ve cevaplanmamış sorular.
+///
+/// Canlı plan çipi bilerek tekil ve HİÇ çözülmüyor; onu "yolda iş" saymak
+/// her turu sonsuza kadar meşgul gösterirdi.
+///
+/// Üst akıştan alındı: zeronsh/comet#94.
+fn fold_has_in_flight_work(folded: &[MessagePart]) -> bool {
+    folded.iter().any(|part| match part {
+        MessagePart::Tool {
+            id,
+            resolved: false,
+            ..
+        } => id != postillion_proto::LIVE_PLAN_TOOL_ID,
+        MessagePart::Input { resolved: false, .. } => true,
+        _ => false,
+    })
+}
+
 /// Resume bookkeeping for one run task: which user entry the run answers (so
 /// the startup-crash retry re-dispatches idempotently against the same doc
 /// entry), whether `dispatch` injected the resume id itself (only
@@ -1466,7 +1484,22 @@ async fn drive_run(
                 session_id: None,
             },
             _ = live_heartbeat.tick() => {
-                inner.touch_session(&chat_id);
+                // Kalp atışı, sessiz ama canlı bir alt sürecin arayüzün 45
+                // saniyelik "Working" penceresi içinde kalması için var. Açık
+                // bir araç ya da park etmiş bir soru için bu doğru.
+                //
+                // Ama fold'da tamamlanmış çıktı varken ve yolda iş yokken
+                // YANLIŞ: her tik tazeliği sıfırlıyor, bayatlama kapısı hiç
+                // açılmıyor ve biten bir tur sonsuza kadar Working görünüyor
+                // (düşen cevap / tur ortası askıda kalma biçimi).
+                //
+                // Bedeli bilinçli: delta üretmeyen sessiz bir düşünme, alt
+                // süreç canlı olsa bile 45 saniye sonra Working'den düşecek.
+                //
+                // Üst akıştan alındı: zeronsh/comet#94.
+                if idle_since.is_none() && fold_has_in_flight_work(&folded) {
+                    inner.touch_session(&chat_id);
+                }
                 continue;
             }
             // Idle reaper (postillion SESSION_IDLE_MS): a parked persistent session
@@ -1554,20 +1587,35 @@ async fn drive_run(
                 && idle_since.is_none()
                 && !interrupted
                 && steerable
-                && !folded.iter().any(|p| match p {
-                    MessagePart::Tool { id, resolved: false, .. } => {
-                        id != postillion_proto::LIVE_PLAN_TOOL_ID
-                    }
-                    MessagePart::Input { resolved: false, .. } => true,
-                    _ => false,
-                }) =>
+                && !fold_has_in_flight_work(&folded) =>
             {
                 tracing::warn!(
                     chat = %chat_id,
                     quiet_ms = quiesce_after.unwrap_or_default().as_millis() as u64,
+                    self_continued = self_continued_turn,
                     "turn quiesced: stream silent after completed output with no \
                      turn-end; parking (suspected missing harness Done)"
                 );
+                // Sessizleşen bir prompt/steer turu ZORLA kapanmış demektir,
+                // temiz bir bitiş değil. Gözcü tahmini şimdiye kadar `Completed`
+                // + Idle yazıyordu: gerçek bitişten ayırt edilemez, bitiş sesi
+                // çalıyor ve hiçbir işaret kalmıyordu — koltuktan bakınca
+                // çökme gibi görünüyor.
+                //
+                // Kendi kendine devam eden turların arkasında bir prompt yok
+                // ve gözcü onların TEK bitiş yolu; onlar sessiz Idle kalıyor.
+                //
+                // Üst akıştan alındı: zeronsh/comet#99.
+                if !self_continued_turn {
+                    fold_event_into_parts(
+                        &mut folded,
+                        &AgentEvent::Error {
+                            // Motor katmanındaki diğer mesajlar gibi
+                            // İngilizce; çeviri arayüzün katalogunda.
+                            message: "Turn settled — agent went quiet.".into(),
+                        },
+                    );
+                }
                 if !folded.is_empty() || writer.is_some() {
                     if let Err(err) = finish_segment(
                         doc_ref,
@@ -1587,8 +1635,13 @@ async fn drive_run(
                 entry_id = new_id();
                 segment_started = now_ms();
                 idle_since = Some(tokio::time::Instant::now());
+                let parked = if self_continued_turn {
+                    SessionStatus::Idle
+                } else {
+                    SessionStatus::Errored
+                };
                 self_continued_turn = false;
-                inner.set_status(&chat_id, SessionStatus::Idle, false);
+                inner.set_status(&chat_id, parked, false);
                 continue;
             }
         };
@@ -2253,5 +2306,79 @@ mod subagent_id_tests {
             subagent_doc_id("chat", "a:b"),
             subagent_doc_id("chat", "a:c")
         );
+    }
+}
+
+#[cfg(test)]
+mod fold_liveness_tests {
+    //! Kalp atışının hangi fold'da atıp hangisinde atmaması gerektiği.
+    //!
+    //! Üst akıştan alındı: zeronsh/comet#94.
+    use super::fold_has_in_flight_work;
+    use postillion_doc::MessagePart;
+    use postillion_proto::{LIVE_PLAN_TOOL_ID, ToolCall, UserInputQuestion};
+
+    fn open_tool(id: &str) -> MessagePart {
+        MessagePart::Tool {
+            id: id.into(),
+            call: ToolCall::Exec {
+                command: "make".into(),
+            },
+            is_error: false,
+            resolved: false,
+            output: None,
+            diff: None,
+            output_ref: None,
+            output_bytes: None,
+            diff_ref: None,
+            diff_stats: None,
+            subagent_ref: None,
+            subagent_status: None,
+            subagent_tail: None,
+        }
+    }
+
+    fn text(t: &str) -> MessagePart {
+        MessagePart::Text {
+            id: "t0".into(),
+            text: t.into(),
+        }
+    }
+
+    /// Biten tur: kalp atışı SUSMALI, yoksa sonsuza kadar Working görünür.
+    #[test]
+    fn tamamlanmis_metin_yolda_is_sayilmiyor() {
+        assert!(!fold_has_in_flight_work(&[text("done")]));
+        assert!(!fold_has_in_flight_work(&[]));
+    }
+
+    /// Açık araç ve cevaplanmamış soru: sessizlik GERÇEK iş, atış sürmeli.
+    #[test]
+    fn acik_arac_ve_soru_kalp_atisini_hak_ediyor() {
+        assert!(fold_has_in_flight_work(&[
+            text("working"),
+            open_tool("build-1")
+        ]));
+        assert!(fold_has_in_flight_work(&[MessagePart::Input {
+            id: "q0".into(),
+            request_id: "r0".into(),
+            questions: vec![UserInputQuestion {
+                id: "q".into(),
+                header: "ok?".into(),
+                question: "continue?".into(),
+                options: vec![],
+                multi_select: false,
+            }],
+            resolved: false,
+        }]));
+    }
+
+    /// Canlı plan çipi hiç çözülmüyor; onu iş saymak her turu meşgul gösterirdi.
+    #[test]
+    fn canli_plan_cipi_tek_basina_is_degil() {
+        assert!(!fold_has_in_flight_work(&[
+            text("plan updated"),
+            open_tool(LIVE_PLAN_TOOL_ID)
+        ]));
     }
 }
