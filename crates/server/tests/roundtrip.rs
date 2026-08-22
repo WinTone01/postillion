@@ -217,3 +217,66 @@ async fn reqwest_get(port: u16, path: &str) -> String {
         .expect("cevap okunmalı");
     out
 }
+
+#[tokio::test]
+async fn transkript_ucu_materyalize_mesaj_donduruyor() {
+    // Panelin bilgisayar kapalıyken içeriği göstermesi buna bağlı: satırlar
+    // sunucuda birleştirilip mesaj olarak sunuluyor.
+    let server = start().await;
+
+    // Bir istemcinin yaptığını yapıyoruz: doc'a yaz, güncellemeyi satır olarak
+    // sunucuya koy.
+    let doc = postillion_doc::SessionDoc::init("c-msg").expect("doc");
+    doc.push_message(&postillion_doc::SessionMessageEntry {
+        id: "m1".into(),
+        role: postillion_doc::MessageRole::User,
+        parts: vec![postillion_doc::MessagePart::Text {
+            id: "m1-p0".into(),
+            text: "webden görünmeli".into(),
+        }],
+        created_at: 1_700_000_000_000,
+        device_id: "dev-a".into(),
+        status: None,
+        continuation_of: None,
+    })
+    .expect("yazım");
+    let payload = doc
+        .doc()
+        .export(loro::ExportMode::Snapshot)
+        .expect("dışa aktarım");
+
+    postillion_sync::room::ChatStore::append(
+        &*server.store,
+        "c-msg",
+        "dev-a".into(),
+        "b1".into(),
+        payload,
+    )
+    .await
+    .expect("satır yazılmalı");
+
+    let body = http_get(server.port, "/chat2/c-msg/messages?token=test-jetonu").await;
+    assert!(body.contains("HTTP/1.1 200"), "cevap: {body}");
+    assert!(
+        body.contains("webden görünmeli"),
+        "transkript mesajı taşımalı: {body}"
+    );
+}
+
+/// Tek atışlık ham HTTP GET.
+async fn http_get(port: u16, path: &str) -> String {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .expect("bağlanmalı");
+    stream
+        .write_all(
+            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        )
+        .await
+        .expect("istek");
+    let mut out = Vec::new();
+    stream.read_to_end(&mut out).await.expect("cevap");
+    String::from_utf8_lossy(&out).into_owned()
+}

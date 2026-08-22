@@ -214,6 +214,7 @@ değilken hiçbir şey yapmıyor, dolayısıyla Coolify kurulumuyla çakışmıy
 | `GET /chat2/{id}/rows` | WebSocket geçmeyen ağlar için satır çekme |
 | `POST /chat2/{id}/rows` | Aynı yoldan gönderme |
 | `GET /chat2/{id}/checkpoint` | Anlık görüntü — şu an her zaman 404 |
+| `GET /chat2/{id}/messages` | Materyalize transkript (panel için; eşitleme istemcileri kullanmıyor) |
 | `GET /registry/{org}/ws` | Çalışma alanı kaydı: kenar çubuğu satırları, presence |
 | `GET /registry/{org}/rows` | Kaydın HTTP yolu |
 | `POST /registry/{org}/push` | Aynı yoldan yazma |

@@ -140,6 +140,36 @@ pub async fn post_rows(
     Ok(axum::Json(ack).into_response())
 }
 
+/// `GET /chat2/{id}/messages` — materyalize edilmiş transkript.
+///
+/// Panel için. Eşitleme istemcileri bunu KULLANMIYOR: onlar satırları alıp
+/// kendi belgelerinde birleştiriyor. Buradaki fark, panelin bilgisayar
+/// kapalıyken de içeriği görmesi gerektiği — host'a soramadığımız için
+/// birleştirmeyi sunucu yapıyor.
+pub async fn get_messages(
+    State(app): State<App>,
+    Path(chat_id): Path<String>,
+    Query(query): Query<RowsQuery>,
+    headers: HeaderMap,
+) -> Result<Response, StatusCode> {
+    if !authorized(&app, &headers, query.token.as_deref()) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let rows = app
+        .store
+        .rows_after(&chat_id, 0, None)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let entries = crate::transcript::materialize(&rows).map_err(|err| {
+        tracing::warn!(chat = %chat_id, error = %err, "transkript kurulamadı");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(axum::Json(serde_json::json!({ "messages": entries })).into_response())
+}
+
 /// `GET /chat2/{id}/checkpoint`.
 ///
 /// Aşama 1'de anlık görüntü yazan bir yol yok, dolayısıyla hiç görüntü yok.

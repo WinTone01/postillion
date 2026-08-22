@@ -5336,6 +5336,7 @@ dependencies = [
  "anyhow",
  "axum",
  "futures",
+ "loro",
  "postillion-doc",
  "postillion-proto",
  "postillion-rpc",

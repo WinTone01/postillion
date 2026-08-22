@@ -5,12 +5,18 @@ Bu belge ne yapılacağını ve neden öyle yapılacağını yazıyor.
 
 ## Panelin işi
 
-**Bilgisayarı açık olan bir kullanıcının, o bilgisayardaki sohbete webden devam
-edebilmesi.**
+**Sohbetlere webden devam edebilmek.**
 
-Tek cümle ama iki şey söylüyor: transkripti görebilmek ve içine yazabilmek. Ve
-"bilgisayar açıksa" şartı bir sınır değil, tasarımın kendisi — panel işi
-bilgisayara yaptırıyor, kendisi yapmıyor.
+İki ayrı yetenek ve şartları farklı:
+
+| Yetenek | Bilgisayar gerekiyor mu |
+| --- | --- |
+| Transkripti okumak | **Hayır** — sunucu kendi kuruyor |
+| Sohbete yazmak | Evet — işi yapan ajan orada çalışıyor |
+
+Okumanın bilgisayardan bağımsız olması şart: kapalı bir dizüstü yüzünden
+geçmişin görünmemesi kabul edilemez. İleride bulut çalıştırma geldiğinde
+yazmak da bağımsızlaşacak — o zaman ajanı sunucu çalıştıracak.
 
 ## Alınan kararlar
 
@@ -35,30 +41,34 @@ doğal çalışıyor. Passkey/2FA sonradan gerekirse ayrıca eklenir.
 Captcha için **Cloudflare Turnstile**: alan adı zaten Cloudflare'in arkasında,
 ikinci bir sağlayıcı hesabı açmaya gerek yok.
 
-### Panel bir RPC istemcisi; eşitleme istemcisi DEĞİL
+### Okuma sunucuda materyalize ediliyor — YAPILDI
 
-Bu planın en önemli kararı ve işi büyük ölçüde ortadan kaldırıyor.
+Satırlar opak loro güncellemesi; okumak için birleştirme gerekiyor. Bunu üç
+yerde yapmak mümkündü ve seçim önemliydi:
 
-İlk düşünce, sohbet içeriğini göstermek için tarayıcıda loro çalıştırmaktı:
-satırlar opak CRDT güncellemesi ve okumak için birleştirme gerekiyor. Gerekmiyor.
-Motorun RPC yüzeyinde iki metot **zaten** `targetDeviceId` ile uzak cihaza
-yönlendirilebilir durumda (`crates/engine/src/rpc.rs`, `forwardable`):
+- **Host'a sordurmak.** Elenmesinin sebebi tam da bilgisayarın kapalı
+  olabilmesi: soracak kimse yok.
+- **Tarayıcıda loro.** Mümkün (`loro-crdt` npm'de) ama bulut çalıştırma
+  geldiğinde aynı işi sunucuda ikinci kez yazmak gerekirdi.
+- **Sunucuda.** Birleştirme kodu zaten burada (`postillion-doc`, istemcinin
+  çalıştırdığının aynısı) ve bulut çalıştırmanın da ihtiyacı olan şey bu.
 
-| Metot | Panelde karşılığı |
-| --- | --- |
-| `WatchDocMessages` | Transkripti akış olarak al |
-| `QueueCommand` | Sohbete mesaj yaz |
+Uygulandı: `crates/server/src/transcript.rs` satırları birleştirip mesajları
+okuyor, `GET /chat2/{id}/messages` panele JSON veriyor. Bozuk ya da bağımlılığı
+eksik bir satır bütün transkripti düşürmüyor — elde olan gösteriliyor.
 
-Yani panel cihaz rölesine `role=client` ile bağlanıp bu ikisini çağırıyor.
-Belgeyi host tutuyor, mesajları host materyalize ediyor, panel yalnızca JSON
-render ediyor. Tarayıcıda CRDT yok, protokolün dördüncü bir uygulaması yok.
+### Yazma cihaz rölesinden
 
-Eşitleme protokolünün zaten üç uygulaması var (Rust istemci, TS edge, Swift iOS)
-ve elle senkron tutuluyorlar; dördüncüsü dördüncü bir sapma kaynağı olurdu.
+Mesaj yazmak ajanı çalıştırmak demek ve ajan bilgisayarda. Motorun RPC yüzeyinde
+`QueueCommand` **zaten** `targetDeviceId` ile uzak cihaza yönlendirilebilir
+(`crates/engine/src/rpc.rs`, `forwardable`), yani panel cihaz rölesine
+`role=client` ile bağlanıp onu çağırıyor.
 
-Kayıt satırları (`registry_rows.fields`) düz JSON olduğu için cihaz ve sohbet
-LİSTESİ bilgisayar kapalıyken de gösterilebiliyor. Gösterilemeyen şey o
-sohbetin içi — çünkü onu materyalize eden bilgisayar kapalı. İstenen model bu.
+Eşitleme protokolünü TypeScript'te yeniden yazmıyoruz: zaten üç uygulaması var
+(Rust istemci, TS edge, Swift iOS) ve elle senkron tutuluyorlar.
+
+Cihaz ve sohbet LİSTESİ de bilgisayardan bağımsız: kayıt satırları
+(`registry_rows.fields`) düz JSON.
 
 ### Jeton modeli: sunucu kendi tablosunu tutuyor
 
@@ -72,6 +82,13 @@ değiştirdiğinde eşitleme sessizce kırılırdı.
 
 Bu aynı zamanda bugünkü **tek paylaşılan jetonu** emekliye ayırıyor — planın
 Aşama 3'ü.
+
+## İlerideki yön: bulutta çalıştırma
+
+Panelden yazmanın bilgisayara bağlı olması geçici. İleride ajan sunucuda da
+çalışacak ve webde başlatılan iş cihazlara dağıtılacak. Bugünkü karar buna
+göre alındı: transkripti sunucuda materyalize etmek o zaman zaten gerekecek —
+sunucu sohbeti okuyamadan içine yazamaz.
 
 ## Aşamalar
 
@@ -92,10 +109,9 @@ Aşama 3'ü.
 - Presence: hangi cihaz çevrimiçi
 
 ### 4. Sohbete devam etme — panelin asıl işi
-- Cihaz rölesine `role=client` bağlantısı
-- `WatchDocMessages` ile transkript
-- `QueueCommand` ile mesaj yazma
-- Cevabın akışını canlı izleme
+- Transkript `GET /chat2/{id}/messages` ile (sunucu tarafı hazır)
+- Yazmak için cihaz rölesine `role=client` bağlantısı + `QueueCommand`
+- Cihaz çevrimdışıysa: geçmiş okunur, yazma kapalı ve sebebi yazılı
 
 ### 5. Cilalama
 - Yeniden bağlanma, host çevrimdışıyken açık durum bildirimi
@@ -123,6 +139,7 @@ etkilenmiyor — o ayrı bir RPC yolu.
 **Kayıt açmak kota gerektirir.** Bugün sunucuda kullanıcı başına sınır yok;
 herkese açık kayıt bunu zorunlu kılar.
 
-**Bilgisayar kapalıyken sohbet açılamaz.** Tasarımın kendisi, ama arayüzde
-bunun net görünmesi gerekiyor: kullanıcı boş bir ekranla değil "bu cihaz
-çevrimdışı" ile karşılaşmalı.
+**Bilgisayar kapalıyken yazılamaz.** Okumak çalışıyor; yazmak ajanı
+çalıştırmak demek ve ajan orada. Arayüz bunu net söylemeli — kullanıcı
+kaybolmuş bir buton değil "bu cihaz çevrimdışı" görmeli. Bulut çalıştırma
+geldiğinde bu kısıt kalkacak.

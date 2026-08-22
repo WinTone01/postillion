@@ -20,6 +20,7 @@ pub mod registry_ws;
 pub mod http;
 pub mod hub;
 pub mod rooms;
+pub mod transcript;
 
 use std::sync::Arc;
 
@@ -57,6 +58,8 @@ pub fn router(app: App) -> Router {
             get(http::get_rows).post(http::post_rows),
         )
         .route("/chat2/{chat_id}/checkpoint", get(http::get_checkpoint))
+        // Panel için materyalize transkript — bilgisayar kapalıyken de okunur.
+        .route("/chat2/{chat_id}/messages", get(http::get_messages))
         // Çalışma alanı kaydı: kenar çubuğu satırları ve presence. Uygulama
         // bu uç olmadan bağlanamıyor — 404 alıp sonsuza kadar yeniden
         // bağlanmayı deniyor.
