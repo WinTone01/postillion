@@ -1,0 +1,54 @@
+name: server
+
+# Sunucunun kendi CI'ı. Windows işi bütün çalışma alanını derliyor ama iki
+# şeyi kaçırıyor: yavaş (20+ dakika) ve KONTEYNER imajını hiç kurmuyor.
+#
+# İmajın kurulmaması bugün pahalıya mal oldu: `crates/server` yeni bir
+# bağımlılık aldı, `cargo build --workspace` yeşil kaldı ve hata ancak
+# sunucuda "failed to read /src/crates/rpc/Cargo.toml" olarak göründü. İmaj
+# çalışma alanını kırptığı için yerel derleme bunu göremiyor.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/server/**"
+      - "crates/sync/**"
+      - "crates/doc/**"
+      - "crates/proto/**"
+      - "crates/rpc/**"
+      - "deploy/**"
+      - "docker-compose.yaml"
+      - ".dockerignore"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/server.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: test
+        # Postgres testleri POSTILLION_TEST_DATABASE_URL olmadan kendilerini
+        # atlıyor; buradaki kapsam protokol ve taşıma.
+        run: cargo test -p postillion-server -p postillion-sync --lib --tests
+
+  image:
+    # İmajın gerçekten kurulduğunu kanıtlayan tek yer. Sır gerektirmiyor:
+    # yalnızca derleniyor, hiçbir yere gönderilmiyor.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

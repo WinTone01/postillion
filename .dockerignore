@@ -22,11 +22,14 @@ build/
 # `apps/landing/` BURAYA GİRMİYOR: landing imajı da aynı kökü bağlam olarak
 # kullanıyor ve buradan dışlanması onu görünmez yapardı. 1,8 MB, sunucu
 # derlemesine yükü ihmal edilebilir.
+#
+# `crates/rpc/` de girmiyor: cihaz rölesinin çerçeve codec'i orada ve sunucu
+# ona bağımlı. Kendisi yalnızca `proto` ile `sync`'e bağlı, yani ağır bir şey
+# getirmiyor.
 apps/ios/
 apps/postillion/
 crates/ui/
 crates/engine/
 crates/harness/
-crates/rpc/
 crates/update/
 crates/syntax/
